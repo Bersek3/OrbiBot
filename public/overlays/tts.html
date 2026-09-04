@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>OBS TTS Audio Player</title>
+  <link rel="stylesheet" href="/css/overlays.css">
+  <style>
+    .tts-indicator {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(14, 18, 28, 0.9);
+      border: 1px solid var(--primary-purple);
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 13px;
+      color: #fff;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .tts-indicator.active {
+      opacity: 1;
+    }
+    .tts-wave {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 14px;
+    }
+    .tts-wave-bar {
+      width: 3px;
+      height: 100%;
+      background: var(--neon-cyan);
+      border-radius: 2px;
+      animation: eqBounce 0.8s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body>
+  <div id="ttsIndicator" class="tts-indicator">
+    <div class="tts-wave">
+      <div class="tts-wave-bar" style="animation-delay: 0.1s"></div>
+      <div class="tts-wave-bar" style="animation-delay: 0.2s"></div>
+      <div class="tts-wave-bar" style="animation-delay: 0.3s"></div>
+    </div>
+    <span id="ttsUser">Voz en stream...</span>
+  </div>
+
+  <script>
+    const ttsIndicator = document.getElementById('ttsIndicator');
+    const ttsUser = document.getElementById('ttsUser');
+
+    const queue = [];
+    let isSpeaking = false;
+
+    function processQueue() {
+      if (isSpeaking || queue.length === 0) return;
+      isSpeaking = true;
+
+      const item = queue.shift();
+      ttsIndicator.classList.add('active');
+      ttsUser.innerText = `TTS: ${item.user}`;
+
+      // Check if item has audioUrl (Google / TikTok audio)
+      if (item.audioUrl) {
+        const audio = new Audio(item.audioUrl);
+        audio.volume = item.volume !== undefined ? item.volume : 0.9;
+        audio.onended = () => {
+          finishSpeaking();
+        };
+        audio.onerror = () => {
+          // Fallback to Web Speech API if audio stream blocked
+          speakWebSpeech(item);
+        };
+        audio.play().catch(() => {
+          speakWebSpeech(item);
+        });
+        return;
+      }
+
+      speakWebSpeech(item);
+    }
+
+    function speakWebSpeech(item) {
+      if (!('speechSynthesis' in window)) {
+        console.warn('Speech synthesis not supported');
+        finishSpeaking();
+        return;
+      }
+
+      window.speechSynthesis.cancel(); // Clear any hung synth
+
+      const utterance = new SpeechSynthesisUtterance(item.text);
+      utterance.volume = item.volume !== undefined ? item.volume : 0.9;
+      utterance.rate = item.rate || 1.0;
+      utterance.pitch = item.pitch || 1.0;
+
+      // Select voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const spanishVoice = voices.find(v => v.lang.startsWith('es') || v.name.includes('Spanish'));
+      if (spanishVoice) {
+        utterance.voice = spanishVoice;
+      }
+
+      utterance.onend = () => {
+        finishSpeaking();
+      };
+
+      utterance.onerror = (e) => {
+        console.warn('Speech error:', e);
+        finishSpeaking();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function finishSpeaking() {
+      ttsIndicator.classList.remove('active');
+      setTimeout(() => {
+        isSpeaking = false;
+        processQueue();
+      }, 500);
+    }
+
+    // Preload voices
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+
+    function connectWS() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${location.host}`);
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.event === 'tts') {
+            queue.push(msg.data);
+            processQueue();
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWS, 3000);
+      };
+    }
+
+    connectWS();
+  </script>
+</body>
+</html>

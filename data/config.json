@@ -1,0 +1,57 @@
+{
+  "twitch": {
+    "channel": "",
+    "botUsername": "",
+    "oauthToken": "",
+    "clientId": "yw1vr664ichms8an2x5lhji58v7ozk",
+    "connected": false
+  },
+  "songRequest": {
+    "prefix": "!sr",
+    "enabled": true,
+    "maxDurationMinutes": 8,
+    "maxPerUser": 5,
+    "userLevel": "all",
+    "volume": 75,
+    "autoplay": true
+  },
+  "tts": {
+    "enabled": true,
+    "engine": "webspeech",
+    "voice": "es_001",
+    "volume": 90,
+    "rate": 1,
+    "pitch": 1,
+    "minBits": 50,
+    "allowChatCommand": true,
+    "chatCommand": "!tts",
+    "bannedWords": [
+      "nazi",
+      "hitler",
+      "racismo",
+      "tonto"
+    ],
+    "maxLength": 250,
+    "channelPointsRewardName": "TTS"
+  },
+  "goals": {
+    "subs": {
+      "title": "Meta de Suscriptores",
+      "current": 12,
+      "target": 50,
+      "color": "#9146ff"
+    },
+    "followers": {
+      "title": "Meta de Seguidores",
+      "current": 185,
+      "target": 300,
+      "color": "#00f2fe"
+    },
+    "bits": {
+      "title": "Meta de Bits",
+      "current": 1500,
+      "target": 5000,
+      "color": "#f5a623"
+    }
+  }
+}

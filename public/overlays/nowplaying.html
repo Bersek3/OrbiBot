@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>OBS Now Playing Song Overlay</title>
+  <link rel="stylesheet" href="/css/overlays.css">
+</head>
+<body>
+  <div class="np-container">
+    <div id="npCard" class="np-card">
+      <div class="np-thumb-wrapper">
+        <img id="npThumb" class="np-thumb" src="" alt="Album Cover">
+      </div>
+      <div class="np-info">
+        <div class="np-tag">
+          <span>NOW PLAYING</span>
+          <div class="np-equalizer">
+            <div class="np-bar"></div>
+            <div class="np-bar"></div>
+            <div class="np-bar"></div>
+            <div class="np-bar"></div>
+          </div>
+        </div>
+        <div id="npTitle" class="np-title">Esperando canciones...</div>
+        <div id="npRequester" class="np-requester">Pedida por <strong>Streamer</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const npCard = document.getElementById('npCard');
+    const npThumb = document.getElementById('npThumb');
+    const npTitle = document.getElementById('npTitle');
+    const npRequester = document.getElementById('npRequester');
+
+    function updateSong(song) {
+      if (!song) {
+        npCard.classList.remove('visible');
+        return;
+      }
+
+      npThumb.src = song.thumbnail || 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
+      npTitle.innerText = song.title || 'Canción desconocida';
+      npRequester.innerHTML = `Pedida por <strong>@${song.requester || 'Anónimo'}</strong>`;
+      npCard.classList.add('visible');
+    }
+
+    // Initial fetch
+    fetch('/api/sr/state')
+      .then(r => r.json())
+      .then(state => {
+        if (state.currentSong && state.isPlaying) {
+          updateSong(state.currentSong);
+        }
+      })
+      .catch(console.error);
+
+    function connectWS() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${location.host}`);
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.event === 'init_state') {
+            if (msg.data.srState && msg.data.srState.currentSong) {
+              updateSong(msg.data.srState.currentSong);
+            }
+          } else if (msg.event === 'sr_update') {
+            const update = msg.data;
+            if (update.action === 'play') {
+              updateSong(update.data);
+            } else if (update.action === 'skip') {
+              updateSong(update.data.current);
+            } else if (update.action === 'stop') {
+              updateSong(null);
+            } else if (update.action === 'state_change') {
+              if (!update.data.isPlaying) {
+                // Dim or hide
+              }
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWS, 3000);
+      };
+    }
+
+    connectWS();
+  </script>
+</body>
+</html>
