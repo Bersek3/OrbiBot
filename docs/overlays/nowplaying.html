@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>OBS Now Playing Song Overlay</title>
   <link rel="stylesheet" href="../css/overlays.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 </head>
 <body>
   <div class="np-container">
@@ -61,7 +62,8 @@
       .catch(() => {});
 
     function handleIncomingMessage(msg) {
-      if (msg.event === 'init_state' && msg.data.srState?.currentSong) {
+      if (!msg) return;
+      if (msg.event === 'init_state' && msg.data?.srState?.currentSong) {
         updateSong(msg.data.srState.currentSong);
       } else if (msg.event === 'sr_update') {
         const update = msg.data;
@@ -76,29 +78,60 @@
     }
 
     function connectChannels() {
-      // 1. BroadcastChannel (GitHub Pages & OBS)
-      if (typeof BroadcastChannel !== 'undefined') {
-        const bc = new BroadcastChannel('orbibot_stream_channel');
-        bc.onmessage = (e) => handleIncomingMessage(e.data);
+      const urlParams = new URLSearchParams(window.location.search);
+      const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
+
+      // 1. Cloud Real-time Relay (Paho MQTT)
+      if (typeof Paho !== 'undefined') {
+        const relayChannel = channel || 'general';
+        const clientId = 'orbi_np_' + Math.random().toString(36).substring(2, 9);
+        try {
+          const mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
+          mqttClient.onMessageArrived = (message) => {
+            try {
+              const payload = JSON.parse(message.payloadString);
+              handleIncomingMessage(payload);
+            } catch(e) {}
+          };
+          mqttClient.connect({
+            useSSL: true,
+            timeout: 6,
+            onSuccess: () => {
+              mqttClient.subscribe(`orbibot/${relayChannel}/events`);
+            }
+          });
+        } catch(e) {}
       }
 
-      // 2. Storage event
-      window.addEventListener('storage', (e) => {
-        if (e.key === 'orbibot_last_event' && e.newValue) {
-          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
-        }
-      });
-
-      // 3. WebSocket (Local server)
-      if (location.port) {
-        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      // 2. Local WebSocket Server
+      function connectLocalWs(url) {
         try {
-          const ws = new WebSocket(`${protocol}//${location.host}`);
+          const ws = new WebSocket(url);
           ws.onmessage = (event) => {
             try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
           };
         } catch(e) {}
       }
+
+      if (location.port) {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        connectLocalWs(`${protocol}//${location.host}`);
+      } else {
+        connectLocalWs('ws://localhost:3000');
+        connectLocalWs('ws://127.0.0.1:3000');
+      }
+
+      // 3. BroadcastChannel & Storage for same-browser testing
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('orbibot_stream_channel');
+        bc.onmessage = (e) => handleIncomingMessage(e.data);
+      }
+
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'orbibot_last_event' && e.newValue) {
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
+        }
+      });
     }
 
     connectChannels();

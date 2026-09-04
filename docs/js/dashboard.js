@@ -14,7 +14,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
   populateWidgetUrls();
   await loadInitialData();
+  populateWidgetUrls();
   connectWebSocket();
+  initDashboardMqtt();
 });
 
 // ================= NAVIGATION =================
@@ -77,14 +79,80 @@ function showToast(message, type = 'info') {
 
 // ================= WEBSOCKET & MULTI-CHANNEL REALTIME =================
 const broadcastChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('orbibot_stream_channel') : null;
+let dashboardMqttClient = null;
+let isMqttConnected = false;
+
+function initDashboardMqtt() {
+  if (typeof Paho === 'undefined') return;
+  const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '') || 'general';
+  const clientId = 'orbi_dash_' + Math.random().toString(36).substring(2, 9);
+  try {
+    if (dashboardMqttClient) {
+      try { dashboardMqttClient.disconnect(); } catch(e) {}
+    }
+    dashboardMqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
+    dashboardMqttClient.onConnectionLost = () => {
+      isMqttConnected = false;
+      setTimeout(initDashboardMqtt, 4000);
+    };
+    dashboardMqttClient.connect({
+      useSSL: true,
+      timeout: 6,
+      keepAliveInterval: 30,
+      onSuccess: () => {
+        isMqttConnected = true;
+        console.log('OrbiBot Dashboard conectado a Cloud Relay MQTT (OBS Ready)');
+      },
+      onFailure: (err) => {
+        isMqttConnected = false;
+        console.warn('MQTT Connection failed:', err);
+        setTimeout(initDashboardMqtt, 6000);
+      }
+    });
+  } catch(e) {
+    console.warn('Error creating MQTT client:', e);
+  }
+}
 
 function broadcastEvent(event, data) {
+  const payload = { event, data, timestamp: Date.now() };
+
+  // 1. BroadcastChannel (para pestañas del mismo navegador)
   if (broadcastChannel) {
-    try { broadcastChannel.postMessage({ event, data, timestamp: Date.now() }); } catch(e) {}
+    try { broadcastChannel.postMessage(payload); } catch(e) {}
   }
+
+  // 2. Storage event
   try {
-    localStorage.setItem('orbibot_last_event', JSON.stringify({ event, data, timestamp: Date.now() }));
+    localStorage.setItem('orbibot_last_event', JSON.stringify(payload));
   } catch(e) {}
+
+  // 3. Cloud MQTT Relay (para fuentes de navegador OBS Studio)
+  if (dashboardMqttClient && isMqttConnected) {
+    try {
+      const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '') || 'general';
+      const msgStr = JSON.stringify(payload);
+      
+      const msg1 = new Paho.MQTT.Message(msgStr);
+      msg1.destinationName = `orbibot/${channel}/events`;
+      dashboardMqttClient.send(msg1);
+
+      if (channel !== 'general') {
+        const msg2 = new Paho.MQTT.Message(msgStr);
+        msg2.destinationName = 'orbibot/general/events';
+        dashboardMqttClient.send(msg2);
+      }
+    } catch(e) {
+      console.warn('Error publishing to MQTT relay:', e);
+    }
+  }
+
+  // 4. Local WebSocket Server (si el backend local node server.js está corriendo)
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    try {
+      socket.send(JSON.stringify(payload));
+    } catch(e) {}
+  }
 }
 
 function connectWebSocket() {
@@ -354,6 +422,7 @@ function bindConfigToUI(cfg) {
       document.getElementById('cfgTwitchClientId').value = cfg.twitch.clientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
     }
     document.getElementById('statChannelName').innerText = cfg.twitch.channel ? `#${cfg.twitch.channel}` : 'Ninguno';
+    populateWidgetUrls();
   }
 
   // Song Request
@@ -599,11 +668,49 @@ function populateWidgetUrls() {
   const origin = window.location.origin;
   const path = window.location.pathname.replace(/\/index\.html$/i, '').replace(/\/$/, '');
   const baseUrl = `${origin}${path}`;
-  document.getElementById('urlAlertsWidget').value = `${baseUrl}/overlays/alerts.html`;
-  document.getElementById('urlNowPlayingWidget').value = `${baseUrl}/overlays/nowplaying.html`;
-  document.getElementById('urlGoalWidget').value = `${baseUrl}/overlays/goals.html?type=subs`;
-  document.getElementById('urlTtsWidget').value = `${baseUrl}/overlays/tts.html`;
-  document.getElementById('urlChatWidget').value = `${baseUrl}/overlays/chat.html`;
+
+  let channel = '';
+  if (appConfig && appConfig.twitch && appConfig.twitch.channel) {
+    channel = appConfig.twitch.channel.trim().toLowerCase().replace(/^#/, '');
+  }
+  if (!channel) {
+    try {
+      const localTwitch = localStorage.getItem('orbibot_twitch_auth');
+      if (localTwitch) {
+        const parsed = JSON.parse(localTwitch);
+        if (parsed.channel) channel = parsed.channel.trim().toLowerCase().replace(/^#/, '');
+      }
+    } catch(e) {}
+  }
+  if (!channel) {
+    const inputCh = document.getElementById('cfgTwitchChannel');
+    if (inputCh && inputCh.value) {
+      channel = inputCh.value.trim().toLowerCase().replace(/^#/, '');
+    }
+  }
+
+  const channelParam = channel ? `?channel=${encodeURIComponent(channel)}` : '';
+  const goalParam = channel ? `?type=subs&channel=${encodeURIComponent(channel)}` : '?type=subs';
+
+  const alertsUrl = `${baseUrl}/overlays/alerts.html${channelParam}`;
+  const npUrl = `${baseUrl}/overlays/nowplaying.html${channelParam}`;
+  const goalUrl = `${baseUrl}/overlays/goals.html${goalParam}`;
+  const ttsUrl = `${baseUrl}/overlays/tts.html${channelParam}`;
+  const chatUrl = `${baseUrl}/overlays/chat.html${channelParam}`;
+
+  if (document.getElementById('urlAlertsWidget')) document.getElementById('urlAlertsWidget').value = alertsUrl;
+  if (document.getElementById('urlNowPlayingWidget')) document.getElementById('urlNowPlayingWidget').value = npUrl;
+  if (document.getElementById('urlGoalWidget')) document.getElementById('urlGoalWidget').value = goalUrl;
+  if (document.getElementById('urlTtsWidget')) document.getElementById('urlTtsWidget').value = ttsUrl;
+  if (document.getElementById('urlChatWidget')) document.getElementById('urlChatWidget').value = chatUrl;
+
+  // Actualizar enlaces de vista previa
+  if (document.getElementById('btnPreviewAlerts')) document.getElementById('btnPreviewAlerts').href = alertsUrl;
+  if (document.getElementById('btnPreviewNowPlaying')) document.getElementById('btnPreviewNowPlaying').href = npUrl;
+  if (document.getElementById('btnPreviewGoal')) document.getElementById('btnPreviewGoal').href = goalUrl;
+  if (document.getElementById('btnPreviewTts')) document.getElementById('btnPreviewTts').href = ttsUrl;
+  if (document.getElementById('btnPreviewChat')) document.getElementById('btnPreviewChat').href = chatUrl;
+
   const appBaseUrl = `${baseUrl}/`;
   if (document.getElementById('displayRedirectUri')) {
     document.getElementById('displayRedirectUri').innerText = appBaseUrl;
@@ -637,9 +744,9 @@ async function triggerTestAlert(type) {
     message: '¡Excelente directo, crack! Saludos a todos.'
   };
 
-  // Immediate multi-channel broadcast (for GitHub Pages & local)
+  // Immediate multi-channel broadcast (for OBS Studio & browser)
   broadcastEvent('alert', payload);
-  showToast(`¡Alerta de ${type.toUpperCase()} disparada! Mírala en OBS.`, 'success');
+  showToast(`¡Alerta de ${type.toUpperCase()} enviada a OBS!`, 'success');
 
   try {
     await fetch('/api/alert/test', {
@@ -652,33 +759,45 @@ async function triggerTestAlert(type) {
 
 async function triggerTestTTS() {
   const input = document.getElementById('testTtsInput');
-  const text = input.value.trim() || '¡Hola streamer! Este es un mensaje de prueba con Text to Speech.';
+  const text = input.value.trim() || '¡Hola streamer! Este es un mensaje de prueba con Text to Speech en OBS.';
   const voice = document.getElementById('cfgTtsVoice').value;
+  const volume = Number(document.getElementById('cfgTtsVolume').value) / 100;
+  const rate = Number(document.getElementById('cfgTtsRate').value);
+  const pitch = Number(document.getElementById('cfgTtsPitch').value);
+
+  const ttsData = {
+    user: 'StreamerTest',
+    text,
+    voice,
+    volume,
+    rate,
+    pitch,
+    timestamp: Date.now()
+  };
+
+  // Transmitir inmediatamente por MQTT y WebSocket a la fuente de OBS
+  broadcastEvent('tts', ttsData);
+  showToast('Mensaje TTS enviado a OBS Studio', 'success');
+
+  // Preview local en el navegador
+  if ('speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.volume = volume;
+      u.rate = rate;
+      u.pitch = pitch;
+      window.speechSynthesis.speak(u);
+    } catch(e) {}
+  }
 
   try {
-    const res = await fetch('/api/tts/test', {
+    await fetch('/api/tts/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, user: 'StreamerTest', voice })
     });
-    const data = await res.json();
-    if (data.success) {
-      showToast('Mensaje TTS enviado a la cola de audio', 'success');
-      // Local preview speak
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.volume = Number(document.getElementById('cfgTtsVolume').value) / 100;
-        u.rate = Number(document.getElementById('cfgTtsRate').value);
-        u.pitch = Number(document.getElementById('cfgTtsPitch').value);
-        window.speechSynthesis.speak(u);
-      }
-    } else {
-      showToast(data.reason || 'Error en TTS', 'warn');
-    }
-  } catch (e) {
-    showToast('Error al probar TTS', 'error');
-  }
+  } catch (e) {}
 }
 
 // ================= GOALS UPDATE =================
@@ -686,31 +805,29 @@ async function saveGoalValues(type) {
   let title = '', current = 0, target = 100;
   if (type === 'subs') {
     title = document.getElementById('cfgGoalSubTitle').value;
-    current = document.getElementById('cfgGoalSubCurrent').value;
-    target = document.getElementById('cfgGoalSubTarget').value;
+    current = parseInt(document.getElementById('cfgGoalSubCurrent').value, 10) || 0;
+    target = parseInt(document.getElementById('cfgGoalSubTarget').value, 10) || 50;
   } else if (type === 'followers') {
     title = document.getElementById('cfgGoalFollowTitle').value;
-    current = document.getElementById('cfgGoalFollowCurrent').value;
-    target = document.getElementById('cfgGoalFollowTarget').value;
+    current = parseInt(document.getElementById('cfgGoalFollowCurrent').value, 10) || 0;
+    target = parseInt(document.getElementById('cfgGoalFollowTarget').value, 10) || 300;
   } else if (type === 'bits') {
     title = document.getElementById('cfgGoalBitsTitle').value;
-    current = document.getElementById('cfgGoalBitsCurrent').value;
-    target = document.getElementById('cfgGoalBitsTarget').value;
+    current = parseInt(document.getElementById('cfgGoalBitsCurrent').value, 10) || 0;
+    target = parseInt(document.getElementById('cfgGoalBitsTarget').value, 10) || 5000;
   }
 
+  // Transmitir a OBS inmediatamente
+  broadcastEvent('goals_updated', { type, title, current, target });
+  showToast(`Meta de ${type.toUpperCase()} actualizada en OBS`, 'success');
+
   try {
-    const res = await fetch('/api/goals/update', {
+    await fetch('/api/goals/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, title, current, target })
     });
-    const data = await res.json();
-    if (data.success) {
-      showToast(`Meta de ${type.toUpperCase()} actualizada`, 'success');
-    }
-  } catch (e) {
-    showToast('Error guardando metas', 'error');
-  }
+  } catch (e) {}
 }
 
 // ================= COMMANDS =================
@@ -804,6 +921,22 @@ async function saveAllConfig() {
   };
 
   try {
+    let cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
+    cfg = { ...cfg, ...payload };
+    localStorage.setItem('orbibot_config', JSON.stringify(cfg));
+    if (payload.twitch.channel) {
+      let twAuth = JSON.parse(localStorage.getItem('orbibot_twitch_auth') || '{}');
+      twAuth.channel = payload.twitch.channel;
+      twAuth.botUsername = payload.twitch.botUsername;
+      twAuth.oauthToken = payload.twitch.oauthToken;
+      localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twAuth));
+    }
+  } catch(e) {}
+
+  populateWidgetUrls();
+  initDashboardMqtt();
+
+  try {
     const res = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -816,7 +949,7 @@ async function saveAllConfig() {
       showToast('Configuración guardada correctamente.', 'success');
     }
   } catch (e) {
-    showToast('Error al guardar la configuración.', 'error');
+    showToast('Configuración guardada localmente.', 'info');
   }
 }
 
@@ -999,6 +1132,8 @@ function setupEventListeners() {
     }
 
     await loadInitialData();
+    populateWidgetUrls();
+    initDashboardMqtt();
   }
 
   // Twitch Disconnect Account
@@ -1031,6 +1166,8 @@ function setupEventListeners() {
 
     showToast('Has cerrado sesión de Twitch.', 'info');
     await loadInitialData();
+    populateWidgetUrls();
+    initDashboardMqtt();
   }
 
   // Twitch Login Buttons
