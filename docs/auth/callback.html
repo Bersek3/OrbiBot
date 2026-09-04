@@ -278,19 +278,18 @@
             try {
               window.opener.postMessage(authEventPayload, '*');
             } catch (opErr) {}
+            try {
+              window.opener.focus();
+            } catch (fErr) {}
           }
 
-          // In popup mode: close automatically
-          if (isPopup) {
-            setTimeout(() => {
-              window.close();
-            }, 800);
-          } else {
-            // In full window mode: redirect to dashboard
-            setTimeout(() => {
-              window.location.href = '../';
-            }, 1200);
-          }
+          // Close popup automatically
+          setTimeout(() => {
+            window.close();
+          }, 300);
+          setTimeout(() => {
+            window.close();
+          }, 1000);
         } else {
           document.getElementById('loadingState').style.display = 'none';
           document.getElementById('errorState').style.display = 'block';

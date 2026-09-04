@@ -6,6 +6,59 @@
   <title>Twitch StreamBot & Overlay Toolkit</title>
   <link rel="stylesheet" href="./css/dashboard.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239146FF'><path d='M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z'/></svg>">
+  <script>
+    // Intercept OAuth callback if Twitch redirects directly to index.html
+    (function() {
+      const hash = window.location.hash;
+      if (hash && (hash.includes('access_token=') || hash.includes('code='))) {
+        const hashParams = new URLSearchParams(hash.substring(1));
+        const token = hashParams.get('access_token') || hashParams.get('code');
+        const isPopup = window.opener !== null ||
+                        window.name === 'TwitchOAuthLogin' ||
+                        window.location.search.includes('popup=1') ||
+                        (window.innerWidth < 850 && window.innerHeight < 900);
+
+        if (token) {
+          const authPayload = {
+            type: 'TWITCH_AUTH_SUCCESS',
+            token: token.replace(/^oauth:/i, '').trim(),
+            timestamp: Date.now()
+          };
+
+          try { localStorage.setItem('orbibot_twitch_auth_event', JSON.stringify(authPayload)); } catch(e) {}
+          try {
+            if (typeof BroadcastChannel !== 'undefined') {
+              const bc = new BroadcastChannel('orbibot_stream_channel');
+              bc.postMessage(authPayload);
+            }
+          } catch(e) {}
+          if (window.opener) {
+            try { window.opener.postMessage(authPayload, '*'); } catch(e) {}
+            try { window.opener.focus(); } catch(e) {}
+          }
+
+          if (isPopup) {
+            window.stop();
+            document.addEventListener('DOMContentLoaded', () => {
+              document.body.innerHTML = `
+                <div style="background:#090c14; color:#fff; font-family:sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; text-align:center; padding:20px;">
+                  <div style="background:#121826; border:1px solid #9146ff; border-radius:16px; padding:32px 24px; max-width:380px; box-shadow:0 10px 40px rgba(0,0,0,0.6);">
+                    <div style="font-size:44px; margin-bottom:12px;">✅</div>
+                    <h2 style="font-size:20px; font-weight:700; margin-bottom:8px;">¡Sesión Iniciada!</h2>
+                    <p style="color:#94a3b8; font-size:13px; line-height:1.5; margin-bottom:18px;">Tu cuenta ha sido conectada. Cerrando esta ventana para volver al panel principal...</p>
+                    <button onclick="window.close()" style="background:#9146ff; color:#fff; border:none; padding:12px 24px; border-radius:10px; font-weight:700; cursor:pointer; font-size:14px; width:100%;">Cerrar esta ventana</button>
+                  </div>
+                </div>
+              `;
+            });
+            setTimeout(() => { window.close(); }, 400);
+          } else {
+            history.replaceState(null, document.title, window.location.pathname + window.location.search);
+          }
+        }
+      }
+    })();
+  </script>
 </head>
 <body>
 
