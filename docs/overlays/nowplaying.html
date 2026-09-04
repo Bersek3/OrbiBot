@@ -41,7 +41,9 @@
     const npRequester = document.getElementById('npRequester');
 
     const urlParams = new URLSearchParams(window.location.search);
-    const enableAudio = urlParams.get('audio') !== '0';
+    // El audio ahora se emite con el widget dedicado music_player.html para tener control de volumen independiente en OBS.
+    // En nowplaying.html solo se activará si se pasa explícitamente ?audio=1.
+    const enableAudio = urlParams.get('audio') === '1';
 
     let ytPlayer = null;
     let ytApiReady = false;

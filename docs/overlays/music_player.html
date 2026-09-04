@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Song Request Audio Player - OBS Overlay | OrbiBot</title>
+  <!-- Paho MQTT client para sincronización en la nube -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: transparent;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #fff;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* En OBS la fuente puede configurarse a 1x1 invisible, o a 320x100 para ver el estado */
+    .player-card {
+      background: rgba(13, 17, 23, 0.95);
+      border: 1px solid rgba(145, 70, 255, 0.4);
+      border-radius: 12px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(145, 70, 255, 0.2);
+      max-width: 420px;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+
+    .thumb-box {
+      width: 54px;
+      height: 54px;
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: #1f1f2e;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .thumb-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .song-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .status-badge {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #00f2fe;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 2px;
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      background: #00ff88;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #00ff88;
+    }
+    .song-title {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #fff;
+    }
+    .song-requester {
+      font-size: 11px;
+      color: #adadb8;
+      margin-top: 2px;
+    }
+
+    .obs-hint {
+      font-size: 10px;
+      color: #9146ff;
+      margin-top: 4px;
+    }
+
+    /* Reproductor embebido de YouTube invisible */
+    #ytContainer {
+      position: fixed;
+      top: -9999px;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="player-card" id="playerCard">
+    <div class="thumb-box">
+      <img id="trackThumb" src="https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" alt="Portada">
+    </div>
+    <div class="song-info">
+      <div class="status-badge">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Song Request Audio Player</span>
+      </div>
+      <div class="song-title" id="trackTitle">Esperando canciones con !sr...</div>
+      <div class="song-requester" id="trackRequester">Emite el audio directamente en OBS Studio</div>
+      <div class="obs-hint">☑ Controlar audio vía OBS activado</div>
+    </div>
+  </div>
+
+  <!-- Contenedor para YouTube IFrame API -->
+  <div id="ytContainer">
+    <div id="ytPlayer"></div>
+  </div>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
+    const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
+
+    const trackThumb = document.getElementById('trackThumb');
+    const trackTitle = document.getElementById('trackTitle');
+    const trackRequester = document.getElementById('trackRequester');
+    const statusText = document.getElementById('statusText');
+    const statusDot = document.getElementById('statusDot');
+
+    let ytPlayer = null;
+    let ytApiReady = false;
+    let pendingVideoId = null;
+    let currentSongData = null;
+
+    // Inicializar YouTube IFrame Player
+    window.onYouTubeIframeAPIReady = function() {
+      ytPlayer = new YT.Player('ytPlayer', {
+        height: '200',
+        width: '200',
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          rel: 0
+        },
+        events: {
+          onReady: (event) => {
+            ytApiReady = true;
+            statusText.innerText = 'Audio Player Conectado';
+            if (pendingVideoId) {
+              playYouTubeVideo(pendingVideoId);
+              pendingVideoId = null;
+            }
+          },
+          onStateChange: (event) => {
+            // YT.PlayerState.ENDED === 0
+            if (event.data === 0) {
+              statusText.innerText = 'Canción Finalizada';
+              notifySongEnded();
+            } else if (event.data === 1) {
+              statusText.innerText = 'Reproduciendo en OBS';
+              statusDot.style.background = '#00ff88';
+            } else if (event.data === 2) {
+              statusText.innerText = 'Pausado';
+              statusDot.style.background = '#ffb700';
+            }
+          },
+          onError: (event) => {
+            console.warn('YouTube Audio Player error:', event.data);
+            statusText.innerText = 'Error en video - Saltando...';
+            setTimeout(() => {
+              notifySongEnded();
+            }, 2500);
+          }
+        }
+      });
+    };
+
+    function playYouTubeVideo(videoId) {
+      if (!videoId) return;
+      if (ytPlayer && ytApiReady && ytPlayer.loadVideoById) {
+        try {
+          ytPlayer.loadVideoById(videoId);
+          ytPlayer.playVideo();
+        } catch(e) {
+          console.error('Error al reproducir en YT:', e);
+        }
+      } else {
+        pendingVideoId = videoId;
+      }
+    }
+
+    function stopYouTubeVideo() {
+      pendingVideoId = null;
+      if (ytPlayer && ytPlayer.stopVideo) {
+        try { ytPlayer.stopVideo(); } catch(e) {}
+      }
+    }
+
+    function pauseYouTubeVideo() {
+      if (ytPlayer && ytPlayer.pauseVideo) {
+        try { ytPlayer.pauseVideo(); } catch(e) {}
+      }
+    }
+
+    function resumeYouTubeVideo() {
+      if (ytPlayer && ytPlayer.playVideo) {
+        try { ytPlayer.playVideo(); } catch(e) {}
+      }
+    }
+
+    function notifySongEnded() {
+      // 1. Intentar API local
+      fetch('/api/sr/skip', { method: 'POST' }).catch(() => {});
+
+      // 2. BroadcastChannel para sincronizar pestañas locales
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('orbibot_stream_channel');
+        bc.postMessage({ event: 'sr_ended', source: 'obs_audio_player' });
+      }
+    }
+
+    function updateSongDisplay(song) {
+      if (!song) {
+        trackTitle.innerText = 'Esperando canciones con !sr...';
+        trackRequester.innerText = 'La cola de música está vacía';
+        stopYouTubeVideo();
+        return;
+      }
+
+      currentSongData = song;
+      trackThumb.src = song.thumbnail || 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
+      trackTitle.innerText = song.title || 'Canción desconocida';
+      trackRequester.innerText = `Pedida por @${song.requester || 'Anónimo'}`;
+
+      if (song.videoId) {
+        playYouTubeVideo(song.videoId);
+      }
+    }
+
+    // Cargar estado inicial
+    try {
+      const saved = localStorage.getItem('orbibot_current_song');
+      if (saved) updateSongDisplay(JSON.parse(saved));
+    } catch(e) {}
+
+    fetch('/api/sr/state')
+      .then(r => r.json())
+      .then(state => {
+        if (state.currentSong && state.isPlaying) {
+          updateSongDisplay(state.currentSong);
+        }
+      })
+      .catch(() => {});
+
+    // Manejar mensajes entrantes
+    function handleIncomingMessage(msg) {
+      if (!msg) return;
+
+      if (msg.event === 'init_state' && msg.data?.srState?.currentSong) {
+        updateSongDisplay(msg.data.srState.currentSong);
+      } else if (msg.event === 'sr_update') {
+        const update = msg.data;
+        if (update.action === 'play') {
+          updateSongDisplay(update.data);
+        } else if (update.action === 'skip') {
+          updateSongDisplay(update.data?.current);
+        } else if (update.action === 'stop') {
+          updateSongDisplay(null);
+        }
+      } else if (msg.event === 'sr_play') {
+        updateSongDisplay(msg.data);
+      } else if (msg.event === 'sr_stop' || msg.event === 'sr_clear') {
+        updateSongDisplay(null);
+      } else if (msg.event === 'sr_pause') {
+        pauseYouTubeVideo();
+      } else if (msg.event === 'sr_resume') {
+        resumeYouTubeVideo();
+      } else if (msg.event === 'sr_volume') {
+        const vol = parseInt(msg.data?.volume, 10);
+        if (!isNaN(vol) && ytPlayer && ytPlayer.setVolume) {
+          ytPlayer.setVolume(vol);
+        }
+      }
+    }
+
+    // Conexiones de Red y Tiempo Real
+    function connectChannels() {
+      // 1. Cloud Real-time Relay (Paho MQTT con Aislamiento Criptográfico)
+      if (typeof Paho !== 'undefined') {
+        const relayChannel = channel || 'general';
+        const clientId = 'orbi_audio_' + Math.random().toString(36).substring(2, 9);
+        try {
+          const mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
+          mqttClient.onMessageArrived = (message) => {
+            try {
+              const payload = JSON.parse(message.payloadString);
+              handleIncomingMessage(payload);
+            } catch(e) {}
+          };
+          mqttClient.connect({
+            useSSL: true,
+            timeout: 6,
+            onSuccess: () => {
+              if (token && relayChannel !== 'general') {
+                mqttClient.subscribe(`orbibot/${relayChannel}_${token}/events`);
+              }
+              mqttClient.subscribe(`orbibot/${relayChannel}/events`);
+            }
+          });
+        } catch(e) {}
+      }
+
+      // 2. Local WebSocket Server
+      function connectLocalWs(url) {
+        try {
+          const ws = new WebSocket(url);
+          ws.onmessage = (event) => {
+            try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
+          };
+        } catch(e) {}
+      }
+
+      const isGitHubPages = location.hostname.endsWith('github.io');
+      if (!isGitHubPages) {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        connectLocalWs(`${protocol}//${location.host}`);
+      } else {
+        connectLocalWs('ws://localhost:3000');
+        connectLocalWs('ws://127.0.0.1:3000');
+      }
+
+      // 3. BroadcastChannel & Storage para pruebas locales
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('orbibot_stream_channel');
+        bc.onmessage = (e) => handleIncomingMessage(e.data);
+      }
+
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'orbibot_last_event' && e.newValue) {
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
+        }
+      });
+    }
+
+    connectChannels();
+  </script>
+</body>
+</html>
