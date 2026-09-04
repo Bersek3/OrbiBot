@@ -851,6 +851,8 @@ function setupEventListeners() {
   });
 
   // Direct Twitch OAuth Authentication
+  let activeAuthPopup = null;
+
   function triggerTwitchOAuthLogin() {
     const customClientId = document.getElementById('cfgTwitchClientId')?.value?.trim();
     const clientId = customClientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
@@ -869,13 +871,14 @@ function setupEventListeners() {
     // Clean any prior auth event
     localStorage.removeItem('orbibot_twitch_auth_event');
 
-    const authWindow = window.open(twitchAuthUrl, 'TwitchOAuthLogin', `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no,scrollbars=yes`);
-    if (!authWindow || authWindow.closed || typeof authWindow.closed === 'undefined') {
+    activeAuthPopup = window.open(twitchAuthUrl, 'TwitchOAuthLogin', `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no,scrollbars=yes`);
+    if (!activeAuthPopup || activeAuthPopup.closed || typeof activeAuthPopup.closed === 'undefined') {
       window.location.href = twitchAuthUrl;
       return;
     }
 
     // Active polling interval: checks localStorage while popup is open
+    // NOTE: We do NOT stop on authWindow.closed because modern browsers report closed=true on cross-origin redirects!
     let pollCount = 0;
     const authPollInterval = setInterval(async () => {
       pollCount++;
@@ -884,8 +887,9 @@ function setupEventListeners() {
         clearInterval(authPollInterval);
         localStorage.removeItem('orbibot_twitch_auth_event');
         try {
-          if (authWindow && !authWindow.closed) authWindow.close();
+          if (activeAuthPopup && !activeAuthPopup.closed) activeAuthPopup.close();
         } catch(e) {}
+        activeAuthPopup = null;
 
         try {
           const payload = JSON.parse(rawEvent);
@@ -895,19 +899,70 @@ function setupEventListeners() {
         }
       }
 
-      if (pollCount > 600 || (authWindow && authWindow.closed)) {
+      if (pollCount > 600) {
         clearInterval(authPollInterval);
       }
-    }, 400);
+    }, 300);
   }
 
   // Handle successful OAuth event
   async function handleAuthSuccess(payload) {
-    const user = payload.user || payload.data?.user || {};
-    const displayName = user.display_name || user.login || 'Streamer';
+    if (activeAuthPopup) {
+      try { activeAuthPopup.close(); } catch(e) {}
+      activeAuthPopup = null;
+    }
+    try { window.focus(); } catch(e) {}
+
+    let user = payload.user || payload.data?.user || {};
+    let displayName = user.display_name || user.login || '';
+    let avatarUrl = user.profile_image_url || '';
     const token = payload.token || '';
 
-    showToast(`¡Conectado exitosamente como @${displayName}!`, 'success');
+    // If user profile info wasn't included in payload, fetch directly from Twitch
+    if (!displayName && token) {
+      try {
+        const valRes = await fetch('https://id.twitch.tv/oauth2/validate', {
+          headers: { 'Authorization': `OAuth ${token}` }
+        });
+        if (valRes.ok) {
+          const valData = await valRes.json();
+          displayName = valData.login;
+          avatarUrl = 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
+
+          try {
+            const uRes = await fetch(`https://api.twitch.tv/helix/users?id=${valData.user_id}`, {
+              headers: { 'Client-Id': valData.client_id, 'Authorization': `Bearer ${token}` }
+            });
+            if (uRes.ok) {
+              const uData = await uRes.json();
+              if (uData.data?.length > 0) {
+                displayName = uData.data[0].display_name;
+                avatarUrl = uData.data[0].profile_image_url || avatarUrl;
+              }
+            }
+          } catch(e) {}
+
+          const twitchCfg = {
+            channel: valData.login,
+            botUsername: valData.login,
+            oauthToken: token,
+            clientId: valData.client_id,
+            displayName: displayName,
+            profileImage: avatarUrl,
+            userId: valData.user_id,
+            connected: true
+          };
+          localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twitchCfg));
+          try {
+            const cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
+            cfg.twitch = { ...(cfg.twitch || {}), ...twitchCfg };
+            localStorage.setItem('orbibot_config', JSON.stringify(cfg));
+          } catch(e) {}
+        }
+      } catch(e) {}
+    }
+
+    showToast(`🎉 ¡Sesión iniciada con éxito! Bienvenido, @${displayName || 'Streamer'}`, 'success');
 
     // Submit token to backend if available
     if (token) {
