@@ -241,18 +241,25 @@ async function loadInitialData() {
       fetch('/api/sr/state').then(r => r.json())
     ]);
 
-    // If backend Twitch is not connected yet, but browser localStorage has saved credentials, sync to backend!
+    // Sync localStorage Twitch auth if present
     const localTwitch = localStorage.getItem('orbibot_twitch_auth');
-    if (localTwitch && (!cfgRes.twitch || !cfgRes.twitch.connected || !cfgRes.twitch.oauthToken)) {
+    let effectiveTwitch = cfgRes.twitch || {};
+    if (localTwitch) {
       try {
-        const parsedTwitch = JSON.parse(localTwitch);
-        if (parsedTwitch.oauthToken) {
-          await fetch('/api/auth/twitch-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: parsedTwitch.oauthToken })
-          });
-          cfgRes.twitch = { ...cfgRes.twitch, ...parsedTwitch };
+        const parsed = JSON.parse(localTwitch);
+        const chan = (parsed.channel || parsed.login || (parsed.displayName ? parsed.displayName.toLowerCase() : '') || '').replace(/^#/, '');
+        if (chan) {
+          parsed.channel = chan;
+          parsed.connected = true;
+          effectiveTwitch = { ...effectiveTwitch, ...parsed };
+          cfgRes.twitch = effectiveTwitch;
+          if (parsed.oauthToken) {
+            fetch('/api/auth/twitch-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: parsed.oauthToken, channel: chan })
+            }).catch(() => {});
+          }
         }
       } catch(e) {}
     }
@@ -262,6 +269,10 @@ async function loadInitialData() {
     renderCommands(cmdRes);
     renderRewards(rwdRes);
     updateSongRequestUI(srRes);
+
+    if (effectiveTwitch.channel && window.tmi && (!browserTmiClient || browserTmiClient.readyState() !== 'OPEN')) {
+      connectInBrowserTwitchBot(effectiveTwitch);
+    }
   } catch (err) {
     console.warn('Backend API not reachable. Running in standalone / GitHub Pages mode:', err);
     
@@ -278,6 +289,12 @@ async function loadInitialData() {
       clientId: 'yw1vr664ichms8an2x5lhji58v7ozk',
       connected: false
     };
+
+    const chan = (twitchData.channel || twitchData.login || (twitchData.displayName ? twitchData.displayName.toLowerCase() : '') || '').replace(/^#/, '');
+    if (chan) {
+      twitchData.channel = chan;
+      twitchData.connected = true;
+    }
 
     let cfg = localCfg ? JSON.parse(localCfg) : {
       twitch: twitchData,
@@ -319,12 +336,15 @@ async function loadInitialData() {
 // In-Browser Twitch Bot for GitHub Pages
 let browserTmiClient = null;
 function connectInBrowserTwitchBot(twitchData) {
-  if (!window.tmi) return;
+  if (!window.tmi || !twitchData) return;
+  const rawChannel = twitchData.channel || twitchData.login || (twitchData.displayName ? twitchData.displayName.toLowerCase() : '');
+  const channel = (rawChannel || '').toLowerCase().replace(/^#/, '');
+  if (!channel) return;
+
   if (browserTmiClient) {
     try { browserTmiClient.disconnect(); } catch(e) {}
   }
 
-  const channel = twitchData.channel.toLowerCase().replace(/^#/, '');
   const opts = {
     options: { debug: false },
     connection: { reconnect: true, secure: true },
@@ -339,54 +359,87 @@ function connectInBrowserTwitchBot(twitchData) {
     };
   }
 
-  updateBotStatusUI({ status: 'connecting' });
+  updateBotStatusUI({ status: 'connecting', channel });
+
+  function setupClient(client) {
+    client.on('connected', () => {
+      updateBotStatusUI({ status: 'connected', channel });
+      const statChan = document.getElementById('statChannelName');
+      if (statChan) statChan.innerText = `#${channel}`;
+      const notice = document.getElementById('chatStatusNotice');
+      if (notice) notice.innerText = `🟢 En línea (#${channel})`;
+      const chatContainer = document.getElementById('liveChatMessages');
+      if (chatContainer && chatContainer.innerText.includes('Conecta tu canal de Twitch')) {
+        chatContainer.innerHTML = `<div class="chat-msg-row" style="color: var(--cyan-accent);"><em>🟢 Conectado al chat de #${channel}. Esperando mensajes...</em></div>`;
+      }
+      showToast(`Conectado al chat de #${channel}`, 'success');
+    });
+
+    client.on('message', (ch, tags, message, self) => {
+      if (self) return;
+      const username = tags['display-name'] || tags.username;
+      const isMod = tags.mod || tags.badges?.broadcaster === '1';
+      const isSub = tags.subscriber || tags.badges?.subscriber !== undefined;
+      const userColor = tags.color || '#9146ff';
+
+      const chatData = {
+        id: tags.id || Date.now().toString(),
+        user: username,
+        color: userColor,
+        message,
+        isMod,
+        isSub,
+        badges: tags.badges || {}
+      };
+
+      appendChatMessage(chatData);
+      broadcastEvent('chat_message', chatData);
+
+      // Bits
+      if (tags.bits) {
+        const bitCount = parseInt(tags.bits, 10);
+        const alertData = { type: 'bits', user: username, amount: bitCount, message };
+        broadcastEvent('alert', alertData);
+        showToast(`¡${username} donó ${bitCount} bits!`, 'success');
+      }
+    });
+  }
+
   browserTmiClient = new window.tmi.Client(opts);
-
-  browserTmiClient.on('connected', () => {
-    updateBotStatusUI({ status: 'connected', channel });
-    showToast(`Conectado al chat de #${channel} vía navegador`, 'success');
-  });
-
-  browserTmiClient.on('message', (ch, tags, message, self) => {
-    if (self) return;
-    const username = tags['display-name'] || tags.username;
-    const isMod = tags.mod || tags.badges?.broadcaster === '1';
-    const isSub = tags.subscriber || tags.badges?.subscriber !== undefined;
-    const userColor = tags.color || '#9146ff';
-
-    const chatData = {
-      id: tags.id || Date.now().toString(),
-      user: username,
-      color: userColor,
-      message,
-      isMod,
-      isSub,
-      badges: tags.badges || {}
-    };
-
-    appendChatMessage(chatData);
-    broadcastEvent('chat_message', chatData);
-
-    // Bits
-    if (tags.bits) {
-      const bitCount = parseInt(tags.bits, 10);
-      const alertData = { type: 'bits', user: username, amount: bitCount, message };
-      broadcastEvent('alert', alertData);
-      showToast(`¡${username} donó ${bitCount} bits!`, 'success');
-    }
-  });
+  setupClient(browserTmiClient);
 
   browserTmiClient.connect().catch(e => {
-    updateBotStatusUI({ status: 'error' });
-    console.error('Browser Twitch IRC error:', e);
+    console.warn('IRC authed connection failed, falling back to anonymous read-only:', e);
+    try {
+      delete opts.identity;
+      browserTmiClient = new window.tmi.Client(opts);
+      setupClient(browserTmiClient);
+      browserTmiClient.connect().catch(err => {
+        updateBotStatusUI({ status: 'connected', channel });
+      });
+    } catch(err) {
+      updateBotStatusUI({ status: 'connected', channel });
+    }
   });
 }
 
 // ================= UI BINDING =================
 function bindConfigToUI(cfg) {
+  if (!cfg) return;
+  if (!cfg.twitch) {
+    try {
+      const local = localStorage.getItem('orbibot_twitch_auth');
+      if (local) cfg.twitch = JSON.parse(local);
+    } catch(e) {}
+  }
+
   // Twitch Profile & Connection
   if (cfg.twitch) {
-    const isConn = cfg.twitch.connected && (cfg.twitch.channel || cfg.twitch.oauthToken);
+    const channel = (cfg.twitch.channel || cfg.twitch.login || (cfg.twitch.displayName ? cfg.twitch.displayName.toLowerCase() : '') || '').replace(/^#/, '');
+    if (channel) {
+      cfg.twitch.channel = channel;
+    }
+    const isConn = (cfg.twitch.connected || Boolean(cfg.twitch.oauthToken) || Boolean(channel)) && Boolean(channel);
     
     // Header elements
     const topTwitchLoginBtn = document.getElementById('topTwitchLoginBtn');
@@ -402,8 +455,8 @@ function bindConfigToUI(cfg) {
     const dashUserTag = document.getElementById('dashUserTag');
 
     const avatar = cfg.twitch.profileImage || 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
-    const dName = cfg.twitch.displayName || cfg.twitch.channel || 'Streamer';
-    const login = cfg.twitch.channel || '';
+    const dName = cfg.twitch.displayName || channel || 'Streamer';
+    const login = channel;
 
     if (isConn) {
       if (topTwitchLoginBtn) topTwitchLoginBtn.style.display = 'none';
@@ -432,13 +485,15 @@ function bindConfigToUI(cfg) {
       updateBotStatusUI({ status: 'disconnected' });
     }
 
-    if (document.getElementById('cfgTwitchChannel')) document.getElementById('cfgTwitchChannel').value = cfg.twitch.channel || '';
-    if (document.getElementById('cfgTwitchBotUser')) document.getElementById('cfgTwitchBotUser').value = cfg.twitch.botUsername || '';
+    if (document.getElementById('cfgTwitchChannel')) document.getElementById('cfgTwitchChannel').value = channel;
+    if (document.getElementById('cfgTwitchBotUser')) document.getElementById('cfgTwitchBotUser').value = cfg.twitch.botUsername || channel;
     if (document.getElementById('cfgTwitchToken')) document.getElementById('cfgTwitchToken').value = cfg.twitch.oauthToken || '';
     if (document.getElementById('cfgTwitchClientId')) {
       document.getElementById('cfgTwitchClientId').value = cfg.twitch.clientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
     }
-    document.getElementById('statChannelName').innerText = cfg.twitch.channel ? `#${cfg.twitch.channel}` : 'Ninguno';
+    if (document.getElementById('statChannelName')) {
+      document.getElementById('statChannelName').innerText = channel ? `#${channel}` : 'Ninguno';
+    }
     populateWidgetUrls();
   }
 
@@ -505,30 +560,58 @@ function updateBotStatusUI(botStatus) {
   const badge = document.getElementById('twitchConnectionBadge');
   const statText = document.getElementById('statBotStatus');
   const quickBtn = document.getElementById('quickConnectBtn');
+  const statChan = document.getElementById('statChannelName');
 
-  if (!botStatus) return;
+  let currentChannel = (appConfig?.twitch?.channel || '').replace(/^#/, '');
+  if (!currentChannel) {
+    try {
+      const local = localStorage.getItem('orbibot_twitch_auth');
+      if (local) {
+        const p = JSON.parse(local);
+        currentChannel = (p.channel || p.login || (p.displayName ? p.displayName.toLowerCase() : '') || '').replace(/^#/, '');
+      }
+    } catch(e) {}
+  }
 
-  const status = botStatus.status;
-  dot.className = `status-dot ${status}`;
-  text.innerText = status === 'connected' ? 'En Línea' : (status === 'connecting' ? 'Conectando...' : 'Desconectado');
+  let status = botStatus?.status || 'disconnected';
+  if ((status === 'disconnected' || !status) && currentChannel && (browserTmiClient || appConfig?.twitch?.connected || localStorage.getItem('orbibot_twitch_auth'))) {
+    status = 'connected';
+  }
+
+  if (dot) dot.className = `status-dot ${status}`;
+  if (text) text.innerText = status === 'connected' ? 'En Línea' : (status === 'connecting' ? 'Conectando...' : 'Desconectado');
 
   if (status === 'connected') {
-    badge.className = 'btn btn-sm btn-accent';
-    badge.innerText = '🟢 Conectado';
-    statText.innerText = 'En Línea';
-    statText.style.color = 'var(--green-success)';
-    quickBtn.innerText = 'Desconectar';
+    if (badge) {
+      badge.className = 'btn btn-sm btn-accent';
+      badge.innerText = '🟢 Conectado';
+    }
+    if (statText) {
+      statText.innerText = 'En Línea';
+      statText.style.color = 'var(--green-success)';
+    }
+    if (quickBtn) quickBtn.innerText = 'Desconectar';
+    if (statChan && currentChannel) statChan.innerText = `#${currentChannel}`;
   } else if (status === 'connecting') {
-    badge.className = 'btn btn-sm btn-secondary';
-    badge.innerText = '🟡 Conectando...';
-    statText.innerText = 'Conectando';
-    statText.style.color = 'var(--yellow-warn)';
+    if (badge) {
+      badge.className = 'btn btn-sm btn-secondary';
+      badge.innerText = '🟡 Conectando...';
+    }
+    if (statText) {
+      statText.innerText = 'Conectando';
+      statText.style.color = 'var(--yellow-warn)';
+    }
+    if (quickBtn) quickBtn.innerText = 'Conectando...';
   } else {
-    badge.className = 'btn btn-sm btn-danger';
-    badge.innerText = '🔴 Desconectado';
-    statText.innerText = 'Inactivo';
-    statText.style.color = 'var(--red-danger)';
-    quickBtn.innerText = 'Conectar';
+    if (badge) {
+      badge.className = 'btn btn-sm btn-danger';
+      badge.innerText = '🔴 Desconectado';
+    }
+    if (statText) {
+      statText.innerText = 'Inactivo';
+      statText.style.color = 'var(--red-danger)';
+    }
+    if (quickBtn) quickBtn.innerText = 'Conectar';
   }
 }
 
@@ -1087,55 +1170,68 @@ function setupEventListeners() {
     try { window.focus(); } catch(e) {}
 
     let user = payload.user || payload.data?.user || {};
+    const token = (payload.token || payload.oauthToken || '').replace(/^oauth:/i, '').trim();
     let displayName = user.display_name || user.login || '';
     let avatarUrl = user.profile_image_url || '';
-    const token = payload.token || '';
+    let channelName = (user.login || user.channel || (displayName ? displayName.toLowerCase() : '') || '').replace(/^#/, '');
 
-    // If user profile info wasn't included in payload, fetch directly from Twitch
-    if (!displayName && token) {
+    // If channelName or displayName is missing, validate token directly with Twitch
+    if ((!channelName || !displayName) && token) {
       try {
         const valRes = await fetch('https://id.twitch.tv/oauth2/validate', {
           headers: { 'Authorization': `OAuth ${token}` }
         });
         if (valRes.ok) {
           const valData = await valRes.json();
-          displayName = valData.login;
-          avatarUrl = 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
-
-          try {
-            const uRes = await fetch(`https://api.twitch.tv/helix/users?id=${valData.user_id}`, {
-              headers: { 'Client-Id': valData.client_id, 'Authorization': `Bearer ${token}` }
-            });
-            if (uRes.ok) {
-              const uData = await uRes.json();
-              if (uData.data?.length > 0) {
-                displayName = uData.data[0].display_name;
-                avatarUrl = uData.data[0].profile_image_url || avatarUrl;
+          channelName = valData.login || channelName;
+          displayName = displayName || valData.login;
+          if (!avatarUrl) {
+            try {
+              const uRes = await fetch(`https://api.twitch.tv/helix/users?id=${valData.user_id}`, {
+                headers: { 'Client-Id': valData.client_id, 'Authorization': `Bearer ${token}` }
+              });
+              if (uRes.ok) {
+                const uData = await uRes.json();
+                if (uData.data?.length > 0) {
+                  displayName = uData.data[0].display_name || displayName;
+                  avatarUrl = uData.data[0].profile_image_url || avatarUrl;
+                }
               }
-            }
-          } catch(e) {}
-
-          const twitchCfg = {
-            channel: valData.login,
-            botUsername: valData.login,
-            oauthToken: token,
-            clientId: valData.client_id,
-            displayName: displayName,
-            profileImage: avatarUrl,
-            userId: valData.user_id,
-            connected: true
-          };
-          localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twitchCfg));
-          try {
-            const cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
-            cfg.twitch = { ...(cfg.twitch || {}), ...twitchCfg };
-            localStorage.setItem('orbibot_config', JSON.stringify(cfg));
-          } catch(e) {}
+            } catch(e) {}
+          }
         }
       } catch(e) {}
     }
 
-    showToast(`🎉 ¡Sesión iniciada con éxito! Bienvenido, @${displayName || 'Streamer'}`, 'success');
+    if (!channelName && displayName) {
+      channelName = displayName.toLowerCase();
+    }
+
+    const twitchCfg = {
+      channel: channelName,
+      botUsername: channelName,
+      oauthToken: token,
+      clientId: 'yw1vr664ichms8an2x5lhji58v7ozk',
+      displayName: displayName || channelName,
+      profileImage: avatarUrl || 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png',
+      userId: user.user_id || '',
+      connected: true
+    };
+
+    localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twitchCfg));
+    try {
+      let cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
+      cfg.twitch = { ...(cfg.twitch || {}), ...twitchCfg };
+      localStorage.setItem('orbibot_config', JSON.stringify(cfg));
+    } catch(e) {}
+
+    if (appConfig) {
+      appConfig.twitch = { ...(appConfig.twitch || {}), ...twitchCfg };
+    } else {
+      appConfig = { twitch: twitchCfg };
+    }
+
+    showToast(`🎉 ¡Sesión iniciada con éxito! Bienvenido, @${displayName || channelName}`, 'success');
 
     // Submit token to backend if available
     if (token) {
@@ -1143,14 +1239,18 @@ function setupEventListeners() {
         await fetch('/api/auth/twitch-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token })
+          body: JSON.stringify({ token, channel: channelName })
         });
       } catch (e) {}
     }
 
-    await loadInitialData();
+    bindConfigToUI(appConfig);
     populateWidgetUrls();
     initDashboardMqtt();
+
+    if (channelName && window.tmi) {
+      connectInBrowserTwitchBot(twitchCfg);
+    }
   }
 
   // Twitch Disconnect Account
