@@ -272,7 +272,12 @@
           <div class="card">
             <div class="card-header">
               <span class="card-title">💬 Chat de Twitch en Vivo</span>
-              <span id="chatStatusNotice" style="font-size: 12px; color: var(--text-muted);">Esperando mensajes...</span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button class="btn btn-secondary" onclick="triggerTestChat()" title="Probar chat con emblemas originales de Twitch" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; background: rgba(145, 70, 255, 0.15); border-color: var(--primary-purple); color: #fff;">
+                  ⚡ Probar Emblemas
+                </button>
+                <span id="chatStatusNotice" style="font-size: 12px; color: var(--text-muted);">Esperando mensajes...</span>
+              </div>
             </div>
             <div class="chat-box">
               <div id="liveChatMessages" class="chat-messages">
@@ -315,6 +320,11 @@
                 </button>
                 <button class="btn btn-primary" style="flex:1" onclick="triggerTestTTS()">
                   🗣️ Test Mensaje TTS
+                </button>
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary" style="flex:1; border-color: var(--primary-purple); color: #fff; background: rgba(145, 70, 255, 0.15);" onclick="triggerTestChat()">
+                  💬 Test Chat & Emblemas Originales
                 </button>
               </div>
             </div>

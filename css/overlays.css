@@ -377,3 +377,31 @@ body {
   line-height: 1.4;
   word-break: break-word;
 }
+
+.chat-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.twitch-badge {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  vertical-align: -3px;
+  border-radius: 2px;
+  object-fit: contain;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.twitch-emote {
+  display: inline-block;
+  height: 24px;
+  max-height: 28px;
+  vertical-align: -5px;
+  margin: 0 2px;
+  object-fit: contain;
+}
