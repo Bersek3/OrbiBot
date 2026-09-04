@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>OBS Goal Widget Overlay</title>
   <link rel="stylesheet" href="../css/overlays.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
@@ -93,49 +96,87 @@
     }
 
     function connectChannels() {
-      // 1. Cloud Real-time Relay (Paho MQTT)
-      if (typeof Paho !== 'undefined') {
-        const relayChannel = channel || 'general';
-        const clientId = 'orbi_goal_' + Math.random().toString(36).substring(2, 9);
-        try {
-          const mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
-          mqttClient.onMessageArrived = (message) => {
-            try {
-              const payload = JSON.parse(message.payloadString);
-              handleIncomingMessage(payload);
-            } catch(e) {}
-          };
-          mqttClient.connect({
-            useSSL: true,
-            timeout: 6,
-            onSuccess: () => {
-              if (token && relayChannel !== 'general') {
-                mqttClient.subscribe(`orbibot/${relayChannel}_${token}/events`);
-              }
-              mqttClient.subscribe(`orbibot/${relayChannel}/events`);
-            }
-          });
-        } catch(e) {}
-      }
+      // 1. Local WebSocket con reconexión automática en segundo plano
+      let wsInstance = null;
+      let wsReconnectTimeout = null;
 
-      // 2. Local WebSocket Server
       function connectLocalWs(url) {
+        if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
         try {
-          const ws = new WebSocket(url);
-          ws.onmessage = (event) => {
+          wsInstance = new WebSocket(url);
+          wsInstance.onmessage = (event) => {
             try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
           };
-        } catch(e) {}
+          wsInstance.onerror = () => scheduleWsReconnect(url);
+          wsInstance.onclose = () => scheduleWsReconnect(url);
+        } catch(e) {
+          scheduleWsReconnect(url);
+        }
+      }
+
+      function scheduleWsReconnect(url) {
+        if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
+        wsReconnectTimeout = setTimeout(() => {
+          connectLocalWs(url);
+        }, 3000);
       }
 
       const isGitHubPages = location.hostname.endsWith('github.io');
-      if (!isGitHubPages) {
-        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        connectLocalWs(`${protocol}//${location.host}`);
-      } else {
-        connectLocalWs('ws://localhost:3000');
-        connectLocalWs('ws://127.0.0.1:3000');
+      const wsUrl = !isGitHubPages
+        ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`
+        : 'ws://localhost:3000';
+
+      connectLocalWs(wsUrl);
+
+      // 2. Cloud Real-time Relay (Paho MQTT) con reconexión automática
+      let mqttClient = null;
+      let mqttReconnectTimeout = null;
+
+      function connectMqtt() {
+        if (typeof Paho !== 'undefined') {
+          if (mqttReconnectTimeout) clearTimeout(mqttReconnectTimeout);
+
+          const relayChannel = channel || 'general';
+          const clientId = 'orbi_goal_' + Math.random().toString(36).substring(2, 9);
+          try {
+            mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
+            mqttClient.onConnectionLost = (responseObject) => {
+              console.warn('MQTT Connection lost, reconnecting in 3.5s...', responseObject);
+              scheduleMqttReconnect();
+            };
+            mqttClient.onMessageArrived = (message) => {
+              try {
+                const payload = JSON.parse(message.payloadString);
+                handleIncomingMessage(payload);
+              } catch(e) {}
+            };
+            mqttClient.connect({
+              useSSL: true,
+              timeout: 6,
+              keepAliveInterval: 30,
+              onSuccess: () => {
+                if (token && relayChannel !== 'general') {
+                  mqttClient.subscribe(`orbibot/${relayChannel}_${token}/events`);
+                }
+                mqttClient.subscribe(`orbibot/${relayChannel}/events`);
+              },
+              onFailure: (e) => {
+                console.warn('MQTT connect failed, retrying in 4s...', e);
+                scheduleMqttReconnect();
+              }
+            });
+          } catch(e) {
+            scheduleMqttReconnect();
+          }
+        }
       }
+
+      function scheduleMqttReconnect() {
+        if (mqttReconnectTimeout) clearTimeout(mqttReconnectTimeout);
+        mqttReconnectTimeout = setTimeout(connectMqtt, 3500);
+      }
+
+      connectMqtt();
 
       // 3. BroadcastChannel & Storage for same-browser testing
       if (typeof BroadcastChannel !== 'undefined') {
@@ -148,6 +189,28 @@
           try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
         }
       });
+
+      // 4. OBS Scene Activate & Visibility Health Watcher
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          if (!wsInstance || wsInstance.readyState !== WebSocket.OPEN) {
+            connectLocalWs(wsUrl);
+          }
+          if (!mqttClient || !mqttClient.isConnected()) {
+            connectMqtt();
+          }
+        }
+      });
+
+      // 5. Chequeo periódico de salud en segundo plano cada 15s
+      setInterval(() => {
+        const wsOpen = wsInstance && wsInstance.readyState === WebSocket.OPEN;
+        const mqttOpen = mqttClient && mqttClient.isConnected();
+        if (!wsOpen && !mqttOpen) {
+          connectLocalWs(wsUrl);
+          connectMqtt();
+        }
+      }, 15000);
     }
 
     connectChannels();

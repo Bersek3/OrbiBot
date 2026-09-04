@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>OBS Alert Box Overlay</title>
   <link rel="stylesheet" href="../css/overlays.css">
   <!-- TMI.js for direct Twitch events (Subs, Bits, Raids) -->
@@ -202,28 +205,50 @@
         }, 1500);
       }
 
-      // 1. Try Local Server WebSocket (Works locally and connects OBS to localhost daemon)
+      // 1. Try Local Server WebSocket with Auto-Reconnect loop
+      let wsInstance = null;
+      let wsReconnectTimeout = null;
+
       function connectLocalWs(url) {
+        if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
         try {
-          const ws = new WebSocket(url);
-          ws.onopen = () => {
-            showStatusBadge('🟢 Conectado a Servidor Local (WebSocket)', 4000);
+          if (wsInstance && (wsInstance.readyState === WebSocket.OPEN || wsInstance.readyState === WebSocket.CONNECTING)) {
+            wsInstance.close();
+          }
+        } catch(e) {}
+
+        try {
+          wsInstance = new WebSocket(url);
+          wsInstance.onopen = () => {
+            showStatusBadge('🟢 Conectado a Servidor Local (WebSocket)', 3500);
           };
-          ws.onmessage = (event) => {
+          wsInstance.onmessage = (event) => {
             try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
           };
-          ws.onerror = () => {};
-        } catch(e) {}
+          wsInstance.onerror = () => {
+            scheduleWsReconnect(url);
+          };
+          wsInstance.onclose = () => {
+            scheduleWsReconnect(url);
+          };
+        } catch(e) {
+          scheduleWsReconnect(url);
+        }
+      }
+
+      function scheduleWsReconnect(url) {
+        if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
+        wsReconnectTimeout = setTimeout(() => {
+          connectLocalWs(url);
+        }, 3000);
       }
 
       const isGitHubPages = location.hostname.endsWith('github.io');
-      if (!isGitHubPages) {
-        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        connectLocalWs(`${protocol}//${location.host}`);
-      } else {
-        connectLocalWs('ws://localhost:3000');
-        connectLocalWs('ws://127.0.0.1:3000');
-      }
+      const wsUrl = !isGitHubPages
+        ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`
+        : 'ws://localhost:3000';
+
+      connectLocalWs(wsUrl);
 
       // 2. BroadcastChannel & Storage for same-browser testing
       if (typeof BroadcastChannel !== 'undefined') {
@@ -241,7 +266,7 @@
       if (channel && window.tmi) {
         try {
           const tmiClient = new window.tmi.Client({
-            connection: { reconnect: true, secure: true },
+            connection: { reconnect: true, secure: true, maxReconnectAttempts: Infinity, reconnectInterval: 3000 },
             channels: [channel]
           });
           tmiClient.connect().then(() => {
@@ -277,12 +302,22 @@
         }
       }
 
-      // 4. Cloud Real-time Relay (Paho MQTT over WSS) for instant Dashboard -> OBS Studio communication
-      if (typeof Paho !== 'undefined') {
+      // 4. Cloud Real-time Relay (Paho MQTT) with Auto-Reconnect loop
+      let mqttClient = null;
+      let mqttReconnectTimeout = null;
+
+      function connectMqtt() {
+        if (typeof Paho === 'undefined') return;
+        if (mqttReconnectTimeout) clearTimeout(mqttReconnectTimeout);
+
         const relayChannel = channel || 'general';
         const clientId = 'orbi_obs_' + Math.random().toString(36).substring(2, 9);
         try {
-          const mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
+          mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
+          mqttClient.onConnectionLost = (responseObject) => {
+            console.warn('MQTT Connection lost, reconnecting in 3.5s...', responseObject);
+            scheduleMqttReconnect();
+          };
           mqttClient.onMessageArrived = (message) => {
             try {
               const payload = JSON.parse(message.payloadString);
@@ -301,11 +336,43 @@
               showStatusBadge(`🟢 OrbiBot Listo en OBS (#${relayChannel})`, 4000);
             },
             onFailure: (e) => {
-              console.warn('MQTT Cloud Relay fallback:', e);
+              console.warn('MQTT connect failed, retrying in 4s...', e);
+              scheduleMqttReconnect();
             }
           });
-        } catch(e) {}
+        } catch(e) {
+          scheduleMqttReconnect();
+        }
       }
+
+      function scheduleMqttReconnect() {
+        if (mqttReconnectTimeout) clearTimeout(mqttReconnectTimeout);
+        mqttReconnectTimeout = setTimeout(connectMqtt, 3500);
+      }
+
+      connectMqtt();
+
+      // 5. OBS Scene Activate & Visibility Health Watcher
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          if (!wsInstance || wsInstance.readyState !== WebSocket.OPEN) {
+            connectLocalWs(wsUrl);
+          }
+          if (!mqttClient || !mqttClient.isConnected()) {
+            connectMqtt();
+          }
+        }
+      });
+
+      // Chequeo periódico de salud en segundo plano cada 15s
+      setInterval(() => {
+        const wsOpen = wsInstance && wsInstance.readyState === WebSocket.OPEN;
+        const mqttOpen = mqttClient && mqttClient.isConnected();
+        if (!wsOpen && !mqttOpen) {
+          connectLocalWs(wsUrl);
+          connectMqtt();
+        }
+      }, 15000);
     }
 
     connectChannels();
