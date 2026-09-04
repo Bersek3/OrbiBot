@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>OBS Chat Overlay</title>
-  <link rel="stylesheet" href="/css/overlays.css">
+  <link rel="stylesheet" href="../css/overlays.css">
 </head>
 <body>
   <div id="chatContainer" class="chat-container"></div>
@@ -35,12 +35,10 @@
 
       chatContainer.appendChild(bubble);
 
-      // Keep max message count
       while (chatContainer.children.length > MAX_MESSAGES) {
         chatContainer.removeChild(chatContainer.firstChild);
       }
 
-      // Auto remove after 20 seconds
       setTimeout(() => {
         bubble.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
         bubble.style.opacity = '0';
@@ -56,27 +54,39 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
-    function connectWS() {
-      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${location.host}`);
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.event === 'chat_message') {
-            addMessage(msg.data);
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      };
-
-      ws.onclose = () => {
-        setTimeout(connectWS, 3000);
-      };
+    function handleIncomingMessage(msg) {
+      if (msg.event === 'chat_message') {
+        addMessage(msg.data);
+      }
     }
 
-    connectWS();
+    function connectChannels() {
+      // 1. BroadcastChannel (GitHub Pages & OBS)
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('orbibot_stream_channel');
+        bc.onmessage = (e) => handleIncomingMessage(e.data);
+      }
+
+      // 2. Storage event
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'orbibot_last_event' && e.newValue) {
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
+        }
+      });
+
+      // 3. WebSocket (Local server)
+      if (location.port) {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        try {
+          const ws = new WebSocket(`${protocol}//${location.host}`);
+          ws.onmessage = (event) => {
+            try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
+          };
+        } catch(e) {}
+      }
+    }
+
+    connectChannels();
   </script>
 </body>
 </html>

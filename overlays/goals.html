@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>OBS Goal Widget Overlay</title>
-  <link rel="stylesheet" href="/css/overlays.css">
+  <link rel="stylesheet" href="../css/overlays.css">
 </head>
 <body>
   <div class="goal-container">
@@ -52,6 +52,14 @@
     }
 
     // Load initial
+    try {
+      const saved = localStorage.getItem('orbibot_goals');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed[goalType]) updateGoalDisplay(parsed[goalType]);
+      }
+    } catch(e) {}
+
     fetch('/api/config')
       .then(r => r.json())
       .then(cfg => {
@@ -59,49 +67,54 @@
           updateGoalDisplay(cfg.goals[goalType]);
         }
       })
-      .catch(console.error);
+      .catch(() => {});
 
-    function connectWS() {
-      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${location.host}`);
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.event === 'init_state' && msg.data.goals) {
-            updateGoalDisplay(msg.data.goals[goalType]);
-          } else if (msg.event === 'goal_update' && msg.data.type === goalType) {
-            updateGoalDisplay(msg.data.goal);
-          } else if (msg.event === 'alert') {
-            // Automatically increment goal if relevant
-            if ((goalType === 'subs' && msg.data.type === 'sub') ||
-                (goalType === 'followers' && msg.data.type === 'follower')) {
-              const cur = parseInt(goalCurrent.innerText, 10) + 1;
-              fetch('/api/goals/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: goalType, current: cur })
-              });
-            } else if (goalType === 'bits' && msg.data.type === 'bits') {
-              const cur = parseInt(goalCurrent.innerText, 10) + (msg.data.amount || 0);
-              fetch('/api/goals/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: goalType, current: cur })
-              });
-            }
-          }
-        } catch (e) {
-          console.error(e);
+    function handleIncomingMessage(msg) {
+      if (msg.event === 'init_state' && msg.data.goals) {
+        updateGoalDisplay(msg.data.goals[goalType]);
+      } else if (msg.event === 'goal_update' && msg.data.type === goalType) {
+        updateGoalDisplay(msg.data.goal);
+      } else if (msg.event === 'alert') {
+        if ((goalType === 'subs' && msg.data.type === 'sub') ||
+            (goalType === 'followers' && msg.data.type === 'follower')) {
+          const cur = parseInt(goalCurrent.innerText, 10) + 1;
+          goalCurrent.innerText = cur;
+          updateGoalDisplay({ title: goalTitle.innerText, current: cur, target: parseInt(goalTarget.innerText, 10) });
+        } else if (goalType === 'bits' && msg.data.type === 'bits') {
+          const cur = parseInt(goalCurrent.innerText, 10) + (msg.data.amount || 0);
+          goalCurrent.innerText = cur;
+          updateGoalDisplay({ title: goalTitle.innerText, current: cur, target: parseInt(goalTarget.innerText, 10) });
         }
-      };
-
-      ws.onclose = () => {
-        setTimeout(connectWS, 3000);
-      };
+      }
     }
 
-    connectWS();
+    function connectChannels() {
+      // 1. BroadcastChannel (GitHub Pages & OBS)
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('orbibot_stream_channel');
+        bc.onmessage = (e) => handleIncomingMessage(e.data);
+      }
+
+      // 2. Storage event
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'orbibot_last_event' && e.newValue) {
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
+        }
+      });
+
+      // 3. WebSocket (Local server)
+      if (location.port) {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        try {
+          const ws = new WebSocket(`${protocol}//${location.host}`);
+          ws.onmessage = (event) => {
+            try { handleIncomingMessage(JSON.parse(event.data)); } catch (e) {}
+          };
+        } catch(e) {}
+      }
+    }
+
+    connectChannels();
   </script>
 </body>
 </html>

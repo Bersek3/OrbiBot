@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>OBS Now Playing Song Overlay</title>
-  <link rel="stylesheet" href="/css/overlays.css">
+  <link rel="stylesheet" href="../css/overlays.css">
 </head>
 <body>
   <div class="np-container">
@@ -45,7 +45,12 @@
       npCard.classList.add('visible');
     }
 
-    // Initial fetch
+    // Initial check from localStorage or API
+    try {
+      const saved = localStorage.getItem('orbibot_current_song');
+      if (saved) updateSong(JSON.parse(saved));
+    } catch(e) {}
+
     fetch('/api/sr/state')
       .then(r => r.json())
       .then(state => {
@@ -53,44 +58,50 @@
           updateSong(state.currentSong);
         }
       })
-      .catch(console.error);
+      .catch(() => {});
 
-    function connectWS() {
-      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${location.host}`);
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.event === 'init_state') {
-            if (msg.data.srState && msg.data.srState.currentSong) {
-              updateSong(msg.data.srState.currentSong);
-            }
-          } else if (msg.event === 'sr_update') {
-            const update = msg.data;
-            if (update.action === 'play') {
-              updateSong(update.data);
-            } else if (update.action === 'skip') {
-              updateSong(update.data.current);
-            } else if (update.action === 'stop') {
-              updateSong(null);
-            } else if (update.action === 'state_change') {
-              if (!update.data.isPlaying) {
-                // Dim or hide
-              }
-            }
-          }
-        } catch (e) {
-          console.error(e);
+    function handleIncomingMessage(msg) {
+      if (msg.event === 'init_state' && msg.data.srState?.currentSong) {
+        updateSong(msg.data.srState.currentSong);
+      } else if (msg.event === 'sr_update') {
+        const update = msg.data;
+        if (update.action === 'play') {
+          updateSong(update.data);
+        } else if (update.action === 'skip') {
+          updateSong(update.data?.current);
+        } else if (update.action === 'stop') {
+          updateSong(null);
         }
-      };
-
-      ws.onclose = () => {
-        setTimeout(connectWS, 3000);
-      };
+      }
     }
 
-    connectWS();
+    function connectChannels() {
+      // 1. BroadcastChannel (GitHub Pages & OBS)
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('orbibot_stream_channel');
+        bc.onmessage = (e) => handleIncomingMessage(e.data);
+      }
+
+      // 2. Storage event
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'orbibot_last_event' && e.newValue) {
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
+        }
+      });
+
+      // 3. WebSocket (Local server)
+      if (location.port) {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        try {
+          const ws = new WebSocket(`${protocol}//${location.host}`);
+          ws.onmessage = (event) => {
+            try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
+          };
+        } catch(e) {}
+      }
+    }
+
+    connectChannels();
   </script>
 </body>
 </html>

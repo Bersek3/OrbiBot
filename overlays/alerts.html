@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>OBS Alert Box Overlay</title>
-  <link rel="stylesheet" href="/css/overlays.css">
+  <link rel="stylesheet" href="../css/overlays.css">
 </head>
 <body>
   <div class="alert-container">
@@ -18,7 +18,7 @@
   </div>
 
   <script>
-    // Audio synthesizer for alerts using Web Audio API (Zero external file dependencies!)
+    // Audio synthesizer for alerts using Web Audio API
     function playChime(type) {
       try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -31,9 +31,9 @@
         osc1.type = 'triangle';
         osc2.type = 'sine';
 
-        let freqs = [523.25, 659.25, 783.99, 1046.50]; // C Major arpeggio
-        if (type === 'bits') freqs = [587.33, 739.99, 880.00, 1174.66]; // D Major
-        if (type === 'sub') freqs = [440.00, 554.37, 659.25, 880.00]; // A Major
+        let freqs = [523.25, 659.25, 783.99, 1046.50];
+        if (type === 'bits') freqs = [587.33, 739.99, 880.00, 1174.66];
+        if (type === 'sub') freqs = [440.00, 554.37, 659.25, 880.00];
 
         osc1.frequency.setValueAtTime(freqs[0], now);
         osc1.frequency.exponentialRampToValueAtTime(freqs[1], now + 0.12);
@@ -70,11 +70,16 @@
     let isShowingAlert = false;
     let alertsConfig = null;
 
-    // Fetch initial alert configs
+    // Fetch initial alert configs or read from localStorage
+    try {
+      const saved = localStorage.getItem('orbibot_alerts');
+      if (saved) alertsConfig = JSON.parse(saved);
+    } catch(e) {}
+
     fetch('/api/alerts')
       .then(r => r.json())
       .then(data => { alertsConfig = data; })
-      .catch(err => console.error(err));
+      .catch(() => {});
 
     function processQueue() {
       if (isShowingAlert || alertQueue.length === 0) return;
@@ -94,11 +99,9 @@
         return;
       }
 
-      // Format title and text
       let titleText = cfg.title || '¡Nuevo Evento!';
       let messageTemplate = cfg.message || '{user} ha participado';
 
-      // Variable replacement
       const user = alertData.user || 'Alguien';
       const amount = alertData.amount || 0;
       const viewers = alertData.viewers || 0;
@@ -142,36 +145,43 @@
       }, durationSec);
     }
 
-    // Connect WebSocket
-    function connectWS() {
-      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${location.host}`);
-
-      ws.onopen = () => {
-        console.log('Connected to Alerts WebSocket');
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.event === 'alert') {
-            alertQueue.push(msg.data);
-            processQueue();
-          } else if (msg.event === 'alerts_updated') {
-            alertsConfig = msg.data;
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      };
-
-      ws.onclose = () => {
-        console.warn('WebSocket closed, reconnecting in 3s...');
-        setTimeout(connectWS, 3000);
-      };
+    function handleIncomingMessage(msg) {
+      if (msg.event === 'alert') {
+        alertQueue.push(msg.data);
+        processQueue();
+      } else if (msg.event === 'alerts_updated') {
+        alertsConfig = msg.data;
+      }
     }
 
-    connectWS();
+    // Multi-channel connection (BroadcastChannel + LocalStorage + WebSocket)
+    function connectChannels() {
+      // 1. BroadcastChannel (Works on GitHub Pages & OBS on same PC!)
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('orbibot_stream_channel');
+        bc.onmessage = (e) => handleIncomingMessage(e.data);
+      }
+
+      // 2. Storage event
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'orbibot_last_event' && e.newValue) {
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
+        }
+      });
+
+      // 3. WebSocket (Local server)
+      if (location.port) {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        try {
+          const ws = new WebSocket(`${protocol}//${location.host}`);
+          ws.onmessage = (event) => {
+            try { handleIncomingMessage(JSON.parse(event.data)); } catch (e) {}
+          };
+        } catch(e) {}
+      }
+    }
+
+    connectChannels();
   </script>
 </body>
 </html>

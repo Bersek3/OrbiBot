@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Conectando con Twitch...</title>
-  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="../css/dashboard.css">
   <style>
     body {
       display: flex;
@@ -51,37 +51,87 @@
       const titleEl = document.getElementById('authStatusTitle');
       const descEl = document.getElementById('authStatusDesc');
 
-      // Check hash (Implicit Grant) e.g. #access_token=...
       const hash = window.location.hash.substring(1);
       const params = new URLSearchParams(hash);
       const accessToken = params.get('access_token');
-
-      // Also check query param if any
       const queryParams = new URLSearchParams(window.location.search);
       const code = queryParams.get('code') || queryParams.get('access_token');
 
-      const token = accessToken || code;
+      const token = (accessToken || code || '').replace(/^oauth:/i, '').trim();
 
       if (!token) {
         titleEl.innerText = '❌ Error de Autenticación';
         descEl.innerText = 'No se recibió ningún token de acceso de Twitch. Por favor, intenta de nuevo.';
         setTimeout(() => {
           if (window.opener) window.close();
-          else window.location.href = '/';
+          else window.location.href = '../';
         }, 3000);
         return;
       }
 
       try {
-        const res = await fetch('/api/auth/twitch-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token })
-        });
+        let data = null;
+        try {
+          const res = await fetch('/api/auth/twitch-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+          });
+          if (res.ok) {
+            data = await res.json();
+          }
+        } catch(e) {}
 
-        const data = await res.json();
+        // Fallback for GitHub Pages (Client-side validation)
+        if (!data || !data.success) {
+          const valRes = await fetch('https://id.twitch.tv/oauth2/validate', {
+            headers: { 'Authorization': `OAuth ${token}` }
+          });
+          if (valRes.ok) {
+            const valData = await valRes.json();
+            let dName = valData.login;
+            let pImg = 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
 
-        if (data.success) {
+            try {
+              const userRes = await fetch(`https://api.twitch.tv/helix/users?id=${valData.user_id}`, {
+                headers: {
+                  'Client-Id': valData.client_id,
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+              if (userRes.ok) {
+                const uData = await userRes.json();
+                if (uData.data?.length > 0) {
+                  dName = uData.data[0].display_name;
+                  pImg = uData.data[0].profile_image_url || pImg;
+                }
+              }
+            } catch (err) {}
+
+            const twitchCfg = {
+              channel: valData.login,
+              botUsername: valData.login,
+              oauthToken: token,
+              clientId: valData.client_id,
+              displayName: dName,
+              profileImage: pImg,
+              userId: valData.user_id,
+              connected: true
+            };
+
+            localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twitchCfg));
+            data = {
+              success: true,
+              user: {
+                login: valData.login,
+                display_name: dName,
+                profile_image_url: pImg
+              }
+            };
+          }
+        }
+
+        if (data && data.success) {
           titleEl.innerText = '✅ ¡Conexión Exitosa!';
           descEl.innerText = `Conectado como @${data.user?.display_name || 'Streamer'}. Redirigiendo...`;
 
@@ -89,19 +139,19 @@
             window.opener.postMessage({ type: 'TWITCH_AUTH_SUCCESS', data }, '*');
             setTimeout(() => { window.close(); }, 1200);
           } else {
-            setTimeout(() => { window.location.href = '/'; }, 1500);
+            setTimeout(() => { window.location.href = '../'; }, 1500);
           }
         } else {
           titleEl.innerText = '❌ Error de Validación';
-          descEl.innerText = data.message || 'No se pudo validar el token con Twitch.';
+          descEl.innerText = data?.message || 'No se pudo validar el token con Twitch.';
           setTimeout(() => {
             if (window.opener) window.close();
-            else window.location.href = '/';
+            else window.location.href = '../';
           }, 3000);
         }
       } catch (err) {
         titleEl.innerText = '❌ Error de Conexión';
-        descEl.innerText = 'Ocurrió un fallo de red al comunicar con el servidor.';
+        descEl.innerText = 'Ocurrió un fallo de red al comunicar con Twitch.';
       }
     }
 

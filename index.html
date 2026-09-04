@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Twitch StreamBot & Overlay Toolkit</title>
-  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="./css/dashboard.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239146FF'><path d='M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z'/></svg>">
 </head>
 <body>
@@ -500,7 +500,7 @@
               <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 800 x 600</div>
             </div>
             <div style="margin-top: 16px; display: flex; gap: 8px;">
-              <a id="btnPreviewAlerts" href="/overlays/alerts.html" target="_blank" class="btn btn-secondary btn-sm" style="flex:1">Vista Previa ↗</a>
+              <a id="btnPreviewAlerts" href="./overlays/alerts.html" target="_blank" class="btn btn-secondary btn-sm" style="flex:1">Vista Previa ↗</a>
               <button class="btn btn-accent btn-sm" onclick="triggerTestAlert('follower')">Probar</button>
             </div>
           </div>
@@ -522,7 +522,7 @@
               <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 500 x 140</div>
             </div>
             <div style="margin-top: 16px;">
-              <a id="btnPreviewNowPlaying" href="/overlays/nowplaying.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Vista Previa ↗</a>
+              <a id="btnPreviewNowPlaying" href="./overlays/nowplaying.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Vista Previa ↗</a>
             </div>
           </div>
 
@@ -543,7 +543,7 @@
               <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 450 x 100</div>
             </div>
             <div style="margin-top: 16px;">
-              <a id="btnPreviewGoal" href="/overlays/goals.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Vista Previa ↗</a>
+              <a id="btnPreviewGoal" href="./overlays/goals.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Vista Previa ↗</a>
             </div>
           </div>
         </div>
@@ -566,7 +566,7 @@
               <div style="font-size: 11px; color: var(--text-muted);">Marcar opción en OBS: <strong>"Controlar audio vía OBS"</strong></div>
             </div>
             <div style="margin-top: 16px;">
-              <a id="btnPreviewTts" href="/overlays/tts.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Abrir Receptor TTS ↗</a>
+              <a id="btnPreviewTts" href="./overlays/tts.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Abrir Receptor TTS ↗</a>
             </div>
           </div>
 
@@ -587,7 +587,7 @@
               <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 400 x 600</div>
             </div>
             <div style="margin-top: 16px;">
-              <a id="btnPreviewChat" href="/overlays/chat.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Vista Previa ↗</a>
+              <a id="btnPreviewChat" href="./overlays/chat.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Vista Previa ↗</a>
             </div>
           </div>
         </div>
@@ -756,8 +756,10 @@
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container"></div>
 
+  <!-- TMI.js for browser-based Twitch connection (GitHub Pages fallback) -->
+  <script src="https://cdn.jsdelivr.net/npm/tmi.js@1.8.5/dist/tmi.min.js"></script>
   <!-- YouTube Iframe API -->
   <script src="https://www.youtube.com/iframe_api"></script>
-  <script src="/js/dashboard.js"></script>
+  <script src="./js/dashboard.js"></script>
 </body>
 </html>
