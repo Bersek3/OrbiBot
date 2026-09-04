@@ -376,44 +376,73 @@
 
       <!-- ================= TAB 3: SONG REQUEST ================= -->
       <section id="tab-sr" class="tab-pane">
+        <!-- Reproductor oculto de YouTube en segundo plano para que el audio siga funcionando sin mostrar video -->
+        <div id="youtubePlayerContainer" style="position: fixed; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none; z-index: -999;"></div>
+
         <div class="grid-2">
-          <!-- Columna Izquierda: Reproductor y Controles -->
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">🎵 Reproductor de Música en Vivo</span>
-              <div style="display: flex; gap: 8px;">
-                <button id="btnSrSkip" class="btn btn-secondary btn-sm">⏭️ Saltar</button>
-                <button id="btnSrClear" class="btn btn-danger btn-sm">🗑️ Vaciar Cola</button>
+          <!-- Columna Izquierda: Reproducción Actual y Cola con el mismo diseño -->
+          <div style="display: flex; flex-direction: column; gap: 20px;">
+            
+            <!-- PARTE SUPERIOR: Canción en Reproducción y Controles -->
+            <div class="card">
+              <div class="card-header">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span class="card-title">🎵 Canción en Reproducción</span>
+                  <div class="music-wave" id="srMusicWave" style="display: flex;">
+                    <span class="music-bar"></span>
+                    <span class="music-bar"></span>
+                    <span class="music-bar"></span>
+                    <span class="music-bar"></span>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button id="btnSrSkip" class="btn btn-secondary btn-sm" title="Saltar a la siguiente canción">⏭️ Saltar</button>
+                  <button id="btnSrClear" class="btn btn-danger btn-sm" title="Vaciar toda la cola">🗑️ Vaciar Cola</button>
+                </div>
+              </div>
+
+              <!-- Banner Canción Actual (Sin video, solo portada y datos) -->
+              <div class="current-song-banner">
+                <img id="srCurrentThumb" class="song-cover" src="https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" alt="Portada">
+                <div class="song-meta">
+                  <div id="srCurrentTitle" class="song-title-text">No hay canción sonando</div>
+                  <div id="srCurrentAuthor" class="song-sub-text">Pide una canción con !sr en el chat</div>
+                  <div id="srCurrentRequester" class="song-sub-text" style="color: var(--cyan-accent); margin-top: 6px;">Esperando solicitudes...</div>
+                </div>
+              </div>
+
+              <!-- Barra para Añadir Canción Manualmente -->
+              <div style="margin-top: 18px;">
+                <label class="form-label" style="font-size: 12px;">Añadir Canción Manualmente</label>
+                <div style="display: flex; gap: 10px;">
+                  <input type="text" id="srManualInput" class="form-control" placeholder="Pega un enlace de YouTube o escribe el nombre de la canción...">
+                  <button id="btnSrAddManual" class="btn btn-primary" style="flex-shrink: 0;">Añadir a la Cola</button>
+                </div>
               </div>
             </div>
 
-            <!-- Banner Canción Actual -->
-            <div class="current-song-banner">
-              <img id="srCurrentThumb" class="song-cover" src="https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" alt="Portada">
-              <div class="song-meta">
-                <div id="srCurrentTitle" class="song-title-text">No hay canción sonando</div>
-                <div id="srCurrentAuthor" class="song-sub-text">Pide una canción con !sr en el chat</div>
-                <div id="srCurrentRequester" class="song-sub-text" style="color: var(--cyan-accent);">Esperando...</div>
+            <!-- PARTE INFERIOR: Cola de Reproducción debajito con el mismo diseño -->
+            <div class="card" style="flex: 1;">
+              <div class="card-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="card-title">📋 Próximas Canciones en Cola</span>
+                  <span id="queueBadgeTotal" style="font-size: 11px; background: rgba(0, 242, 254, 0.15); color: var(--cyan-accent); border: 1px solid rgba(0,242,254,0.3); padding: 2px 10px; border-radius: 999px; font-weight: 700;">0 canciones</span>
+                </div>
+              </div>
+
+              <div id="srQueueContainer" class="queue-list">
+                <div style="text-align: center; color: var(--text-muted); padding: 36px 20px;">
+                  <div style="font-size: 32px; margin-bottom: 8px;">🎵</div>
+                  <div style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">No hay canciones en cola actualmente</div>
+                  <div style="font-size: 12px; margin-top: 4px;">Tus espectadores pueden usar <code>!sr nombre de la canción</code> en Twitch.</div>
+                </div>
               </div>
             </div>
 
-            <!-- Embebido de YouTube IFrame -->
-            <div style="margin-top: 16px; border-radius: var(--radius-md); overflow: hidden; height: 220px; background: #000;">
-              <div id="youtubePlayerContainer" style="width: 100%; height: 100%;"></div>
-            </div>
-
-            <!-- Añadir Canción Manual -->
-            <div style="margin-top: 20px;">
-              <label class="form-label">Añadir Canción Manualmente</label>
-              <div style="display: flex; gap: 10px;">
-                <input type="text" id="srManualInput" class="form-control" placeholder="Pega enlace de YouTube o escribe título...">
-                <button id="btnSrAddManual" class="btn btn-primary">Añadir</button>
-              </div>
-            </div>
           </div>
 
-          <!-- Columna Derecha: Cola y Configuración de SR -->
-          <div style="display: flex; flex-direction: column; gap: 24px;">
+          <!-- Columna Derecha: Configuración del Prefijo, Reglas y Comandos -->
+          <div style="display: flex; flex-direction: column; gap: 20px;">
             <!-- Configuración del Comando y Límites -->
             <div class="card">
               <div class="card-header">
@@ -450,23 +479,34 @@
 
               <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
                 <label class="switch-label" style="width: 100%;">
-                  <span>Habilitar sistema de Song Request</span>
+                  <span style="font-weight: 600; font-size: 13px;">Habilitar sistema de Song Request</span>
                   <input type="checkbox" id="cfgSrEnabled" class="switch-input" checked>
                   <span class="switch-slider"></span>
                 </label>
               </div>
             </div>
 
-            <!-- Lista de Canciones en Cola -->
-            <div class="card" style="flex: 1;">
+            <!-- Guía Rápida de Comandos para el Chat -->
+            <div class="card">
               <div class="card-header">
-                <span class="card-title">📋 Próximas Canciones en Cola</span>
-                <span id="queueBadgeTotal" style="font-size: 12px; color: var(--cyan-accent); font-weight: 700;">0 canciones</span>
+                <span class="card-title">💡 Comandos de Música para tu Chat</span>
               </div>
-
-              <div id="srQueueContainer" class="queue-list">
-                <div style="text-align: center; color: var(--text-muted); padding: 24px;">
-                  No hay canciones en cola actualmente.
+              <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                  <span><code style="color: var(--cyan-accent); font-weight: 700;">!sr &lt;canción&gt;</code></span>
+                  <span style="color: var(--text-muted);">Pide una canción por nombre o link</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                  <span><code style="color: var(--cyan-accent); font-weight: 700;">!song</code></span>
+                  <span style="color: var(--text-muted);">Muestra la canción que suena</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                  <span><code style="color: var(--cyan-accent); font-weight: 700;">!queue</code></span>
+                  <span style="color: var(--text-muted);">Muestra la lista de canciones en cola</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                  <span><code style="color: var(--cyan-accent); font-weight: 700;">!skip</code></span>
+                  <span style="color: var(--text-muted);">Salta la canción (Streamer/Mods)</span>
                 </div>
               </div>
             </div>

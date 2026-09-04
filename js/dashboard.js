@@ -674,13 +674,27 @@ function updateSongRequestUI(state) {
     thumb.src = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
     title.innerText = 'No hay canción sonando';
     author.innerText = 'Pide una canción con !sr en el chat';
-    requester.innerText = 'Esperando...';
+    requester.innerText = 'Esperando solicitudes...';
+  }
+
+  // Visualizer wave
+  const wave = document.getElementById('srMusicWave');
+  if (wave) {
+    wave.style.display = current ? 'flex' : 'none';
   }
 
   // Render Queue List
   const queueContainer = document.getElementById('srQueueContainer');
+  if (!queueContainer) return;
+
   if (queue.length === 0) {
-    queueContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 24px;">No hay canciones en cola actualmente.</div>`;
+    queueContainer.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 36px 20px;">
+        <div style="font-size: 32px; margin-bottom: 8px;">🎵</div>
+        <div style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">No hay canciones en cola actualmente</div>
+        <div style="font-size: 12px; margin-top: 4px;">Tus espectadores pueden usar <code>!sr nombre de la canción</code> en Twitch.</div>
+      </div>
+    `;
     return;
   }
 
@@ -688,14 +702,15 @@ function updateSongRequestUI(state) {
   queue.forEach((song, idx) => {
     const item = document.createElement('div');
     item.className = 'queue-item';
+    const thumbUrl = song.thumbnail || 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
     item.innerHTML = `
       <div class="queue-index">#${idx + 1}</div>
-      <img class="queue-thumb" src="${song.thumbnail}" alt="Thumb">
+      <img class="queue-thumb" src="${escapeHtml(thumbUrl)}" alt="Thumb">
       <div class="queue-info">
         <div class="queue-title">${escapeHtml(song.title)}</div>
-        <div class="queue-req">Pedida por @${escapeHtml(song.requester)} • ${song.durationFormatted || '3:30'}</div>
+        <div class="queue-req">Pedida por <strong style="color: var(--cyan-accent);">@${escapeHtml(song.requester)}</strong> • ⏱️ ${song.durationFormatted || '3:30'}</div>
       </div>
-      <button class="btn btn-secondary btn-sm" onclick="removeSongFromQueue('${song.id}')" title="Eliminar de la cola">❌</button>
+      <button class="btn btn-danger btn-sm" onclick="removeSongFromQueue('${song.id}')" title="Eliminar de la cola">🗑️</button>
     `;
     queueContainer.appendChild(item);
   });
