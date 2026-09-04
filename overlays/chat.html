@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>OBS Chat Overlay</title>
+  <link rel="stylesheet" href="/css/overlays.css">
+</head>
+<body>
+  <div id="chatContainer" class="chat-container"></div>
+
+  <script>
+    const chatContainer = document.getElementById('chatContainer');
+    const MAX_MESSAGES = 15;
+
+    function addMessage(data) {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble';
+
+      if (data.isMod) {
+        bubble.style.borderLeftColor = '#00f2fe';
+      }
+
+      let badgeHtml = '';
+      if (data.badges?.broadcaster) badgeHtml += '<span class="user-badge" style="background:#e91e63">STREAMER</span>';
+      else if (data.isMod) badgeHtml += '<span class="user-badge" style="background:#00f2fe;color:#000">MOD</span>';
+      else if (data.isSub) badgeHtml += '<span class="user-badge" style="background:#9146ff">SUB</span>';
+
+      bubble.innerHTML = `
+        <div>
+          ${badgeHtml}
+          <span class="username" style="color: ${data.color || '#9146ff'}">${data.user}:</span>
+          <span class="text">${escapeHtml(data.message)}</span>
+        </div>
+      `;
+
+      chatContainer.appendChild(bubble);
+
+      // Keep max message count
+      while (chatContainer.children.length > MAX_MESSAGES) {
+        chatContainer.removeChild(chatContainer.firstChild);
+      }
+
+      // Auto remove after 20 seconds
+      setTimeout(() => {
+        bubble.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
+        bubble.style.opacity = '0';
+        bubble.style.transform = 'translateY(-10px)';
+        setTimeout(() => {
+          if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
+        }, 800);
+      }, 20000);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function connectWS() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${location.host}`);
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.event === 'chat_message') {
+            addMessage(msg.data);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWS, 3000);
+      };
+    }
+
+    connectWS();
+  </script>
+</body>
+</html>

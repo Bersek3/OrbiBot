@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>OBS Alert Box Overlay</title>
+  <link rel="stylesheet" href="/css/overlays.css">
+</head>
+<body>
+  <div class="alert-container">
+    <div id="alertCard" class="alert-card">
+      <div id="alertBadge" class="alert-badge">NUEVO EVENTO</div>
+      <div class="alert-media-wrap">
+        <img id="alertImage" class="alert-media" src="" alt="Alert GIF">
+      </div>
+      <div id="alertTitle" class="alert-title">¡Nuevo Seguidor!</div>
+      <div id="alertMessage" class="alert-message">Usuario se ha suscrito</div>
+    </div>
+  </div>
+
+  <script>
+    // Audio synthesizer for alerts using Web Audio API (Zero external file dependencies!)
+    function playChime(type) {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = audioCtx.currentTime;
+
+        const osc1 = audioCtx.createOscillator();
+        const osc2 = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        osc1.type = 'triangle';
+        osc2.type = 'sine';
+
+        let freqs = [523.25, 659.25, 783.99, 1046.50]; // C Major arpeggio
+        if (type === 'bits') freqs = [587.33, 739.99, 880.00, 1174.66]; // D Major
+        if (type === 'sub') freqs = [440.00, 554.37, 659.25, 880.00]; // A Major
+
+        osc1.frequency.setValueAtTime(freqs[0], now);
+        osc1.frequency.exponentialRampToValueAtTime(freqs[1], now + 0.12);
+        osc1.frequency.exponentialRampToValueAtTime(freqs[2], now + 0.24);
+        osc1.frequency.exponentialRampToValueAtTime(freqs[3], now + 0.36);
+
+        osc2.frequency.setValueAtTime(freqs[1] / 2, now);
+        osc2.frequency.exponentialRampToValueAtTime(freqs[3] / 2, now + 0.4);
+
+        gainNode.gain.setValueAtTime(0.01, now);
+        gainNode.gain.linearRampToValueAtTime(0.3, now + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 1.2);
+        osc2.stop(now + 1.2);
+      } catch (e) {
+        console.warn('Audio Context error:', e);
+      }
+    }
+
+    const alertCard = document.getElementById('alertCard');
+    const alertBadge = document.getElementById('alertBadge');
+    const alertImage = document.getElementById('alertImage');
+    const alertTitle = document.getElementById('alertTitle');
+    const alertMessage = document.getElementById('alertMessage');
+
+    let alertQueue = [];
+    let isShowingAlert = false;
+    let alertsConfig = null;
+
+    // Fetch initial alert configs
+    fetch('/api/alerts')
+      .then(r => r.json())
+      .then(data => { alertsConfig = data; })
+      .catch(err => console.error(err));
+
+    function processQueue() {
+      if (isShowingAlert || alertQueue.length === 0) return;
+      isShowingAlert = true;
+
+      const current = alertQueue.shift();
+      showAlert(current);
+    }
+
+    function showAlert(alertData) {
+      const type = alertData.type || 'follower';
+      const cfg = (alertsConfig && alertsConfig[type]) ? alertsConfig[type] : {};
+
+      if (cfg.enabled === false) {
+        isShowingAlert = false;
+        processQueue();
+        return;
+      }
+
+      // Format title and text
+      let titleText = cfg.title || '¡Nuevo Evento!';
+      let messageTemplate = cfg.message || '{user} ha participado';
+
+      // Variable replacement
+      const user = alertData.user || 'Alguien';
+      const amount = alertData.amount || 0;
+      const viewers = alertData.viewers || 0;
+      const tier = alertData.tier || '1';
+      const reward = alertData.reward || '';
+      const customMsg = alertData.message ? `"${alertData.message}"` : '';
+
+      let formattedMessage = messageTemplate
+        .replace(/{user}/g, `<span class="alert-username">${user}</span>`)
+        .replace(/{amount}/g, amount)
+        .replace(/{viewers}/g, viewers)
+        .replace(/{tier}/g, tier)
+        .replace(/{reward}/g, reward)
+        .replace(/{message}/g, customMsg);
+
+      alertBadge.innerText = type.toUpperCase().replace('_', ' ');
+      alertTitle.innerHTML = titleText;
+      alertMessage.innerHTML = formattedMessage;
+
+      const mediaUrl = cfg.image || 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif';
+      alertImage.src = mediaUrl;
+
+      // Play Sound
+      if (cfg.sound && cfg.sound.startsWith('http')) {
+        const audio = new Audio(cfg.sound);
+        audio.play().catch(() => playChime(type));
+      } else {
+        playChime(type);
+      }
+
+      // Show Card
+      alertCard.classList.add('active');
+
+      const durationSec = (cfg.duration || 6) * 1000;
+      setTimeout(() => {
+        alertCard.classList.remove('active');
+        setTimeout(() => {
+          isShowingAlert = false;
+          processQueue();
+        }, 600);
+      }, durationSec);
+    }
+
+    // Connect WebSocket
+    function connectWS() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${location.host}`);
+
+      ws.onopen = () => {
+        console.log('Connected to Alerts WebSocket');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.event === 'alert') {
+            alertQueue.push(msg.data);
+            processQueue();
+          } else if (msg.event === 'alerts_updated') {
+            alertsConfig = msg.data;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      ws.onclose = () => {
+        console.warn('WebSocket closed, reconnecting in 3s...');
+        setTimeout(connectWS, 3000);
+      };
+    }
+
+    connectWS();
+  </script>
+</body>
+</html>

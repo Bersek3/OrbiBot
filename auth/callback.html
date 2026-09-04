@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Conectando con Twitch...</title>
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #0a0d14;
+      font-family: 'Outfit', sans-serif;
+      color: #fff;
+    }
+    .auth-card {
+      text-align: center;
+      padding: 40px;
+      background: rgba(16, 21, 34, 0.95);
+      border: 1px solid rgba(145, 70, 255, 0.4);
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 30px rgba(145, 70, 255, 0.2);
+      max-width: 420px;
+      width: 90%;
+    }
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(145, 70, 255, 0.2);
+      border-top-color: #9146ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 20px auto;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-card">
+    <div class="spinner"></div>
+    <h2 id="authStatusTitle" style="font-size: 20px; font-weight: 800; margin-bottom: 8px;">Conectando con Twitch</h2>
+    <p id="authStatusDesc" style="font-size: 14px; color: #94a3b8;">Validando tu token de acceso e importando tus datos...</p>
+  </div>
+
+  <script>
+    async function handleAuth() {
+      const titleEl = document.getElementById('authStatusTitle');
+      const descEl = document.getElementById('authStatusDesc');
+
+      // Check hash (Implicit Grant) e.g. #access_token=...
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get('access_token');
+
+      // Also check query param if any
+      const queryParams = new URLSearchParams(window.location.search);
+      const code = queryParams.get('code') || queryParams.get('access_token');
+
+      const token = accessToken || code;
+
+      if (!token) {
+        titleEl.innerText = '❌ Error de Autenticación';
+        descEl.innerText = 'No se recibió ningún token de acceso de Twitch. Por favor, intenta de nuevo.';
+        setTimeout(() => {
+          if (window.opener) window.close();
+          else window.location.href = '/';
+        }, 3000);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/twitch-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          titleEl.innerText = '✅ ¡Conexión Exitosa!';
+          descEl.innerText = `Conectado como @${data.user?.display_name || 'Streamer'}. Redirigiendo...`;
+
+          if (window.opener) {
+            window.opener.postMessage({ type: 'TWITCH_AUTH_SUCCESS', data }, '*');
+            setTimeout(() => { window.close(); }, 1200);
+          } else {
+            setTimeout(() => { window.location.href = '/'; }, 1500);
+          }
+        } else {
+          titleEl.innerText = '❌ Error de Validación';
+          descEl.innerText = data.message || 'No se pudo validar el token con Twitch.';
+          setTimeout(() => {
+            if (window.opener) window.close();
+            else window.location.href = '/';
+          }, 3000);
+        }
+      } catch (err) {
+        titleEl.innerText = '❌ Error de Conexión';
+        descEl.innerText = 'Ocurrió un fallo de red al comunicar con el servidor.';
+      }
+    }
+
+    handleAuth();
+  </script>
+</body>
+</html>

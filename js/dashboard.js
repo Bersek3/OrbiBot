@@ -1,0 +1,848 @@
+/**
+ * Twitch StreamBot & Overlay Toolkit - Dashboard Logic
+ */
+
+let appConfig = null;
+let ytPlayer = null;
+let ytApiReady = false;
+let socket = null;
+
+// ================= INITIALIZATION =================
+document.addEventListener('DOMContentLoaded', async () => {
+  setupNavigation();
+  setupRangeInputs();
+  setupEventListeners();
+  populateWidgetUrls();
+  await loadInitialData();
+  connectWebSocket();
+});
+
+// ================= NAVIGATION =================
+function setupNavigation() {
+  const navItems = document.querySelectorAll('.nav-item');
+  const tabPanes = document.querySelectorAll('.tab-pane');
+  const titleEl = document.getElementById('currentTabTitle');
+
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      navItems.forEach(n => n.classList.remove('active'));
+      tabPanes.forEach(p => p.classList.remove('active'));
+
+      item.classList.add('active');
+      const targetTabId = item.getAttribute('data-tab');
+      const targetPane = document.getElementById(targetTabId);
+      if (targetPane) {
+        targetPane.classList.add('active');
+      }
+
+      titleEl.innerText = item.querySelector('span:last-child').innerText;
+    });
+  });
+}
+
+// ================= TOAST NOTIFICATIONS =================
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  
+  let icon = 'ℹ️';
+  if (type === 'success') icon = '✅';
+  if (type === 'error') icon = '❌';
+  if (type === 'warn') icon = '⚠️';
+
+  toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(20px)';
+    setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 300);
+  }, 3500);
+}
+
+// ================= WEBSOCKET REALTIME =================
+function connectWebSocket() {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  socket = new WebSocket(`${protocol}//${location.host}`);
+
+  socket.onopen = () => {
+    console.log('Connected to StreamBot Server WebSocket');
+  };
+
+  socket.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      handleSocketMessage(msg);
+    } catch (e) {
+      console.error('Error parsing WS message:', e);
+    }
+  };
+
+  socket.onclose = () => {
+    console.warn('WS disconnected. Reconnecting in 3 seconds...');
+    setTimeout(connectWebSocket, 3000);
+  };
+}
+
+function handleSocketMessage(msg) {
+  const { event, data } = msg;
+
+  if (event === 'init_state') {
+    updateBotStatusUI(data.botStatus);
+    updateSongRequestUI(data.srState);
+  } else if (event === 'bot_status') {
+    updateBotStatusUI(data);
+  } else if (event === 'chat_message') {
+    appendChatMessage(data);
+  } else if (event === 'sr_update') {
+    updateSongRequestUI(data.state);
+    if (data.action === 'play' && data.data) {
+      playYouTubeSong(data.data.videoId);
+    }
+  } else if (event === 'alert') {
+    showToast(`Alerta recibida: ${data.type.toUpperCase()} de ${data.user}`, 'success');
+  } else if (event === 'tts') {
+    // Optionally speak directly in dashboard if user wants audio monitoring
+    console.log('TTS triggered:', data);
+  }
+}
+
+// ================= LOAD DATA =================
+async function loadInitialData() {
+  try {
+    const [cfgRes, cmdRes, rwdRes, srRes] = await Promise.all([
+      fetch('/api/config').then(r => r.json()),
+      fetch('/api/commands').then(r => r.json()),
+      fetch('/api/rewards').then(r => r.json()),
+      fetch('/api/sr/state').then(r => r.json())
+    ]);
+
+    appConfig = cfgRes;
+    bindConfigToUI(cfgRes);
+    renderCommands(cmdRes);
+    renderRewards(rwdRes);
+    updateSongRequestUI(srRes);
+  } catch (err) {
+    console.error('Failed to load initial data:', err);
+    showToast('Error cargando la configuración inicial.', 'error');
+  }
+}
+
+// ================= UI BINDING =================
+function bindConfigToUI(cfg) {
+  // Twitch Profile & Connection
+  if (cfg.twitch) {
+    const isConn = cfg.twitch.connected && (cfg.twitch.channel || cfg.twitch.oauthToken);
+    const profileBox = document.getElementById('twitchConnectedProfile');
+    const disconnectBox = document.getElementById('twitchDisconnectedBox');
+    const topUserPill = document.getElementById('topUserPill');
+
+    if (isConn) {
+      if (profileBox) profileBox.style.display = 'flex';
+      if (disconnectBox) disconnectBox.style.display = 'none';
+
+      const avatar = cfg.twitch.profileImage || 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
+      const dName = cfg.twitch.displayName || cfg.twitch.channel || 'Streamer';
+      const login = cfg.twitch.channel || '';
+
+      document.getElementById('twitchUserAvatar').src = avatar;
+      document.getElementById('twitchUserDisplayName').innerText = dName;
+      document.getElementById('twitchUserLogin').innerText = `@${login}`;
+
+      if (topUserPill) {
+        topUserPill.style.display = 'flex';
+        document.getElementById('topUserAvatar').src = avatar;
+        document.getElementById('topUserName').innerText = `@${login}`;
+      }
+    } else {
+      if (profileBox) profileBox.style.display = 'none';
+      if (disconnectBox) disconnectBox.style.display = 'block';
+      if (topUserPill) topUserPill.style.display = 'none';
+    }
+
+    document.getElementById('cfgTwitchChannel').value = cfg.twitch.channel || '';
+    document.getElementById('cfgTwitchBotUser').value = cfg.twitch.botUsername || '';
+    document.getElementById('cfgTwitchToken').value = cfg.twitch.oauthToken || '';
+    if (document.getElementById('cfgTwitchClientId')) {
+      document.getElementById('cfgTwitchClientId').value = cfg.twitch.clientId || '';
+    }
+    document.getElementById('statChannelName').innerText = cfg.twitch.channel ? `#${cfg.twitch.channel}` : 'Ninguno';
+  }
+
+  // Song Request
+  if (cfg.songRequest) {
+    document.getElementById('cfgSrPrefix').value = cfg.songRequest.prefix || '!sr';
+    document.getElementById('cfgSrUserLevel').value = cfg.songRequest.userLevel || 'all';
+    document.getElementById('cfgSrMaxDuration').value = cfg.songRequest.maxDurationMinutes || 8;
+    document.getElementById('cfgSrMaxPerUser').value = cfg.songRequest.maxPerUser || 5;
+    document.getElementById('cfgSrEnabled').checked = cfg.songRequest.enabled !== false;
+  }
+
+  // TTS
+  if (cfg.tts) {
+    document.getElementById('cfgTtsEnabled').checked = cfg.tts.enabled !== false;
+    document.getElementById('cfgTtsVoice').value = cfg.tts.voice || 'es_001';
+    document.getElementById('cfgTtsVolume').value = cfg.tts.volume !== undefined ? cfg.tts.volume : 90;
+    document.getElementById('valTtsVolume').innerText = `${document.getElementById('cfgTtsVolume').value}%`;
+    document.getElementById('cfgTtsRate').value = cfg.tts.rate || 1.0;
+    document.getElementById('valTtsRate').innerText = `${document.getElementById('cfgTtsRate').value}x`;
+    document.getElementById('cfgTtsPitch').value = cfg.tts.pitch || 1.0;
+    document.getElementById('valTtsPitch').innerText = document.getElementById('cfgTtsPitch').value;
+    document.getElementById('cfgTtsMaxLength').value = cfg.tts.maxLength || 250;
+    document.getElementById('cfgTtsBannedWords').value = (cfg.tts.bannedWords || []).join(', ');
+    document.getElementById('cfgTtsAllowCommand').checked = cfg.tts.allowChatCommand !== false;
+    document.getElementById('cfgTtsCommand').value = cfg.tts.chatCommand || '!tts';
+    document.getElementById('cfgTtsMinBits').value = cfg.tts.minBits !== undefined ? cfg.tts.minBits : 50;
+  }
+
+  // Goals
+  if (cfg.goals) {
+    if (cfg.goals.subs) {
+      document.getElementById('cfgGoalSubTitle').value = cfg.goals.subs.title || 'Meta de Suscriptores';
+      document.getElementById('cfgGoalSubCurrent').value = cfg.goals.subs.current || 0;
+      document.getElementById('cfgGoalSubTarget').value = cfg.goals.subs.target || 50;
+    }
+    if (cfg.goals.followers) {
+      document.getElementById('cfgGoalFollowTitle').value = cfg.goals.followers.title || 'Meta de Seguidores';
+      document.getElementById('cfgGoalFollowCurrent').value = cfg.goals.followers.current || 0;
+      document.getElementById('cfgGoalFollowTarget').value = cfg.goals.followers.target || 300;
+    }
+    if (cfg.goals.bits) {
+      document.getElementById('cfgGoalBitsTitle').value = cfg.goals.bits.title || 'Meta de Bits';
+      document.getElementById('cfgGoalBitsCurrent').value = cfg.goals.bits.current || 0;
+      document.getElementById('cfgGoalBitsTarget').value = cfg.goals.bits.target || 5000;
+    }
+  }
+}
+
+function setupRangeInputs() {
+  const vol = document.getElementById('cfgTtsVolume');
+  const rate = document.getElementById('cfgTtsRate');
+  const pitch = document.getElementById('cfgTtsPitch');
+
+  vol.addEventListener('input', () => { document.getElementById('valTtsVolume').innerText = `${vol.value}%`; });
+  rate.addEventListener('input', () => { document.getElementById('valTtsRate').innerText = `${rate.value}x`; });
+  pitch.addEventListener('input', () => { document.getElementById('valTtsPitch').innerText = pitch.value; });
+}
+
+// ================= BOT STATUS =================
+function updateBotStatusUI(botStatus) {
+  const dot = document.getElementById('botStatusDot');
+  const text = document.getElementById('botStatusText');
+  const badge = document.getElementById('twitchConnectionBadge');
+  const statText = document.getElementById('statBotStatus');
+  const quickBtn = document.getElementById('quickConnectBtn');
+
+  if (!botStatus) return;
+
+  const status = botStatus.status;
+  dot.className = `status-dot ${status}`;
+  text.innerText = status === 'connected' ? 'En Línea' : (status === 'connecting' ? 'Conectando...' : 'Desconectado');
+
+  if (status === 'connected') {
+    badge.className = 'btn btn-sm btn-accent';
+    badge.innerText = '🟢 Conectado';
+    statText.innerText = 'En Línea';
+    statText.style.color = 'var(--green-success)';
+    quickBtn.innerText = 'Desconectar';
+  } else if (status === 'connecting') {
+    badge.className = 'btn btn-sm btn-secondary';
+    badge.innerText = '🟡 Conectando...';
+    statText.innerText = 'Conectando';
+    statText.style.color = 'var(--yellow-warn)';
+  } else {
+    badge.className = 'btn btn-sm btn-danger';
+    badge.innerText = '🔴 Desconectado';
+    statText.innerText = 'Inactivo';
+    statText.style.color = 'var(--red-danger)';
+    quickBtn.innerText = 'Conectar';
+  }
+}
+
+// ================= CHAT LIVE LOG =================
+function appendChatMessage(data) {
+  const container = document.getElementById('liveChatMessages');
+  const row = document.createElement('div');
+  row.className = 'chat-msg-row';
+
+  let badge = '';
+  if (data.badges?.broadcaster) badge = '<span class="chat-badge" style="background:#ff007f">STREAMER</span>';
+  else if (data.isMod) badge = '<span class="chat-badge" style="background:#00f2fe; color:#000">MOD</span>';
+  else if (data.isSub) badge = '<span class="chat-badge">SUB</span>';
+
+  row.innerHTML = `
+    ${badge}
+    <span class="chat-user" style="color: ${data.color || '#9146ff'}">${data.user}:</span>
+    <span class="chat-text">${escapeHtml(data.message)}</span>
+  `;
+
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+// ================= SONG REQUEST UI & YOUTUBE =================
+function updateSongRequestUI(state) {
+  if (!state) return;
+
+  const current = state.currentSong;
+  const queue = state.queue || [];
+
+  // Update Stats
+  document.getElementById('statQueueCount').innerText = queue.length;
+  document.getElementById('queueBadgeTotal').innerText = `${queue.length} canciones`;
+
+  // Update Current Song Banner
+  const thumb = document.getElementById('srCurrentThumb');
+  const title = document.getElementById('srCurrentTitle');
+  const author = document.getElementById('srCurrentAuthor');
+  const requester = document.getElementById('srCurrentRequester');
+
+  if (current) {
+    thumb.src = current.thumbnail || 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
+    title.innerText = current.title;
+    author.innerText = current.author || 'YouTube';
+    requester.innerHTML = `Pedida por: <strong>@${current.requester}</strong> (${current.durationFormatted || '3:30'})`;
+
+    if (ytPlayer && ytApiReady && current.videoId) {
+      const currentVideoId = ytPlayer.getVideoData ? ytPlayer.getVideoData().video_id : null;
+      if (currentVideoId !== current.videoId) {
+        playYouTubeSong(current.videoId);
+      }
+    }
+  } else {
+    thumb.src = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
+    title.innerText = 'No hay canción sonando';
+    author.innerText = 'Pide una canción con !sr en el chat';
+    requester.innerText = 'Esperando...';
+  }
+
+  // Render Queue List
+  const queueContainer = document.getElementById('srQueueContainer');
+  if (queue.length === 0) {
+    queueContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 24px;">No hay canciones en cola actualmente.</div>`;
+    return;
+  }
+
+  queueContainer.innerHTML = '';
+  queue.forEach((song, idx) => {
+    const item = document.createElement('div');
+    item.className = 'queue-item';
+    item.innerHTML = `
+      <div class="queue-index">#${idx + 1}</div>
+      <img class="queue-thumb" src="${song.thumbnail}" alt="Thumb">
+      <div class="queue-info">
+        <div class="queue-title">${escapeHtml(song.title)}</div>
+        <div class="queue-req">Pedida por @${escapeHtml(song.requester)} • ${song.durationFormatted || '3:30'}</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="removeSongFromQueue('${song.id}')" title="Eliminar de la cola">❌</button>
+    `;
+    queueContainer.appendChild(item);
+  });
+}
+
+// YouTube Player Integration
+window.onYouTubeIframeAPIReady = function() {
+  ytApiReady = true;
+  ytPlayer = new YT.Player('youtubePlayerContainer', {
+    height: '100%',
+    width: '100%',
+    videoId: '',
+    playerVars: {
+      autoplay: 1,
+      controls: 1,
+      modestbranding: 1
+    },
+    events: {
+      onReady: (event) => {
+        // Player ready
+        if (appConfig?.songRequest?.volume !== undefined) {
+          event.target.setVolume(appConfig.songRequest.volume);
+        }
+      },
+      onStateChange: (event) => {
+        // YT.PlayerState.ENDED is 0
+        if (event.data === YT.PlayerState.ENDED) {
+          skipCurrentSong();
+        }
+      }
+    }
+  });
+};
+
+function playYouTubeSong(videoId) {
+  if (ytPlayer && ytPlayer.loadVideoById) {
+    ytPlayer.loadVideoById(videoId);
+    ytPlayer.playVideo();
+  }
+}
+
+async function skipCurrentSong() {
+  try {
+    const res = await fetch('/api/sr/skip', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message || 'Canción saltada');
+  } catch (e) {
+    showToast('Error saltando canción', 'error');
+  }
+}
+
+async function removeSongFromQueue(songId) {
+  try {
+    const res = await fetch('/api/sr/remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: songId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Canción eliminada de la cola');
+    }
+  } catch (e) {
+    showToast('Error al eliminar canción', 'error');
+  }
+}
+
+// ================= OBS WIDGET URLs =================
+function populateWidgetUrls() {
+  const origin = window.location.origin;
+  document.getElementById('urlAlertsWidget').value = `${origin}/overlays/alerts.html`;
+  document.getElementById('urlNowPlayingWidget').value = `${origin}/overlays/nowplaying.html`;
+  document.getElementById('urlGoalWidget').value = `${origin}/overlays/goals.html?type=subs`;
+  document.getElementById('urlTtsWidget').value = `${origin}/overlays/tts.html`;
+  document.getElementById('urlChatWidget').value = `${origin}/overlays/chat.html`;
+}
+
+function copyWidgetUrl(inputId) {
+  const input = document.getElementById(inputId);
+  if (input) {
+    input.select();
+    navigator.clipboard.writeText(input.value).then(() => {
+      showToast('¡URL copiada al portapapeles! Pégala en OBS Studio.', 'success');
+    }).catch(() => {
+      document.execCommand('copy');
+      showToast('¡URL copiada al portapapeles!', 'success');
+    });
+  }
+}
+
+// ================= EVENT TESTS =================
+async function triggerTestAlert(type) {
+  try {
+    const payload = {
+      type,
+      user: 'EspectadorPro',
+      amount: type === 'bits' ? 500 : 1,
+      viewers: 45,
+      tier: '1',
+      reward: 'Saludo en Directo',
+      message: '¡Excelente directo, crack! Saludos a todos.'
+    };
+
+    const res = await fetch('/api/alert/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`¡Alerta de ${type.toUpperCase()} disparada! Mírala en OBS.`, 'success');
+    }
+  } catch (e) {
+    showToast('Error al disparar alerta', 'error');
+  }
+}
+
+async function triggerTestTTS() {
+  const input = document.getElementById('testTtsInput');
+  const text = input.value.trim() || '¡Hola streamer! Este es un mensaje de prueba con Text to Speech.';
+  const voice = document.getElementById('cfgTtsVoice').value;
+
+  try {
+    const res = await fetch('/api/tts/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, user: 'StreamerTest', voice })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Mensaje TTS enviado a la cola de audio', 'success');
+      // Local preview speak
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.volume = Number(document.getElementById('cfgTtsVolume').value) / 100;
+        u.rate = Number(document.getElementById('cfgTtsRate').value);
+        u.pitch = Number(document.getElementById('cfgTtsPitch').value);
+        window.speechSynthesis.speak(u);
+      }
+    } else {
+      showToast(data.reason || 'Error en TTS', 'warn');
+    }
+  } catch (e) {
+    showToast('Error al probar TTS', 'error');
+  }
+}
+
+// ================= GOALS UPDATE =================
+async function saveGoalValues(type) {
+  let title = '', current = 0, target = 100;
+  if (type === 'subs') {
+    title = document.getElementById('cfgGoalSubTitle').value;
+    current = document.getElementById('cfgGoalSubCurrent').value;
+    target = document.getElementById('cfgGoalSubTarget').value;
+  } else if (type === 'followers') {
+    title = document.getElementById('cfgGoalFollowTitle').value;
+    current = document.getElementById('cfgGoalFollowCurrent').value;
+    target = document.getElementById('cfgGoalFollowTarget').value;
+  } else if (type === 'bits') {
+    title = document.getElementById('cfgGoalBitsTitle').value;
+    current = document.getElementById('cfgGoalBitsCurrent').value;
+    target = document.getElementById('cfgGoalBitsTarget').value;
+  }
+
+  try {
+    const res = await fetch('/api/goals/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, title, current, target })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`Meta de ${type.toUpperCase()} actualizada`, 'success');
+    }
+  } catch (e) {
+    showToast('Error guardando metas', 'error');
+  }
+}
+
+// ================= COMMANDS =================
+function renderCommands(commands) {
+  const tbody = document.getElementById('commandsTableBody');
+  tbody.innerHTML = '';
+
+  commands.forEach(cmd => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(cmd.name)}</strong></td>
+      <td style="color: #cbd5e1; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(cmd.response)}</td>
+      <td><span class="btn btn-secondary btn-sm" style="font-size:11px;">${cmd.cooldown}s</span></td>
+      <td>
+        <button class="btn btn-danger btn-sm" onclick="deleteCommand('${cmd.id}')">🗑️</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function deleteCommand(cmdId) {
+  const commands = await fetch('/api/commands').then(r => r.json());
+  const filtered = commands.filter(c => c.id !== cmdId);
+  const res = await fetch('/api/commands', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(filtered)
+  });
+  const data = await res.json();
+  renderCommands(data.commands);
+  showToast('Comando eliminado');
+}
+
+// ================= REWARDS (PUNTOS DE CANAL) =================
+function renderRewards(rewards) {
+  const tbody = document.getElementById('rewardsTableBody');
+  tbody.innerHTML = '';
+
+  rewards.forEach(r => {
+    const tr = document.createElement('tr');
+    let actionBadge = `<span class="btn btn-secondary btn-sm">${r.action}</span>`;
+    if (r.action === 'tts') actionBadge = `<span class="btn btn-primary btn-sm">Voz TTS</span>`;
+    if (r.action === 'song_request') actionBadge = `<span class="btn btn-accent btn-sm">Pedir Canción</span>`;
+
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(r.rewardName)}</strong></td>
+      <td>${actionBadge}</td>
+      <td>${r.cost || 0} pts</td>
+      <td><span style="color: var(--green-success);">● Activo</span></td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick="showToast('Editando recompensa')">Editar</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ================= SAVE CONFIG =================
+async function saveAllConfig() {
+  const bannedWords = document.getElementById('cfgTtsBannedWords').value
+    .split(',')
+    .map(w => w.trim())
+    .filter(Boolean);
+
+  const payload = {
+    twitch: {
+      channel: document.getElementById('cfgTwitchChannel').value.trim(),
+      botUsername: document.getElementById('cfgTwitchBotUser').value.trim(),
+      oauthToken: document.getElementById('cfgTwitchToken').value.trim()
+    },
+    songRequest: {
+      prefix: document.getElementById('cfgSrPrefix').value.trim() || '!sr',
+      userLevel: document.getElementById('cfgSrUserLevel').value,
+      maxDurationMinutes: Number(document.getElementById('cfgSrMaxDuration').value) || 8,
+      maxPerUser: Number(document.getElementById('cfgSrMaxPerUser').value) || 5,
+      enabled: document.getElementById('cfgSrEnabled').checked
+    },
+    tts: {
+      enabled: document.getElementById('cfgTtsEnabled').checked,
+      voice: document.getElementById('cfgTtsVoice').value,
+      volume: Number(document.getElementById('cfgTtsVolume').value),
+      rate: Number(document.getElementById('cfgTtsRate').value),
+      pitch: Number(document.getElementById('cfgTtsPitch').value),
+      maxLength: Number(document.getElementById('cfgTtsMaxLength').value),
+      bannedWords,
+      allowChatCommand: document.getElementById('cfgTtsAllowCommand').checked,
+      chatCommand: document.getElementById('cfgTtsCommand').value.trim() || '!tts',
+      minBits: Number(document.getElementById('cfgTtsMinBits').value) || 50
+    }
+  };
+
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      appConfig = data.config;
+      document.getElementById('statChannelName').innerText = payload.twitch.channel ? `#${payload.twitch.channel}` : 'Ninguno';
+      showToast('Configuración guardada correctamente.', 'success');
+    }
+  } catch (e) {
+    showToast('Error al guardar la configuración.', 'error');
+  }
+}
+
+// ================= EVENT LISTENERS SETUP =================
+function setupEventListeners() {
+  // Save global button
+  document.getElementById('saveGlobalBtn').addEventListener('click', saveAllConfig);
+
+  // Quick alert test button
+  document.getElementById('testAlertQuickBtn').addEventListener('click', () => {
+    triggerTestAlert('follower');
+  });
+
+  // Connect / Disconnect Twitch
+  document.getElementById('btnConnectTwitch').addEventListener('click', async () => {
+    await saveAllConfig();
+    showToast('Iniciando conexión con Twitch...', 'info');
+    try {
+      const res = await fetch('/api/bot/connect', { method: 'POST' });
+      const data = await res.json();
+      showToast(data.message, data.success ? 'success' : 'warn');
+    } catch (e) {
+      showToast('Error de conexión', 'error');
+    }
+  });
+
+  document.getElementById('btnDisconnectTwitch').addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/bot/disconnect', { method: 'POST' });
+      const data = await res.json();
+      showToast(data.message);
+    } catch (e) {
+      showToast('Error al desconectar', 'error');
+    }
+  });
+
+  // Direct Twitch OAuth Authentication
+  const btnDirectAuth = document.getElementById('btnTwitchDirectAuth');
+  if (btnDirectAuth) {
+    btnDirectAuth.addEventListener('click', () => {
+      const customClientId = document.getElementById('cfgTwitchClientId').value.trim();
+      const clientId = customClientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
+      const redirectUri = `${window.location.origin}/auth/callback.html`;
+      const scopes = encodeURIComponent('chat:read chat:edit channel:read:redemptions bits:read channel:read:subscriptions');
+
+      const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scopes}&force_verify=true`;
+
+      const width = 600, height = 750;
+      const left = (window.innerWidth - width) / 2 + window.screenX;
+      const top = (window.innerHeight - height) / 2 + window.screenY;
+
+      showToast('Abriendo ventana segura de autorización de Twitch...', 'info');
+      const authWindow = window.open(twitchAuthUrl, 'TwitchOAuthLogin', `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no`);
+      if (!authWindow || authWindow.closed || typeof authWindow.closed === 'undefined') {
+        // If popup blocked, redirect directly
+        window.location.href = twitchAuthUrl;
+      }
+    });
+  }
+
+  // Listen for OAuth callback message from popup
+  window.addEventListener('message', async (event) => {
+    if (event.data && event.data.type === 'TWITCH_AUTH_SUCCESS') {
+      const user = event.data.data.user;
+      showToast(`¡Conectado exitosamente como @${user.display_name}!`, 'success');
+      await loadInitialData();
+    }
+  });
+
+  // Direct Disconnect Button
+  const btnDirectDisc = document.getElementById('btnDirectDisconnect');
+  if (btnDirectDisc) {
+    btnDirectDisc.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/bot/disconnect', { method: 'POST' });
+        const data = await res.json();
+        showToast('Cuenta de Twitch desconectada correctamente.', 'info');
+        await loadInitialData();
+      } catch (e) {
+        showToast('Error al desconectar cuenta.', 'error');
+      }
+    });
+  }
+
+  // Toggle Manual Config Collapsible
+  const toggleBtn = document.getElementById('toggleManualConfigBtn');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const body = document.getElementById('manualConfigBody');
+      if (body.style.display === 'none') {
+        body.style.display = 'block';
+        toggleBtn.innerText = 'Ocultar';
+      } else {
+        body.style.display = 'none';
+        toggleBtn.innerText = 'Mostrar';
+      }
+    });
+  }
+
+  // Sidebar Quick Connect Button
+  document.getElementById('quickConnectBtn').addEventListener('click', async () => {
+    const isConnected = document.getElementById('botStatusText').innerText === 'En Línea';
+    if (isConnected) {
+      document.getElementById('btnDisconnectTwitch').click();
+    } else {
+      document.getElementById('btnConnectTwitch').click();
+    }
+  });
+
+  // Song Request Controls
+  document.getElementById('btnSrSkip').addEventListener('click', skipCurrentSong);
+  
+  document.getElementById('btnSrClear').addEventListener('click', async () => {
+    if (confirm('¿Seguro que deseas vaciar toda la cola de canciones?')) {
+      const res = await fetch('/api/sr/clear', { method: 'POST' });
+      const data = await res.json();
+      showToast(`Cola vaciada (${data.count} canciones eliminadas)`);
+    }
+  });
+
+  document.getElementById('btnSrAddManual').addEventListener('click', async () => {
+    const input = document.getElementById('srManualInput');
+    const query = input.value.trim();
+    if (!query) return;
+
+    showToast('Buscando y añadiendo canción...', 'info');
+    try {
+      const res = await fetch('/api/sr/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, requester: 'Streamer' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message, 'success');
+        input.value = '';
+      } else {
+        showToast(data.message, 'warn');
+      }
+    } catch (e) {
+      showToast('Error al añadir canción', 'error');
+    }
+  });
+
+  // TTS Test
+  document.getElementById('btnTestTtsPlay').addEventListener('click', triggerTestTTS);
+
+  // New Command
+  document.getElementById('btnSaveNewCommand').addEventListener('click', async () => {
+    const name = document.getElementById('newCmdName').value.trim();
+    const response = document.getElementById('newCmdResponse').value.trim();
+    const cooldown = Number(document.getElementById('newCmdCooldown').value) || 10;
+    const userLevel = document.getElementById('newCmdUserLevel').value;
+
+    if (!name || !response) {
+      showToast('Debes ingresar el nombre del comando y su respuesta', 'warn');
+      return;
+    }
+
+    const formattedName = name.startsWith('!') ? name : `!${name}`;
+    const commands = await fetch('/api/commands').then(r => r.json());
+
+    // Check if exists or update
+    const existingIdx = commands.findIndex(c => c.name.toLowerCase() === formattedName.toLowerCase());
+    const newCmd = {
+      id: existingIdx >= 0 ? commands[existingIdx].id : `cmd-${Date.now()}`,
+      name: formattedName,
+      response,
+      cooldown,
+      userLevel,
+      enabled: true
+    };
+
+    if (existingIdx >= 0) {
+      commands[existingIdx] = newCmd;
+    } else {
+      commands.push(newCmd);
+    }
+
+    const res = await fetch('/api/commands', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(commands)
+    });
+    const data = await res.json();
+    renderCommands(data.commands);
+    showToast(`Comando ${formattedName} guardado con éxito`, 'success');
+
+    document.getElementById('newCmdName').value = '';
+    document.getElementById('newCmdResponse').value = '';
+  });
+
+  // Add Reward Dummy Modal
+  document.getElementById('btnAddRewardBtn').addEventListener('click', async () => {
+    const title = prompt('Nombre de la recompensa en Twitch (debe coincidir con tu panel de Twitch):', 'Pedir Canción VIP');
+    if (!title) return;
+
+    const action = prompt('Acción a ejecutar (tts / song_request / sound):', 'song_request');
+    if (!action) return;
+
+    const rewards = await fetch('/api/rewards').then(r => r.json());
+    rewards.push({
+      id: `reward-${Date.now()}`,
+      rewardName: title,
+      action: action.toLowerCase(),
+      cost: 500,
+      enabled: true
+    });
+
+    const res = await fetch('/api/rewards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rewards)
+    });
+    const data = await res.json();
+    renderRewards(data.rewards);
+    showToast('Recompensa vinculada');
+  });
+}

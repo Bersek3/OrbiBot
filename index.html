@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Twitch StreamBot & Overlay Toolkit</title>
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239146FF'><path d='M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z'/></svg>">
+</head>
+<body>
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div class="brand-text">
+        <h1>StreamBot</h1>
+        <span>Twitch Suite</span>
+      </div>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item active" data-tab="tab-dashboard">
+        <span class="nav-icon">📊</span>
+        <span>Panel General</span>
+      </li>
+      <li class="nav-item" data-tab="tab-twitch">
+        <span class="nav-icon">🟣</span>
+        <span>Conexión Twitch</span>
+      </li>
+      <li class="nav-item" data-tab="tab-sr">
+        <span class="nav-icon">🎵</span>
+        <span>Song Request</span>
+      </li>
+      <li class="nav-item" data-tab="tab-tts">
+        <span class="nav-icon">🗣️</span>
+        <span>Text-To-Speech (TTS)</span>
+      </li>
+      <li class="nav-item" data-tab="tab-overlays">
+        <span class="nav-icon">📺</span>
+        <span>Widgets para OBS</span>
+      </li>
+      <li class="nav-item" data-tab="tab-points">
+        <span class="nav-icon">⭐</span>
+        <span>Puntos de Canal</span>
+      </li>
+      <li class="nav-item" data-tab="tab-commands">
+        <span class="nav-icon">⚡</span>
+        <span>Comandos de Chat</span>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <div class="status-badge">
+        <div id="botStatusDot" class="status-dot"></div>
+        <span id="botStatusText">Desconectado</span>
+      </div>
+      <button id="quickConnectBtn" class="btn btn-primary btn-sm">Conectar</button>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN WRAPPER ================= -->
+  <div class="main-wrapper">
+    <header class="top-bar">
+      <div class="page-title">
+        <h2 id="currentTabTitle">Panel General</h2>
+      </div>
+      <div class="top-actions">
+        <div id="topUserPill" style="display:none; align-items:center; gap:10px; padding:4px 12px 4px 6px; background:rgba(145,70,255,0.15); border:1px solid rgba(145,70,255,0.3); border-radius:999px;">
+          <img id="topUserAvatar" src="" style="width:28px; height:28px; border-radius:50%; object-fit:cover;" alt="Avatar">
+          <span id="topUserName" style="font-size:13px; font-weight:700; color:#fff;">@streamer</span>
+        </div>
+        <button id="testAlertQuickBtn" class="btn btn-secondary btn-sm">🎉 Probar Alerta</button>
+        <button id="saveGlobalBtn" class="btn btn-primary btn-sm">💾 Guardar Cambios</button>
+      </div>
+    </header>
+
+    <main class="content-container">
+
+      <!-- ================= TAB 1: DASHBOARD ================= -->
+      <section id="tab-dashboard" class="tab-pane active">
+        <div class="grid-4" style="margin-bottom: 24px;">
+          <div class="card stat-card">
+            <div class="stat-icon">🤖</div>
+            <div class="stat-info">
+              <h4>Estado del Bot</h4>
+              <div id="statBotStatus" class="stat-number" style="font-size: 18px; color: var(--yellow-warn);">Inactivo</div>
+            </div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-icon" style="background: rgba(0, 242, 254, 0.15); color: var(--cyan-accent); border-color: rgba(0,242,254,0.3);">🎵</div>
+            <div class="stat-info">
+              <h4>Canciones en Cola</h4>
+              <div id="statQueueCount" class="stat-number">0</div>
+            </div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-icon" style="background: rgba(245, 166, 35, 0.15); color: var(--yellow-warn); border-color: rgba(245,166,35,0.3);">💬</div>
+            <div class="stat-info">
+              <h4>Canal Conectado</h4>
+              <div id="statChannelName" class="stat-number" style="font-size: 18px;">Ninguno</div>
+            </div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: var(--green-success); border-color: rgba(16,185,129,0.3);">👁️</div>
+            <div class="stat-info">
+              <h4>Widgets Activos</h4>
+              <div class="stat-number">5</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Chat en vivo y Registro -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">💬 Chat de Twitch en Vivo</span>
+              <span id="chatStatusNotice" style="font-size: 12px; color: var(--text-muted);">Esperando mensajes...</span>
+            </div>
+            <div class="chat-box">
+              <div id="liveChatMessages" class="chat-messages">
+                <div class="chat-msg-row" style="color: var(--text-muted);">
+                  <em>Conecta tu canal de Twitch para ver los mensajes del chat en tiempo real.</em>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pruebas Rápidas de Alertas y Eventos -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">⚡ Disparador de Pruebas (Test Studio)</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">
+              Prueba tus overlays de OBS Studio en vivo sin necesidad de esperar un evento real:
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('follower')">
+                  👤 Test Follower
+                </button>
+                <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('sub')">
+                  ⭐ Test Suscripción
+                </button>
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('bits')">
+                  💎 Test 500 Bits
+                </button>
+                <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('raid')">
+                  🚀 Test Raid (50 viewers)
+                </button>
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('channel_points')">
+                  🎟️ Test Puntos de Canal
+                </button>
+                <button class="btn btn-primary" style="flex:1" onclick="triggerTestTTS()">
+                  🗣️ Test Mensaje TTS
+                </button>
+              </div>
+            </div>
+
+            <div style="margin-top: 24px; padding: 16px; background: rgba(0,0,0,0.3); border-radius: var(--radius-md); border-left: 3px solid var(--cyan-accent);">
+              <h5 style="font-size: 13px; margin-bottom: 6px; color: #fff;">💡 ¿Cómo agregar a OBS Studio?</h5>
+              <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
+                Ve a la pestaña <strong>Widgets para OBS</strong>, haz clic en <em>Copiar URL</em> y en OBS agrega una nueva fuente de tipo <strong>Navegador (Browser Source)</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 2: CONEXIÓN TWITCH ================= -->
+      <section id="tab-twitch" class="tab-pane">
+        <div style="max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px;">
+
+          <!-- TARJETA 1: CONEXIÓN DIRECTA CON TWITCH -->
+          <div class="card" style="border: 2px solid var(--twitch-purple-glow); position: relative; overflow: hidden;">
+            <div style="position: absolute; top:0; left:0; right:0; height: 4px; background: linear-gradient(90deg, #9146FF, #00f2fe);"></div>
+
+            <!-- Estado: Conectado -->
+            <div id="twitchConnectedProfile" style="display: none; flex-direction: column; align-items: center; text-align: center; padding: 16px 0;">
+              <div style="position: relative; margin-bottom: 16px;">
+                <img id="twitchUserAvatar" src="" style="width: 84px; height: 84px; border-radius: 50%; border: 3px solid var(--twitch-purple); box-shadow: 0 0 25px var(--twitch-purple-glow); object-fit: cover;" alt="Avatar">
+                <div style="position: absolute; bottom: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--green-success); border: 2px solid #0b0e14;"></div>
+              </div>
+              <h3 id="twitchUserDisplayName" style="font-size: 24px; font-weight: 800; color: #fff;">Streamer</h3>
+              <p id="twitchUserLogin" style="font-size: 15px; color: var(--cyan-accent); font-weight: 600; margin-top: 2px;">@streamer</p>
+              
+              <div style="display: flex; gap: 12px; margin-top: 20px;">
+                <span class="btn btn-sm btn-accent" style="pointer-events: none;">● Conectado a Twitch</span>
+                <button id="btnDirectDisconnect" class="btn btn-sm btn-danger">Desconectar Cuenta</button>
+              </div>
+            </div>
+
+            <!-- Estado: Desconectado / Iniciar Sesión -->
+            <div id="twitchDisconnectedBox">
+              <div class="card-header">
+                <span class="card-title">🟣 Conexión Directa con Twitch</span>
+                <span class="btn btn-sm btn-danger">No Conectado</span>
+              </div>
+
+              <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 24px;">
+                Inicia sesión directamente con tu cuenta de Twitch en 1 clic. El bot detectará automáticamente tu canal, foto de perfil, permisos y se conectará al chat en tiempo real sin tener que copiar tokens complicados.
+              </p>
+
+              <!-- Botón Gigante de Conectar con Twitch -->
+              <button id="btnTwitchDirectAuth" class="btn" style="background: #9146FF; color: #fff; font-size: 16px; font-weight: 800; padding: 16px 28px; width: 100%; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 12px; box-shadow: 0 6px 25px rgba(145, 70, 255, 0.45); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+                <span>Conectar con Cuenta de Twitch</span>
+              </button>
+
+              <!-- Configuración del Client ID para OAuth Directo -->
+              <div style="margin-top: 24px; padding: 18px; background: rgba(0,0,0,0.35); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <span style="font-size: 13px; font-weight: 700; color: #fff;">🔑 Client ID de Twitch (App de Desarrollador)</span>
+                  <a href="https://dev.twitch.tv/console/apps/create" target="_blank" style="font-size: 12px; color: var(--cyan-accent); text-decoration: none;">Crear App en Twitch ↗</a>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 8px;">
+                  <input type="text" id="cfgTwitchClientId" class="form-control" value="yw1vr664ichms8an2x5lhji58v7ozk" placeholder="Pega aquí tu Client ID de dev.twitch.tv">
+                </div>
+
+                <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+                  En tu aplicación de <a href="https://dev.twitch.tv/console/apps" target="_blank" style="color:var(--cyan-accent)">Twitch Developer Console</a>, añade la siguiente URL en <strong>OAuth Redirect URLs</strong>:<br>
+                  <code id="redirectUrlDisplay" style="color: var(--cyan-accent); background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px;">http://localhost:3000/auth/callback.html</code>
+                  <button class="btn btn-secondary btn-sm" style="padding: 2px 8px; margin-left: 6px;" onclick="copyWidgetUrl('redirectUrlDisplay')">Copiar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TARJETA 2: CONFIGURACIÓN MANUAL O CUENTA BOT SECUNDARIA -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">⚙️ Conexión Manual / Cuenta Secundaria del Bot</span>
+              <button id="toggleManualConfigBtn" class="btn btn-secondary btn-sm">Mostrar / Ocultar</button>
+            </div>
+
+            <div id="manualConfigBody" style="display: none;">
+              <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+                Si deseas que las respuestas en el chat las envíe una cuenta bot diferente (por ejemplo <code>MiCanalBot</code>), puedes ingresar su token aquí:
+              </p>
+
+              <div class="form-group">
+                <label class="form-label">Canal del Streamer</label>
+                <input type="text" id="cfgTwitchChannel" class="form-control" placeholder="ej: tu_canal">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Nombre de Usuario del Bot</label>
+                <input type="text" id="cfgTwitchBotUser" class="form-control" placeholder="ej: MiCanalBot">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Token OAuth del Bot</label>
+                <input type="password" id="cfgTwitchToken" class="form-control" placeholder="oauth:abcdef1234567890...">
+                <div class="form-help">
+                  Generar token en: <a href="https://twitchtokengenerator.com" target="_blank">TwitchTokenGenerator.com ↗</a>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="btnConnectTwitch" class="btn btn-primary" style="flex:1;">Guardar y Conectar Manualmente</button>
+                <button id="btnDisconnectTwitch" class="btn btn-secondary">Desconectar</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================= TAB 3: SONG REQUEST ================= -->
+      <section id="tab-sr" class="tab-pane">
+        <div class="grid-2">
+          <!-- Columna Izquierda: Reproductor y Controles -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">🎵 Reproductor de Música en Vivo</span>
+              <div style="display: flex; gap: 8px;">
+                <button id="btnSrSkip" class="btn btn-secondary btn-sm">⏭️ Saltar</button>
+                <button id="btnSrClear" class="btn btn-danger btn-sm">🗑️ Vaciar Cola</button>
+              </div>
+            </div>
+
+            <!-- Banner Canción Actual -->
+            <div class="current-song-banner">
+              <img id="srCurrentThumb" class="song-cover" src="https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" alt="Portada">
+              <div class="song-meta">
+                <div id="srCurrentTitle" class="song-title-text">No hay canción sonando</div>
+                <div id="srCurrentAuthor" class="song-sub-text">Pide una canción con !sr en el chat</div>
+                <div id="srCurrentRequester" class="song-sub-text" style="color: var(--cyan-accent);">Esperando...</div>
+              </div>
+            </div>
+
+            <!-- Embebido de YouTube IFrame -->
+            <div style="margin-top: 16px; border-radius: var(--radius-md); overflow: hidden; height: 220px; background: #000;">
+              <div id="youtubePlayerContainer" style="width: 100%; height: 100%;"></div>
+            </div>
+
+            <!-- Añadir Canción Manual -->
+            <div style="margin-top: 20px;">
+              <label class="form-label">Añadir Canción Manualmente</label>
+              <div style="display: flex; gap: 10px;">
+                <input type="text" id="srManualInput" class="form-control" placeholder="Pega enlace de YouTube o escribe título...">
+                <button id="btnSrAddManual" class="btn btn-primary">Añadir</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Columna Derecha: Cola y Configuración de SR -->
+          <div style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- Configuración del Comando y Límites -->
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">⚙️ Configuración del Prefijo y Reglas</span>
+              </div>
+
+              <div class="grid-2">
+                <div class="form-group">
+                  <label class="form-label">Prefijo del Comando</label>
+                  <input type="text" id="cfgSrPrefix" class="form-control" value="!sr" placeholder="!sr, !song, !cancion">
+                  <div class="form-help">Comando para pedir música (ej: <code>!sr Despacito</code>).</div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">¿Quién puede pedir canciones?</label>
+                  <select id="cfgSrUserLevel" class="form-control">
+                    <option value="all">Todos los espectadores</option>
+                    <option value="subs">Solo Suscriptores y Mods</option>
+                    <option value="mod">Solo Moderadores</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid-2">
+                <div class="form-group">
+                  <label class="form-label">Duración Máxima (Minutos)</label>
+                  <input type="number" id="cfgSrMaxDuration" class="form-control" value="8" min="1" max="60">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Máx. canciones por usuario</label>
+                  <input type="number" id="cfgSrMaxPerUser" class="form-control" value="5" min="1" max="20">
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                <label class="switch-label" style="width: 100%;">
+                  <span>Habilitar sistema de Song Request</span>
+                  <input type="checkbox" id="cfgSrEnabled" class="switch-input" checked>
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Lista de Canciones en Cola -->
+            <div class="card" style="flex: 1;">
+              <div class="card-header">
+                <span class="card-title">📋 Próximas Canciones en Cola</span>
+                <span id="queueBadgeTotal" style="font-size: 12px; color: var(--cyan-accent); font-weight: 700;">0 canciones</span>
+              </div>
+
+              <div id="srQueueContainer" class="queue-list">
+                <div style="text-align: center; color: var(--text-muted); padding: 24px;">
+                  No hay canciones en cola actualmente.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 4: TEXT-TO-SPEECH (TTS) ================= -->
+      <section id="tab-tts" class="tab-pane">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">🗣️ Configuración de Voz y Moderación</span>
+            </div>
+
+            <div class="form-group">
+              <label class="switch-label">
+                <span style="font-weight: 700;">Activar Text-to-Speech (TTS)</span>
+                <input type="checkbox" id="cfgTtsEnabled" class="switch-input" checked>
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Motor y Voz Predeterminada</label>
+              <select id="cfgTtsVoice" class="form-control">
+                <option value="es_001">Español Latino (Estándar)</option>
+                <option value="es_002">Español España (Castellano)</option>
+                <option value="es_female">Español Femenino</option>
+                <option value="es_male">Español Masculino</option>
+                <option value="tiktok_es">TikTok Español</option>
+                <option value="tiktok_ghostface">TikTok Ghostface (Terror/Scream)</option>
+                <option value="en_001">English (US)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Volumen: <span id="valTtsVolume">90%</span></label>
+              <input type="range" id="cfgTtsVolume" min="0" max="100" value="90">
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Velocidad: <span id="valTtsRate">1.0x</span></label>
+                <input type="range" id="cfgTtsRate" min="0.5" max="2.0" step="0.1" value="1.0">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tono (Pitch): <span id="valTtsPitch">1.0</span></label>
+                <input type="range" id="cfgTtsPitch" min="0.5" max="1.5" step="0.1" value="1.0">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Límite Máximo de Caracteres</label>
+              <input type="number" id="cfgTtsMaxLength" class="form-control" value="250" min="50" max="500">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Palabras Prohibidas (separadas por coma)</label>
+              <textarea id="cfgTtsBannedWords" class="form-control" rows="3" placeholder="palabra1, palabra2, insulto"></textarea>
+              <div class="form-help">Estas palabras serán reemplazadas automáticamente con asteriscos (***).</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">🎯 Disparadores y Prueba en Vivo</span>
+            </div>
+
+            <div class="form-group">
+              <label class="switch-label">
+                <span>Permitir comando de chat (<code>!tts &lt;texto&gt;</code>)</span>
+                <input type="checkbox" id="cfgTtsAllowCommand" class="switch-input" checked>
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Nombre del Comando de Chat</label>
+              <input type="text" id="cfgTtsCommand" class="form-control" value="!tts">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Bits Mínimos para Activar TTS</label>
+              <input type="number" id="cfgTtsMinBits" class="form-control" value="50" min="0">
+              <div class="form-help">Cualquier mensaje con al menos esta cantidad de bits se leerá en directo.</div>
+            </div>
+
+            <div style="margin-top: 24px; padding: 20px; background: rgba(0,0,0,0.3); border-radius: var(--radius-md);">
+              <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--cyan-accent);">📢 Probar Síntesis de Voz Ahora</h4>
+              <div class="form-group">
+                <input type="text" id="testTtsInput" class="form-control" placeholder="Escribe lo que quieras que diga el bot...">
+              </div>
+              <button id="btnTestTtsPlay" class="btn btn-primary" style="width: 100%;">
+                ▶️ Reproducir Mensaje de Prueba
+              </button>
+            </div>
+
+            <div style="margin-top: 20px; padding: 14px; background: rgba(145, 70, 255, 0.1); border-radius: var(--radius-md); border-left: 3px solid var(--twitch-purple);">
+              <div style="font-size: 13px; font-weight: 700; color: #fff;">🔊 Audio en OBS:</div>
+              <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                Para que tus espectadores escuchen el TTS en streaming, agrega la fuente de navegador <strong>TTS Audio Player</strong> en OBS desde la pestaña de Widgets.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 5: WIDGETS & OVERLAYS PARA OBS ================= -->
+      <section id="tab-overlays" class="tab-pane">
+        <div style="margin-bottom: 24px;">
+          <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">📺 Overlays y Fuentes para OBS Studio</h3>
+          <p style="font-size: 14px; color: var(--text-secondary);">
+            Copia los enlaces de abajo y pégalos como <strong>Browser Source (Navegador)</strong> en tu escena de OBS Studio o Streamlabs. Cuentan con fondo transparente automático y soporte para WebSockets en tiempo real.
+          </p>
+        </div>
+
+        <div class="grid-3" style="margin-bottom: 30px;">
+          <!-- Widget 1: Alert Box -->
+          <div class="widget-card">
+            <div>
+              <div class="widget-header">
+                <span class="widget-icon">🔔</span>
+                <h4 style="font-size: 16px; font-weight: 700;">Alert Box (Alertas)</h4>
+              </div>
+              <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+                Muestra alertas animadas y sonidos para Followers, Suscripciones, Bits, Raids y Puntos de Canal.
+              </p>
+              <div class="widget-url-box">
+                <input type="text" readonly class="widget-url-input" id="urlAlertsWidget">
+                <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlAlertsWidget')">Copiar</button>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 800 x 600</div>
+            </div>
+            <div style="margin-top: 16px; display: flex; gap: 8px;">
+              <a id="btnPreviewAlerts" href="/overlays/alerts.html" target="_blank" class="btn btn-secondary btn-sm" style="flex:1">Vista Previa ↗</a>
+              <button class="btn btn-accent btn-sm" onclick="triggerTestAlert('follower')">Probar</button>
+            </div>
+          </div>
+
+          <!-- Widget 2: Now Playing (Song Request) -->
+          <div class="widget-card">
+            <div>
+              <div class="widget-header">
+                <span class="widget-icon">🎵</span>
+                <h4 style="font-size: 16px; font-weight: 700;">Now Playing (Música)</h4>
+              </div>
+              <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+                Tarjeta flotante elegante que muestra la canción actual, la portada del video, el solicitante y un ecualizador animado.
+              </p>
+              <div class="widget-url-box">
+                <input type="text" readonly class="widget-url-input" id="urlNowPlayingWidget">
+                <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlNowPlayingWidget')">Copiar</button>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 500 x 140</div>
+            </div>
+            <div style="margin-top: 16px;">
+              <a id="btnPreviewNowPlaying" href="/overlays/nowplaying.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Vista Previa ↗</a>
+            </div>
+          </div>
+
+          <!-- Widget 3: Goal Bar (Metas) -->
+          <div class="widget-card">
+            <div>
+              <div class="widget-header">
+                <span class="widget-icon">🎯</span>
+                <h4 style="font-size: 16px; font-weight: 700;">Goal Bar (Metas)</h4>
+              </div>
+              <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+                Barra de progreso de neón para metas de Subs, Followers o Bits con actualización instantánea.
+              </p>
+              <div class="widget-url-box">
+                <input type="text" readonly class="widget-url-input" id="urlGoalWidget">
+                <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlGoalWidget')">Copiar</button>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 450 x 100</div>
+            </div>
+            <div style="margin-top: 16px;">
+              <a id="btnPreviewGoal" href="/overlays/goals.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Vista Previa ↗</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Widget 4: TTS Audio Source -->
+          <div class="widget-card">
+            <div>
+              <div class="widget-header">
+                <span class="widget-icon">🔊</span>
+                <h4 style="font-size: 16px; font-weight: 700;">TTS Audio Player (OBS Browser)</h4>
+              </div>
+              <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+                Fuente invisible para OBS Studio que procesa y reproduce todos los mensajes de voz (TTS) para que la audiencia en streaming los escuche directamente.
+              </p>
+              <div class="widget-url-box">
+                <input type="text" readonly class="widget-url-input" id="urlTtsWidget">
+                <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlTtsWidget')">Copiar</button>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted);">Marcar opción en OBS: <strong>"Controlar audio vía OBS"</strong></div>
+            </div>
+            <div style="margin-top: 16px;">
+              <a id="btnPreviewTts" href="/overlays/tts.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Abrir Receptor TTS ↗</a>
+            </div>
+          </div>
+
+          <!-- Widget 5: Chat en Pantalla -->
+          <div class="widget-card">
+            <div>
+              <div class="widget-header">
+                <span class="widget-icon">💬</span>
+                <h4 style="font-size: 16px; font-weight: 700;">Chat Overlay para Stream</h4>
+              </div>
+              <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+                Superposición de chat limpia y translúcida con insignias de streamer, moderador y suscriptor que desaparece con suavidad.
+              </p>
+              <div class="widget-url-box">
+                <input type="text" readonly class="widget-url-input" id="urlChatWidget">
+                <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlChatWidget')">Copiar</button>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 400 x 600</div>
+            </div>
+            <div style="margin-top: 16px;">
+              <a id="btnPreviewChat" href="/overlays/chat.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Vista Previa ↗</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ajustes de Metas (Goals Config) -->
+        <div class="card" style="margin-top: 30px;">
+          <div class="card-header">
+            <span class="card-title">🎯 Configurar Números de las Metas (Goals)</span>
+          </div>
+
+          <div class="grid-3">
+            <div>
+              <h5 style="color: var(--twitch-purple-light); margin-bottom: 12px;">⭐ Meta de Suscriptores</h5>
+              <div class="form-group">
+                <label class="form-label">Título</label>
+                <input type="text" id="cfgGoalSubTitle" class="form-control" value="Meta de Suscriptores">
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex:1">
+                  <label class="form-label">Actual</label>
+                  <input type="number" id="cfgGoalSubCurrent" class="form-control" value="12">
+                </div>
+                <div class="form-group" style="flex:1">
+                  <label class="form-label">Meta</label>
+                  <input type="number" id="cfgGoalSubTarget" class="form-control" value="50">
+                </div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="saveGoalValues('subs')">Actualizar Sub Goal</button>
+            </div>
+
+            <div>
+              <h5 style="color: var(--cyan-accent); margin-bottom: 12px;">👤 Meta de Seguidores</h5>
+              <div class="form-group">
+                <label class="form-label">Título</label>
+                <input type="text" id="cfgGoalFollowTitle" class="form-control" value="Meta de Seguidores">
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex:1">
+                  <label class="form-label">Actual</label>
+                  <input type="number" id="cfgGoalFollowCurrent" class="form-control" value="185">
+                </div>
+                <div class="form-group" style="flex:1">
+                  <label class="form-label">Meta</label>
+                  <input type="number" id="cfgGoalFollowTarget" class="form-control" value="300">
+                </div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="saveGoalValues('followers')">Actualizar Follow Goal</button>
+            </div>
+
+            <div>
+              <h5 style="color: var(--yellow-warn); margin-bottom: 12px;">💎 Meta de Bits</h5>
+              <div class="form-group">
+                <label class="form-label">Título</label>
+                <input type="text" id="cfgGoalBitsTitle" class="form-control" value="Meta de Bits">
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex:1">
+                  <label class="form-label">Actual</label>
+                  <input type="number" id="cfgGoalBitsCurrent" class="form-control" value="1500">
+                </div>
+                <div class="form-group" style="flex:1">
+                  <label class="form-label">Meta</label>
+                  <input type="number" id="cfgGoalBitsTarget" class="form-control" value="5000">
+                </div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="saveGoalValues('bits')">Actualizar Bits Goal</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 6: PUNTOS DE CANAL ================= -->
+      <section id="tab-points" class="tab-pane">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">⭐ Mapeo de Recompensas de Puntos de Canal</span>
+            <button id="btnAddRewardBtn" class="btn btn-primary btn-sm">+ Nueva Vinculación</button>
+          </div>
+
+          <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+            Vincula las recompensas personalizadas creadas en tu panel de creador de Twitch para que ejecuten acciones automáticas en tu stream (como activar TTS, añadir canciones a la cola de Song Request o reproducir sonidos):
+          </p>
+
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Nombre de la Recompensa en Twitch</th>
+                <th>Acción Vinculada</th>
+                <th>Coste Aprox.</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="rewardsTableBody">
+              <!-- Loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ================= TAB 7: COMANDOS DE CHAT ================= -->
+      <section id="tab-commands" class="tab-pane">
+        <div class="grid-2">
+          <!-- Lista de Comandos -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">⚡ Comandos Personalizados del Chat</span>
+            </div>
+
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Comando</th>
+                  <th>Respuesta</th>
+                  <th>Cooldown</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="commandsTableBody">
+                <!-- Loaded dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Crear Nuevo Comando -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">➕ Crear / Editar Comando</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Nombre del Comando (con prefijo)</label>
+              <input type="text" id="newCmdName" class="form-control" placeholder="ej: !discord o !twitter">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Respuesta del Bot</label>
+              <textarea id="newCmdResponse" class="form-control" rows="4" placeholder="¡Únete a mi comunidad en https://... !"></textarea>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Cooldown (Segundos)</label>
+                <input type="number" id="newCmdCooldown" class="form-control" value="10" min="1" max="300">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Permisos</label>
+                <select id="newCmdUserLevel" class="form-control">
+                  <option value="all">Todos</option>
+                  <option value="subs">Suscriptores</option>
+                  <option value="mod">Moderadores</option>
+                </select>
+              </div>
+            </div>
+
+            <button id="btnSaveNewCommand" class="btn btn-primary" style="width: 100%; margin-top: 12px;">
+              Guardar Comando
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- YouTube Iframe API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>OBS Goal Widget Overlay</title>
+  <link rel="stylesheet" href="/css/overlays.css">
+</head>
+<body>
+  <div class="goal-container">
+    <div class="goal-card">
+      <div class="goal-header">
+        <span id="goalTitle" class="goal-title">Meta de Suscriptores</span>
+        <span class="goal-numbers">
+          <span id="goalCurrent">0</span> / <span id="goalTarget">50</span>
+        </span>
+      </div>
+      <div class="goal-bar-bg">
+        <div id="goalFill" class="goal-bar-fill"></div>
+      </div>
+      <div class="goal-footer">
+        <span id="goalPercent" class="goal-percent">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const goalType = urlParams.get('type') || 'subs'; // 'subs', 'followers', 'bits'
+
+    const goalTitle = document.getElementById('goalTitle');
+    const goalCurrent = document.getElementById('goalCurrent');
+    const goalTarget = document.getElementById('goalTarget');
+    const goalFill = document.getElementById('goalFill');
+    const goalPercent = document.getElementById('goalPercent');
+
+    function updateGoalDisplay(goal) {
+      if (!goal) return;
+      goalTitle.innerText = goal.title || 'Meta del Stream';
+      goalCurrent.innerText = goal.current || 0;
+      goalTarget.innerText = goal.target || 100;
+
+      const current = Number(goal.current) || 0;
+      const target = Number(goal.target) || 1;
+      const pct = Math.min(100, Math.round((current / target) * 100));
+
+      goalFill.style.width = `${pct}%`;
+      goalPercent.innerText = `${pct}%`;
+
+      if (goal.color) {
+        goalFill.style.background = `linear-gradient(90deg, ${goal.color}, #00f2fe)`;
+      }
+    }
+
+    // Load initial
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(cfg => {
+        if (cfg.goals && cfg.goals[goalType]) {
+          updateGoalDisplay(cfg.goals[goalType]);
+        }
+      })
+      .catch(console.error);
+
+    function connectWS() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${location.host}`);
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.event === 'init_state' && msg.data.goals) {
+            updateGoalDisplay(msg.data.goals[goalType]);
+          } else if (msg.event === 'goal_update' && msg.data.type === goalType) {
+            updateGoalDisplay(msg.data.goal);
+          } else if (msg.event === 'alert') {
+            // Automatically increment goal if relevant
+            if ((goalType === 'subs' && msg.data.type === 'sub') ||
+                (goalType === 'followers' && msg.data.type === 'follower')) {
+              const cur = parseInt(goalCurrent.innerText, 10) + 1;
+              fetch('/api/goals/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: goalType, current: cur })
+              });
+            } else if (goalType === 'bits' && msg.data.type === 'bits') {
+              const cur = parseInt(goalCurrent.innerText, 10) + (msg.data.amount || 0);
+              fetch('/api/goals/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: goalType, current: cur })
+              });
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWS, 3000);
+      };
+    }
+
+    connectWS();
+  </script>
+</body>
+</html>
