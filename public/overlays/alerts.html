@@ -187,6 +187,7 @@
     function connectChannels() {
       const urlParams = new URLSearchParams(window.location.search);
       const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
+      const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
 
       // Check if test alert requested via URL (e.g. ?test=1)
       if (urlParams.get('test') === '1') {
@@ -287,6 +288,9 @@
             timeout: 6,
             keepAliveInterval: 30,
             onSuccess: () => {
+              if (token && relayChannel !== 'general') {
+                mqttClient.subscribe(`orbibot/${relayChannel}_${token}/events`);
+              }
               mqttClient.subscribe(`orbibot/${relayChannel}/events`);
               showStatusBadge(`🟢 OrbiBot Listo en OBS (#${relayChannel})`, 4000);
             },

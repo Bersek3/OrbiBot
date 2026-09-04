@@ -1,4 +1,7 @@
 {
+  "security": {
+    "widgetToken": "sec_cb04c456356689d198f80b1d3c9d86ff"
+  },
   "twitch": {
     "channel": "",
     "botUsername": "",

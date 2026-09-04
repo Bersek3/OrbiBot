@@ -140,6 +140,7 @@
     function connectChannels() {
       const urlParams = new URLSearchParams(window.location.search);
       const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
+      const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
 
       // 1. Cloud Real-time Relay (Paho MQTT)
       if (typeof Paho !== 'undefined') {
@@ -157,6 +158,9 @@
             useSSL: true,
             timeout: 6,
             onSuccess: () => {
+              if (token && relayChannel !== 'general') {
+                mqttClient.subscribe(`orbibot/${relayChannel}_${token}/events`);
+              }
               mqttClient.subscribe(`orbibot/${relayChannel}/events`);
             }
           });

@@ -28,6 +28,7 @@
     const urlParams = new URLSearchParams(window.location.search);
     const goalType = urlParams.get('type') || 'subs';
     const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
+    const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
 
     const goalTitle = document.getElementById('goalTitle');
     const goalCurrent = document.getElementById('goalCurrent');
@@ -108,6 +109,9 @@
             useSSL: true,
             timeout: 6,
             onSuccess: () => {
+              if (token && relayChannel !== 'general') {
+                mqttClient.subscribe(`orbibot/${relayChannel}_${token}/events`);
+              }
               mqttClient.subscribe(`orbibot/${relayChannel}/events`);
             }
           });

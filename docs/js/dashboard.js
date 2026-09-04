@@ -131,8 +131,17 @@ function broadcastEvent(event, data) {
   if (dashboardMqttClient && isMqttConnected) {
     try {
       const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '') || 'general';
+      const token = getEffectiveWidgetToken();
       const msgStr = JSON.stringify(payload);
       
+      // Publicar en tópico privado protegido con token secreto
+      if (channel !== 'general' && token) {
+        const msgPriv = new Paho.MQTT.Message(msgStr);
+        msgPriv.destinationName = `orbibot/${channel}_${token}/events`;
+        dashboardMqttClient.send(msgPriv);
+      }
+
+      // Publicar también en tópico estándar para compatibilidad
       const msg1 = new Paho.MQTT.Message(msgStr);
       msg1.destinationName = `orbibot/${channel}/events`;
       dashboardMqttClient.send(msg1);
@@ -1071,6 +1080,87 @@ async function removeSongFromQueue(songId) {
   }
 }
 
+// ================= WIDGET SECURITY & PRIVATE TOKENS =================
+function getEffectiveWidgetToken() {
+  if (appConfig?.security?.widgetToken) {
+    return appConfig.security.widgetToken;
+  }
+  let localToken = localStorage.getItem('orbibot_widget_token');
+  if (!localToken) {
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      localToken = 'sec_' + Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+    } else {
+      localToken = 'sec_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    }
+    localStorage.setItem('orbibot_widget_token', localToken);
+  }
+  return localToken;
+}
+
+let isTokenVisible = false;
+function toggleTokenVisibility() {
+  isTokenVisible = !isTokenVisible;
+  const input = document.getElementById('cfgWidgetTokenDisplay');
+  const btn = document.getElementById('btnToggleTokenVisibility');
+  if (input) {
+    input.type = isTokenVisible ? 'text' : 'password';
+  }
+  if (btn) {
+    btn.innerText = isTokenVisible ? '🙈' : '👁️';
+  }
+}
+window.toggleTokenVisibility = toggleTokenVisibility;
+
+function copyWidgetToken() {
+  const token = getEffectiveWidgetToken();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(token).then(() => {
+      showToast('🔒 Token secreto copiado al portapapeles', 'success');
+    }).catch(() => {
+      showToast('🔒 Token copiado', 'success');
+    });
+  } else {
+    showToast('Token: ' + token, 'info');
+  }
+}
+window.copyWidgetToken = copyWidgetToken;
+
+async function regenerateWidgetTokenUI() {
+  if (!confirm('¿Estás seguro de regenerar tu Clave Secreta de Widgets?\n\nTodos los enlaces anteriores dejarán de funcionar y deberás actualizar las URLs de tus fuentes de navegador en OBS Studio.')) {
+    return;
+  }
+
+  let newToken = '';
+  try {
+    const res = await fetch('/api/config/widget-token/regenerate', { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      newToken = data.widgetToken;
+      if (appConfig) {
+        if (!appConfig.security) appConfig.security = {};
+        appConfig.security.widgetToken = newToken;
+      }
+    }
+  } catch(e) {}
+
+  if (!newToken) {
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      newToken = 'sec_' + Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+    } else {
+      newToken = 'sec_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    }
+    if (appConfig) {
+      if (!appConfig.security) appConfig.security = {};
+      appConfig.security.widgetToken = newToken;
+    }
+  }
+
+  localStorage.setItem('orbibot_widget_token', newToken);
+  populateWidgetUrls();
+  showToast('🛡️ ¡Nueva Clave Secreta generada! Enlaces de OBS actualizados.', 'success');
+}
+window.regenerateWidgetTokenUI = regenerateWidgetTokenUI;
+
 // ================= OBS WIDGET URLs =================
 function populateWidgetUrls() {
   const origin = window.location.origin;
@@ -1097,14 +1187,25 @@ function populateWidgetUrls() {
     }
   }
 
-  const channelParam = channel ? `?channel=${encodeURIComponent(channel)}` : '';
-  const goalParam = channel ? `?type=subs&channel=${encodeURIComponent(channel)}` : '?type=subs';
+  const token = getEffectiveWidgetToken();
+  const tokenDisplay = document.getElementById('cfgWidgetTokenDisplay');
+  if (tokenDisplay) {
+    tokenDisplay.value = token;
+  }
 
-  const alertsUrl = `${baseUrl}/overlays/alerts.html${channelParam}`;
-  const npUrl = `${baseUrl}/overlays/nowplaying.html${channelParam}`;
-  const goalUrl = `${baseUrl}/overlays/goals.html${goalParam}`;
-  const ttsUrl = `${baseUrl}/overlays/tts.html${channelParam}`;
-  const chatUrl = `${baseUrl}/overlays/chat.html${channelParam}`;
+  const channelParam = channel ? `channel=${encodeURIComponent(channel)}` : '';
+  const tokenParam = token ? `token=${encodeURIComponent(token)}` : '';
+
+  const params = [channelParam, tokenParam].filter(Boolean).join('&');
+  const qs = params ? `?${params}` : '';
+  const goalParams = [channelParam, 'type=subs', tokenParam].filter(Boolean).join('&');
+  const goalQs = goalParams ? `?${goalParams}` : '?type=subs';
+
+  const alertsUrl = `${baseUrl}/overlays/alerts.html${qs}`;
+  const npUrl = `${baseUrl}/overlays/nowplaying.html${qs}`;
+  const goalUrl = `${baseUrl}/overlays/goals.html${goalQs}`;
+  const ttsUrl = `${baseUrl}/overlays/tts.html${qs}`;
+  const chatUrl = `${baseUrl}/overlays/chat.html${qs}`;
 
   if (document.getElementById('urlAlertsWidget')) document.getElementById('urlAlertsWidget').value = alertsUrl;
   if (document.getElementById('urlNowPlayingWidget')) document.getElementById('urlNowPlayingWidget').value = npUrl;
@@ -1133,12 +1234,26 @@ function copyWidgetUrl(inputId) {
   if (el) {
     const text = el.value || el.innerText || el.textContent;
     navigator.clipboard.writeText(text).then(() => {
-      showToast('¡Copiado al portapapeles!', 'success');
+      showToast('🔒 ¡Enlace privado copiado al portapapeles!', 'success');
     }).catch(() => {
       showToast('¡Copiado!', 'success');
     });
   }
 }
+
+function toggleWidgetUrlVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (input) {
+    if (input.type === 'password') {
+      input.type = 'text';
+      if (btn) btn.innerText = '🙈';
+    } else {
+      input.type = 'password';
+      if (btn) btn.innerText = '👁️';
+    }
+  }
+}
+window.toggleWidgetUrlVisibility = toggleWidgetUrlVisibility;
 
 // ================= EVENT TESTS =================
 async function triggerTestAlert(type) {

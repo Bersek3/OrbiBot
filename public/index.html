@@ -644,6 +644,39 @@
           </p>
         </div>
 
+        <!-- Tarjeta de Seguridad y Token Privado -->
+        <div class="card" style="margin-bottom: 24px; border: 1px solid rgba(145, 70, 255, 0.4); background: linear-gradient(135deg, rgba(20, 24, 38, 0.95), rgba(30, 20, 50, 0.85));">
+          <div class="card-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px; margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 22px;">🔐</span>
+              <div>
+                <h4 style="font-size: 15px; font-weight: 700; color: #fff; margin: 0;">Seguridad de Widgets & Clave Privada</h4>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Tus enlaces de OBS están protegidos con un token cifrado único para que nadie pueda espiar o alterar tus overlays.</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button id="btnRegenerateToken" class="btn btn-secondary btn-sm" onclick="regenerateWidgetTokenUI()" title="Genera una nueva clave si mostraste tu pantalla por error en stream">
+                🔄 Regenerar Token
+              </button>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+            <div style="flex: 1; min-width: 280px; position: relative;">
+              <input type="password" id="cfgWidgetTokenDisplay" readonly class="form-control" style="font-family: monospace; font-size: 13px; letter-spacing: 2px; padding-right: 44px; background: rgba(0,0,0,0.4); border-color: rgba(145, 70, 255, 0.3);">
+              <button type="button" id="btnToggleTokenVisibility" onclick="toggleTokenVisibility()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px;" title="Mostrar / Ocultar Token">
+                👁️
+              </button>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="copyWidgetToken()">📋 Copiar Token</button>
+          </div>
+
+          <div style="margin-top: 12px; font-size: 11px; color: var(--text-secondary); line-height: 1.5; display: flex; align-items: center; gap: 6px;">
+            <span style="color: var(--cyan-accent);">🛡️</span> 
+            <span>Todos los botones <strong>Copiar</strong> de abajo ya incluyen automáticamente tu token privado en la URL. Si alguna vez revelas tu OBS en directo, pulsa <em>Regenerar Token</em> y se invalidará el enlace anterior.</span>
+          </div>
+        </div>
+
         <div class="grid-3" style="margin-bottom: 30px;">
           <!-- Widget 1: Alert Box -->
           <div class="widget-card">
@@ -656,7 +689,8 @@
                 Muestra alertas animadas y sonidos para Followers, Suscripciones, Bits, Raids y Puntos de Canal.
               </p>
               <div class="widget-url-box">
-                <input type="text" readonly class="widget-url-input" id="urlAlertsWidget">
+                <input type="password" readonly class="widget-url-input" id="urlAlertsWidget" style="font-family: monospace; letter-spacing: 1px;">
+                <button class="btn btn-secondary btn-sm" onclick="toggleWidgetUrlVisibility('urlAlertsWidget', this)" title="Mostrar u ocultar enlace">👁️</button>
                 <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlAlertsWidget')">Copiar</button>
               </div>
               <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 800 x 600</div>
@@ -678,7 +712,8 @@
                 Muestra la canción actual, la portada del video, solicitante y ecualizador animado. ¡También emite el audio de la canción directamente dentro de OBS Studio!
               </p>
               <div class="widget-url-box">
-                <input type="text" readonly class="widget-url-input" id="urlNowPlayingWidget">
+                <input type="password" readonly class="widget-url-input" id="urlNowPlayingWidget" style="font-family: monospace; letter-spacing: 1px;">
+                <button class="btn btn-secondary btn-sm" onclick="toggleWidgetUrlVisibility('urlNowPlayingWidget', this)" title="Mostrar u ocultar enlace">👁️</button>
                 <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlNowPlayingWidget')">Copiar</button>
               </div>
               <div style="font-size: 11px; color: var(--cyan-accent); font-weight: 600;">Resolución: 500 x 140 | En OBS marcar: <strong>☑ Controlar audio vía OBS</strong></div>
@@ -699,7 +734,8 @@
                 Barra de progreso de neón para metas de Subs, Followers o Bits con actualización instantánea.
               </p>
               <div class="widget-url-box">
-                <input type="text" readonly class="widget-url-input" id="urlGoalWidget">
+                <input type="password" readonly class="widget-url-input" id="urlGoalWidget" style="font-family: monospace; letter-spacing: 1px;">
+                <button class="btn btn-secondary btn-sm" onclick="toggleWidgetUrlVisibility('urlGoalWidget', this)" title="Mostrar u ocultar enlace">👁️</button>
                 <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlGoalWidget')">Copiar</button>
               </div>
               <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 450 x 100</div>
@@ -722,7 +758,8 @@
                 Fuente invisible para OBS Studio que procesa y reproduce todos los mensajes de voz (TTS) para que la audiencia en streaming los escuche directamente.
               </p>
               <div class="widget-url-box">
-                <input type="text" readonly class="widget-url-input" id="urlTtsWidget">
+                <input type="password" readonly class="widget-url-input" id="urlTtsWidget" style="font-family: monospace; letter-spacing: 1px;">
+                <button class="btn btn-secondary btn-sm" onclick="toggleWidgetUrlVisibility('urlTtsWidget', this)" title="Mostrar u ocultar enlace">👁️</button>
                 <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlTtsWidget')">Copiar</button>
               </div>
               <div style="font-size: 11px; color: var(--text-muted);">Marcar opción en OBS: <strong>"Controlar audio vía OBS"</strong></div>
@@ -743,7 +780,8 @@
                 Superposición de chat limpia y translúcida con insignias de streamer, moderador y suscriptor que desaparece con suavidad.
               </p>
               <div class="widget-url-box">
-                <input type="text" readonly class="widget-url-input" id="urlChatWidget">
+                <input type="password" readonly class="widget-url-input" id="urlChatWidget" style="font-family: monospace; letter-spacing: 1px;">
+                <button class="btn btn-secondary btn-sm" onclick="toggleWidgetUrlVisibility('urlChatWidget', this)" title="Mostrar u ocultar enlace">👁️</button>
                 <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlChatWidget')">Copiar</button>
               </div>
               <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 400 x 600</div>

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 
@@ -7,7 +8,14 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+function generateWidgetToken() {
+  return 'sec_' + crypto.randomBytes(16).toString('hex');
+}
+
 const DEFAULT_CONFIG = {
+  security: {
+    widgetToken: generateWidgetToken()
+  },
   twitch: {
     channel: '',
     botUsername: '',
@@ -187,7 +195,36 @@ function writeJSON(filename, data) {
 class StorageService {
   getConfig() {
     const cfg = readJSON('config.json', DEFAULT_CONFIG);
-    return { ...DEFAULT_CONFIG, ...cfg, twitch: { ...DEFAULT_CONFIG.twitch, ...(cfg.twitch || {}) }, songRequest: { ...DEFAULT_CONFIG.songRequest, ...(cfg.songRequest || {}) }, tts: { ...DEFAULT_CONFIG.tts, ...(cfg.tts || {}) }, goals: { ...DEFAULT_CONFIG.goals, ...(cfg.goals || {}) } };
+    let changed = false;
+    let security = cfg.security || {};
+    if (!security.widgetToken) {
+      security.widgetToken = generateWidgetToken();
+      changed = true;
+    }
+    const merged = {
+      ...DEFAULT_CONFIG,
+      ...cfg,
+      twitch: { ...DEFAULT_CONFIG.twitch, ...(cfg.twitch || {}) },
+      songRequest: { ...DEFAULT_CONFIG.songRequest, ...(cfg.songRequest || {}) },
+      tts: { ...DEFAULT_CONFIG.tts, ...(cfg.tts || {}) },
+      goals: { ...DEFAULT_CONFIG.goals, ...(cfg.goals || {}) },
+      security
+    };
+    if (changed) {
+      writeJSON('config.json', merged);
+    }
+    return merged;
+  }
+
+  regenerateWidgetToken() {
+    const cfg = this.getConfig();
+    const newToken = generateWidgetToken();
+    cfg.security = {
+      ...(cfg.security || {}),
+      widgetToken: newToken
+    };
+    writeJSON('config.json', cfg);
+    return newToken;
   }
 
   saveConfig(newConfig) {
@@ -198,7 +235,8 @@ class StorageService {
       twitch: { ...current.twitch, ...(newConfig.twitch || {}) },
       songRequest: { ...current.songRequest, ...(newConfig.songRequest || {}) },
       tts: { ...current.tts, ...(newConfig.tts || {}) },
-      goals: { ...current.goals, ...(newConfig.goals || {}) }
+      goals: { ...current.goals, ...(newConfig.goals || {}) },
+      security: { ...current.security, ...(newConfig.security || {}) }
     };
     writeJSON('config.json', merged);
     return merged;

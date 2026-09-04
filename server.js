@@ -111,6 +111,14 @@ app.post('/api/config', (req, res) => {
   res.json({ success: true, config: updated });
 });
 
+// Regenerate Widget Secret Token
+app.post('/api/config/widget-token/regenerate', (req, res) => {
+  const newToken = storage.regenerateWidgetToken();
+  const cfg = storage.getConfig();
+  broadcast('config_updated', cfg);
+  res.json({ success: true, widgetToken: newToken, config: cfg });
+});
+
 // Bot Control
 app.post('/api/bot/connect', async (req, res) => {
   const result = await twitchBot.connect();
