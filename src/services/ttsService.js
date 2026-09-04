@@ -45,6 +45,24 @@ class TTSService {
     return cleaned;
   }
 
+  generateAudioUrl(text, voiceId = 'es_001') {
+    const encoded = encodeURIComponent(text);
+    const seVoices = {
+      es_001: 'Mia',
+      es_002: 'Conchita',
+      es_female: 'Penelope',
+      es_male: 'Enrique',
+      en_001: 'Brian',
+      en_002: 'Emma',
+      tiktok_es: 'Mia',
+      tiktok_ghostface: 'Brian'
+    };
+
+    const seVoice = seVoices[voiceId] || 'Mia';
+    // StreamElements TTS produces direct MP3 audio supported natively by OBS Browser Source CEF
+    return `https://api.streamelements.com/kappa/v2/speech?voice=${seVoice}&text=${encoded}`;
+  }
+
   processRequest({ user, text, source = 'chat', bits = 0, voiceOverride = null }) {
     const config = storage.getConfig().tts;
     if (!config.enabled) {
@@ -66,26 +84,25 @@ class TTSService {
       return { success: false, reason: 'Texto vacío o inválido' };
     }
 
+    const voice = voiceOverride || config.voice || 'es_001';
+    const audioUrl = this.generateAudioUrl(cleanText, voice);
+    const fallbackUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=es&client=tw-ob`;
+
     const ttsItem = {
       id: 'tts-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
       user: user || 'Anónimo',
       text: cleanText,
       source,
       bits,
-      engine: config.engine || 'webspeech',
-      voice: voiceOverride || config.voice || 'es_001',
+      engine: 'audio_stream',
+      voice,
       volume: (config.volume || 90) / 100,
       rate: config.rate || 1.0,
       pitch: config.pitch || 1.0,
-      audioUrl: null,
+      audioUrl,
+      fallbackUrl,
       timestamp: Date.now()
     };
-
-    // If Google TTS engine is chosen, prepare audio URL
-    if (ttsItem.engine === 'google') {
-      const encoded = encodeURIComponent(cleanText);
-      ttsItem.audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=es&client=tw-ob`;
-    }
 
     this.queue.push(ttsItem);
     this.emitTTS(ttsItem);

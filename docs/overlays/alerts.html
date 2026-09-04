@@ -141,6 +141,11 @@
         .replace(/{reward}/g, reward)
         .replace(/{message}/g, customMsg);
 
+      if (type === 'sound') {
+        titleText = `¡Efecto de Sonido!`;
+        formattedMessage = `<span class="alert-username">${user}</span> activó <strong>${reward || 'Sonido Personalizado'}</strong>`;
+      }
+
       alertBadge.innerText = type.toUpperCase().replace('_', ' ');
       alertTitle.innerHTML = titleText;
       alertMessage.innerHTML = formattedMessage;
@@ -148,10 +153,11 @@
       const mediaUrl = cfg.image || 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif';
       alertImage.src = mediaUrl;
 
-      // Play Sound
-      if (cfg.sound && cfg.sound.startsWith('http')) {
+      // Play Sound (Soporta URLs absolutas y rutas relativas /assets/sounds/...)
+      const soundToPlay = alertData.soundUrl || cfg.sound;
+      if (soundToPlay) {
         try {
-          const audio = new Audio(cfg.sound);
+          const audio = new Audio(soundToPlay);
           audio.play().catch(() => playChime(type));
         } catch(e) {
           playChime(type);

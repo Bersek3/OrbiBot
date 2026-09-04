@@ -4,7 +4,7 @@
     "name": "!discord",
     "response": "¡Únete a nuestra comunidad de Discord oficial! https://discord.gg/streamer",
     "enabled": true,
-    "cooldown": 10,
+    "cooldown": 0,
     "userLevel": "all"
   },
   {

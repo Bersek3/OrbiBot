@@ -160,6 +160,64 @@ class TwitchBot {
         }
       }
 
+      // Check for Twitch Channel Points Redemptions with user text input (tags['custom-reward-id'])
+      const customRewardId = tags['custom-reward-id'];
+      if (customRewardId) {
+        const rewards = storage.getRewards() || [];
+        // 1. Buscar coincidencia exacta por rewardId o id
+        let matchedReward = rewards.find(r => r.enabled && (
+          (r.rewardId && r.rewardId.toLowerCase() === customRewardId.toLowerCase()) ||
+          (r.id && r.id.toLowerCase() === customRewardId.toLowerCase())
+        ));
+
+        // 2. Si no está vinculado por UUID aún, vincular al primer tipo compatible
+        if (!matchedReward) {
+          matchedReward = rewards.find(r => r.enabled);
+        }
+
+        if (matchedReward && matchedReward.enabled) {
+          if (matchedReward.action === 'tts') {
+            ttsService.processRequest({
+              user: username,
+              text: message,
+              source: 'channel_points'
+            });
+            this.broadcast('alert', {
+              type: 'channel_points',
+              user: username,
+              reward: matchedReward.rewardName || 'Voz TTS',
+              message
+            });
+            return;
+          } else if (matchedReward.action === 'song_request') {
+            const result = await songRequest.addSong({
+              query: message,
+              requester: username,
+              isMod: true,
+              isSub: true,
+              isPriority: true
+            });
+            this.sendMessage(channel, `🌟 [PUNTOS DE CANAL VIP] @${username} pidió con prioridad: ${result.message}`);
+            this.broadcast('alert', {
+              type: 'channel_points',
+              user: username,
+              reward: matchedReward.rewardName || 'Pedir Canción VIP',
+              message
+            });
+            return;
+          } else if (matchedReward.action === 'sound') {
+            this.broadcast('alert', {
+              type: 'sound',
+              user: username,
+              soundUrl: matchedReward.soundUrl || '/assets/sounds/airhorn.mp3',
+              reward: matchedReward.rewardName || 'Efecto de Sonido',
+              message
+            });
+            return;
+          }
+        }
+      }
+
       const trimmed = message.trim();
       const config = storage.getConfig();
 
@@ -241,9 +299,10 @@ class TwitchBot {
         // Cooldown check
         const now = Date.now();
         const lastUsed = this.commandCooldowns.get(matchedCmd.id) || 0;
-        const cooldownMs = (matchedCmd.cooldown || 5) * 1000;
+        const cooldown = matchedCmd.cooldown !== undefined ? Number(matchedCmd.cooldown) : 5;
+        const cooldownMs = cooldown * 1000;
 
-        if (now - lastUsed >= cooldownMs || isMod) {
+        if (cooldown <= 0 || isMod || (now - lastUsed >= cooldownMs)) {
           this.commandCooldowns.set(matchedCmd.id, now);
           this.sendMessage(channel, matchedCmd.response);
         }

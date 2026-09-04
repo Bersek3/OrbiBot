@@ -115,24 +115,26 @@ class SongRequestService {
     };
   }
 
-  async addSong({ query, requester, isMod = false, isSub = false }) {
+  async addSong({ query, requester, isMod = false, isSub = false, isPriority = false }) {
     const config = storage.getConfig().songRequest;
     if (!config.enabled) {
       return { success: false, message: 'El sistema de Song Request está desactivado.' };
     }
 
-    // Check user permission level
-    if (config.userLevel === 'mod' && !isMod) {
-      return { success: false, message: 'Solo moderadores pueden pedir canciones.' };
-    }
-    if (config.userLevel === 'subs' && !isSub && !isMod) {
-      return { success: false, message: 'Solo suscriptores y moderadores pueden pedir canciones.' };
-    }
+    // Check user permission level (bypassed if priority/channel points)
+    if (!isPriority) {
+      if (config.userLevel === 'mod' && !isMod) {
+        return { success: false, message: 'Solo moderadores pueden pedir canciones.' };
+      }
+      if (config.userLevel === 'subs' && !isSub && !isMod) {
+        return { success: false, message: 'Solo suscriptores y moderadores pueden pedir canciones.' };
+      }
 
-    // Check user limit
-    const userSongsInQueue = this.queue.filter(s => s.requester.toLowerCase() === requester.toLowerCase());
-    if (userSongsInQueue.length >= (config.maxPerUser || 5) && !isMod) {
-      return { success: false, message: `@${requester}, ya alcanzaste tu límite de canciones en cola (${config.maxPerUser}).` };
+      // Check user limit
+      const userSongsInQueue = this.queue.filter(s => s.requester.toLowerCase() === requester.toLowerCase());
+      if (userSongsInQueue.length >= (config.maxPerUser || 5) && !isMod) {
+        return { success: false, message: `@${requester}, ya alcanzaste tu límite de canciones en cola (${config.maxPerUser}).` };
+      }
     }
 
     const videoDetails = await this.fetchVideoDetails(query);
@@ -142,7 +144,7 @@ class SongRequestService {
 
     // Check duration limit
     const maxSec = (config.maxDurationMinutes || 8) * 60;
-    if (videoDetails.durationSeconds > maxSec && !isMod) {
+    if (videoDetails.durationSeconds > maxSec && !isMod && !isPriority) {
       return { success: false, message: `La canción excede el límite máximo de ${config.maxDurationMinutes} minutos.` };
     }
 
@@ -155,6 +157,7 @@ class SongRequestService {
       durationSeconds: videoDetails.durationSeconds,
       durationFormatted: videoDetails.durationFormatted,
       requester: requester || 'Anónimo',
+      isPriority: !!isPriority,
       requestedAt: new Date().toLocaleTimeString()
     };
 
@@ -163,18 +166,25 @@ class SongRequestService {
       this.currentSong = song;
       this.isPlaying = true;
       this.emitUpdate('play', song);
+    } else if (isPriority) {
+      // Prioridad VIP: colocar al frente de la cola (#1) para que suene la siguiente
+      this.queue.unshift(song);
+      this.emitUpdate('queue_add', song);
     } else {
       this.queue.push(song);
       this.emitUpdate('queue_add', song);
     }
 
+    const position = this.currentSong === song ? 0 : (isPriority ? 1 : this.queue.length);
     return {
       success: true,
       song,
-      position: this.currentSong === song ? 0 : this.queue.length,
+      position,
       message: this.currentSong === song
         ? `▶️ Reproduciendo ahora: ${song.title}`
-        : `🎵 Añadida a la cola en posición #${this.queue.length}: ${song.title}`
+        : (isPriority
+            ? `🌟 [PRIORIDAD VIP] Próxima en sonar (#1 en cola): ${song.title}`
+            : `🎵 Añadida a la cola en posición #${this.queue.length}: ${song.title}`)
     };
   }
 

@@ -883,30 +883,89 @@
 
       <!-- ================= TAB 6: PUNTOS DE CANAL ================= -->
       <section id="tab-points" class="tab-pane">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">⭐ Mapeo de Recompensas de Puntos de Canal</span>
-            <button id="btnAddRewardBtn" class="btn btn-primary btn-sm">+ Nueva Vinculación</button>
+        <div class="grid-2" style="margin-bottom: 24px;">
+          <!-- Gestor de Recompensas -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">⭐ Mapeo de Recompensas de Twitch</span>
+              <button id="btnAddRewardBtn" class="btn btn-primary btn-sm" onclick="toggleRewardForm()">+ Nueva Recompensa</button>
+            </div>
+
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+              Crea recompensas en tu panel de Twitch que requieran texto del espectador. OrbiBot las detectará automáticamente y ejecutará su acción en stream:
+            </p>
+
+            <!-- Formulario de Recompensa (Oculto / Toggle) -->
+            <div id="rewardFormCard" style="display: none; background: rgba(0,0,0,0.3); border: 1px solid rgba(145, 70, 255, 0.3); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+              <h5 style="color: #fff; margin-bottom: 12px; font-size: 14px;">Vinculación de Recompensa</h5>
+              <input type="hidden" id="editRewardId" value="">
+              
+              <div class="form-group">
+                <label class="form-label">Nombre exacto de la Recompensa en Twitch</label>
+                <input type="text" id="rewardNameInput" class="form-control" placeholder="ej: Mensaje con Voz (TTS) o Pedir Cancion">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Acción en Stream</label>
+                <select id="rewardActionSelect" class="form-control" onchange="handleRewardActionChange(this.value)">
+                  <option value="tts">🗣️ Voz TTS (Lee en voz alta en OBS el texto que escriba el espectador)</option>
+                  <option value="song_request">🎶 Pedir Canción (Prioridad VIP: entra en puesto #1 de la cola)</option>
+                  <option value="sound">🔊 Efecto de Sonido Personalizado (Reproduce un audio en OBS)</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="rewardSoundGroup" style="display: none;">
+                <label class="form-label">Sonido Asignado</label>
+                <select id="rewardSoundSelect" class="form-control">
+                  <option value="/assets/sounds/airhorn.mp3">airhorn.mp3</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Coste Aprox. en Puntos (opcional)</label>
+                <input type="number" id="rewardCostInput" class="form-control" value="100" min="1">
+              </div>
+
+              <div style="display: flex; gap: 8px; margin-top: 10px;">
+                <button class="btn btn-primary btn-sm" onclick="saveRewardUI()">Guardar Recompensa</button>
+                <button class="btn btn-secondary btn-sm" onclick="toggleRewardForm(false)">Cancelar</button>
+              </div>
+            </div>
+
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Nombre en Twitch</th>
+                  <th>Acción</th>
+                  <th>Coste</th>
+                  <th>Probar</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="rewardsTableBody">
+                <!-- Loaded dynamically -->
+              </tbody>
+            </table>
           </div>
 
-          <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
-            Vincula las recompensas personalizadas creadas en tu panel de creador de Twitch para que ejecuten acciones automáticas en tu stream (como activar TTS, añadir canciones a la cola de Song Request o reproducir sonidos):
-          </p>
+          <!-- Gestor de Sonidos Personalizados -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">🎵 Sonidos Personalizados para OBS</span>
+              <button class="btn btn-accent btn-sm" onclick="document.getElementById('soundFileInput').click()">
+                📤 Subir Sonido
+              </button>
+              <input type="file" id="soundFileInput" accept="audio/mp3,audio/wav,audio/ogg,audio/m4a" style="display:none;" onchange="handleSoundFileUpload(this)">
+            </div>
 
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>Nombre de la Recompensa en Twitch</th>
-                <th>Acción Vinculada</th>
-                <th>Coste Aprox.</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody id="rewardsTableBody">
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+              Sube tus propios audios (gritos, memes, alertas) para reproducirlos en stream al canjear recompensas de puntos de canal:
+            </p>
+
+            <div id="soundListContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto;">
               <!-- Loaded dynamically -->
-            </tbody>
-          </table>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -925,7 +984,7 @@
                   <th>Comando</th>
                   <th>Respuesta</th>
                   <th>Cooldown</th>
-                  <th></th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody id="commandsTableBody">
@@ -934,11 +993,13 @@
             </table>
           </div>
 
-          <!-- Crear Nuevo Comando -->
+          <!-- Crear / Editar Comando -->
           <div class="card">
             <div class="card-header">
-              <span class="card-title">➕ Crear / Editar Comando</span>
+              <span class="card-title" id="cmdFormTitle">➕ Crear / Editar Comando</span>
             </div>
+
+            <input type="hidden" id="editCmdId" value="">
 
             <div class="form-group">
               <label class="form-label">Nombre del Comando (con prefijo)</label>
@@ -952,8 +1013,14 @@
 
             <div class="grid-2">
               <div class="form-group">
-                <label class="form-label">Cooldown (Segundos)</label>
-                <input type="number" id="newCmdCooldown" class="form-control" value="10" min="1" max="300">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <label class="form-label" style="margin: 0;">Cooldown</label>
+                  <label style="font-size: 12px; color: var(--cyan-accent); cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                    <input type="checkbox" id="newCmdNoCooldown" onchange="toggleNoCooldown(this)">
+                    <span>Sin Cooldown</span>
+                  </label>
+                </div>
+                <input type="number" id="newCmdCooldown" class="form-control" value="10" min="0" max="300" placeholder="Segundos">
               </div>
               <div class="form-group">
                 <label class="form-label">Permisos</label>
@@ -965,9 +1032,14 @@
               </div>
             </div>
 
-            <button id="btnSaveNewCommand" class="btn btn-primary" style="width: 100%; margin-top: 12px;">
-              Guardar Comando
-            </button>
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+              <button id="btnSaveNewCommand" class="btn btn-primary" style="flex: 1;">
+                Guardar Comando
+              </button>
+              <button id="btnCancelEditCmd" class="btn btn-secondary" style="display: none;" onclick="cancelEditCommand()">
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       </section>

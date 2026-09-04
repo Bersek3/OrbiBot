@@ -1357,22 +1357,81 @@ async function saveGoalValues(type) {
 }
 
 // ================= COMMANDS =================
+// ================= COMMANDS =================
 function renderCommands(commands) {
   const tbody = document.getElementById('commandsTableBody');
+  if (!tbody) return;
   tbody.innerHTML = '';
 
   commands.forEach(cmd => {
     const tr = document.createElement('tr');
+    const isZero = cmd.cooldown === 0 || cmd.cooldown === '0';
+    const cooldownBadge = isZero 
+      ? `<span class="btn btn-sm" style="font-size:11px; background: rgba(0, 242, 254, 0.2); color: var(--cyan-accent); border: 1px solid var(--cyan-accent);">Sin Cooldown (0s)</span>`
+      : `<span class="btn btn-secondary btn-sm" style="font-size:11px;">${cmd.cooldown !== undefined ? cmd.cooldown : 10}s</span>`;
+
     tr.innerHTML = `
       <td><strong>${escapeHtml(cmd.name)}</strong></td>
       <td style="color: #cbd5e1; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(cmd.response)}</td>
-      <td><span class="btn btn-secondary btn-sm" style="font-size:11px;">${cmd.cooldown}s</span></td>
-      <td>
-        <button class="btn btn-danger btn-sm" onclick="deleteCommand('${cmd.id}')">🗑️</button>
+      <td>${cooldownBadge}</td>
+      <td style="display: flex; gap: 6px;">
+        <button class="btn btn-secondary btn-sm" onclick="editCommand('${cmd.id}')" title="Editar comando">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCommand('${cmd.id}')" title="Eliminar">🗑️</button>
       </td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+function toggleNoCooldown(checkbox) {
+  const cooldownInput = document.getElementById('newCmdCooldown');
+  if (checkbox && cooldownInput) {
+    if (checkbox.checked) {
+      cooldownInput.value = 0;
+      cooldownInput.disabled = true;
+    } else {
+      if (Number(cooldownInput.value) <= 0) cooldownInput.value = 10;
+      cooldownInput.disabled = false;
+    }
+  }
+}
+
+async function editCommand(cmdId) {
+  try {
+    const commands = await fetch('/api/commands').then(r => r.json());
+    const cmd = commands.find(c => c.id === cmdId);
+    if (!cmd) return;
+
+    document.getElementById('editCmdId').value = cmd.id;
+    document.getElementById('newCmdName').value = cmd.name;
+    document.getElementById('newCmdResponse').value = cmd.response;
+    const isZero = cmd.cooldown === 0 || cmd.cooldown === '0';
+    document.getElementById('newCmdNoCooldown').checked = isZero;
+    document.getElementById('newCmdCooldown').value = isZero ? 0 : (cmd.cooldown !== undefined ? cmd.cooldown : 10);
+    document.getElementById('newCmdCooldown').disabled = isZero;
+    document.getElementById('newCmdUserLevel').value = cmd.userLevel || 'all';
+
+    document.getElementById('cmdFormTitle').innerText = `✏️ Editar Comando (${cmd.name})`;
+    document.getElementById('btnSaveNewCommand').innerText = '💾 Actualizar Comando';
+    document.getElementById('btnCancelEditCmd').style.display = 'inline-block';
+
+    document.getElementById('newCmdName').focus();
+    showToast(`Editando comando ${cmd.name}`, 'info');
+  } catch(e) {}
+}
+
+function cancelEditCommand() {
+  document.getElementById('editCmdId').value = '';
+  document.getElementById('newCmdName').value = '';
+  document.getElementById('newCmdResponse').value = '';
+  document.getElementById('newCmdNoCooldown').checked = false;
+  document.getElementById('newCmdCooldown').value = 10;
+  document.getElementById('newCmdCooldown').disabled = false;
+  document.getElementById('newCmdUserLevel').value = 'all';
+
+  document.getElementById('cmdFormTitle').innerText = '➕ Crear / Editar Comando';
+  document.getElementById('btnSaveNewCommand').innerText = 'Guardar Comando';
+  document.getElementById('btnCancelEditCmd').style.display = 'none';
 }
 
 async function deleteCommand(cmdId) {
@@ -1388,28 +1447,252 @@ async function deleteCommand(cmdId) {
   showToast('Comando eliminado');
 }
 
-// ================= REWARDS (PUNTOS DE CANAL) =================
+// ================= REWARDS (PUNTOS DE CANAL) & SOUNDS =================
 function renderRewards(rewards) {
   const tbody = document.getElementById('rewardsTableBody');
+  if (!tbody) return;
   tbody.innerHTML = '';
 
   rewards.forEach(r => {
     const tr = document.createElement('tr');
     let actionBadge = `<span class="btn btn-secondary btn-sm">${r.action}</span>`;
-    if (r.action === 'tts') actionBadge = `<span class="btn btn-primary btn-sm">Voz TTS</span>`;
-    if (r.action === 'song_request') actionBadge = `<span class="btn btn-accent btn-sm">Pedir Canción</span>`;
+    if (r.action === 'tts') actionBadge = `<span class="btn btn-primary btn-sm">🗣️ Voz TTS</span>`;
+    if (r.action === 'song_request') actionBadge = `<span class="btn btn-accent btn-sm">🎶 Canción (VIP)</span>`;
+    if (r.action === 'sound') actionBadge = `<span class="btn btn-sm" style="background:#f5a623; color:#000;">🔊 Sonido (${r.soundUrl ? r.soundUrl.split('/').pop() : 'Default'})</span>`;
 
     tr.innerHTML = `
       <td><strong>${escapeHtml(r.rewardName)}</strong></td>
       <td>${actionBadge}</td>
       <td>${r.cost || 0} pts</td>
-      <td><span style="color: var(--green-success);">● Activo</span></td>
       <td>
-        <button class="btn btn-secondary btn-sm" onclick="showToast('Editando recompensa')">Editar</button>
+        <button class="btn btn-accent btn-sm" onclick="testReward('${r.id}')" title="Probar en vivo">⚡ Probar</button>
+      </td>
+      <td style="display: flex; gap: 6px;">
+        <button class="btn btn-secondary btn-sm" onclick="editReward('${r.id}')" title="Editar">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteReward('${r.id}')" title="Eliminar">🗑️</button>
       </td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+function toggleRewardForm(show) {
+  const form = document.getElementById('rewardFormCard');
+  if (!form) return;
+  if (show === undefined) {
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  } else {
+    form.style.display = show ? 'block' : 'none';
+  }
+  if (form.style.display === 'block') {
+    loadSounds();
+  }
+}
+
+function handleRewardActionChange(action) {
+  const group = document.getElementById('rewardSoundGroup');
+  if (group) {
+    group.style.display = action === 'sound' ? 'block' : 'none';
+  }
+}
+
+async function loadSounds() {
+  try {
+    const sounds = await fetch('/api/sounds').then(r => r.json()).catch(() => []);
+    const container = document.getElementById('soundListContainer');
+    const select = document.getElementById('rewardSoundSelect');
+
+    if (select) {
+      select.innerHTML = '';
+      if (sounds.length === 0) {
+        select.innerHTML = '<option value="/assets/sounds/airhorn.mp3">airhorn.mp3 (Predeterminado)</option>';
+      } else {
+        sounds.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.url;
+          opt.innerText = s.name;
+          select.appendChild(opt);
+        });
+      }
+    }
+
+    if (container) {
+      container.innerHTML = '';
+      if (sounds.length === 0) {
+        container.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 20px;">No has subido sonidos aún. ¡Haz clic en <strong>Subir Sonido</strong> arriba!</div>`;
+        return;
+      }
+      sounds.forEach(s => {
+        const item = document.createElement('div');
+        item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px 12px;';
+        item.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+            <span style="font-size: 16px;">🔊</span>
+            <span style="font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.name)}</span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-secondary btn-sm" onclick="previewSound('${s.url}')" title="Escuchar sonido">▶️ Escuchar</button>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+  } catch (e) {
+    console.warn('Error loading sounds:', e);
+  }
+}
+
+function previewSound(url) {
+  try {
+    const a = new Audio(url);
+    a.play().catch(e => showToast('Error al reproducir audio: ' + e.message, 'error'));
+  } catch(e) {}
+}
+
+async function handleSoundFileUpload(input) {
+  if (!input || !input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (file.size > 15 * 1024 * 1024) {
+    showToast('El archivo es demasiado grande (máximo 15MB)', 'error');
+    return;
+  }
+
+  showToast(`Subiendo ${file.name}...`, 'info');
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const res = await fetch('/api/sounds/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: file.name,
+          data: e.target.result
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`¡Sonido ${data.name} subido con éxito!`, 'success');
+        await loadSounds();
+        if (document.getElementById('rewardSoundSelect')) {
+          document.getElementById('rewardSoundSelect').value = data.url;
+        }
+      } else {
+        showToast(`Error: ${data.message || 'No se pudo subir'}`, 'error');
+      }
+    } catch(err) {
+      showToast(`Error al subir sonido: ${err.message}`, 'error');
+    }
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+async function saveRewardUI() {
+  const name = document.getElementById('rewardNameInput').value.trim();
+  const action = document.getElementById('rewardActionSelect').value;
+  const soundUrl = document.getElementById('rewardSoundSelect')?.value || '/assets/sounds/airhorn.mp3';
+  const cost = Number(document.getElementById('rewardCostInput').value) || 100;
+  const editId = document.getElementById('editRewardId').value;
+
+  if (!name) {
+    showToast('Ingresa el nombre de la recompensa en Twitch', 'warn');
+    return;
+  }
+
+  const rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  const newReward = {
+    id: editId || `reward-${Date.now()}`,
+    rewardName: name,
+    action,
+    soundUrl: action === 'sound' ? soundUrl : null,
+    cost,
+    enabled: true
+  };
+
+  const existingIdx = rewards.findIndex(r => r.id === newReward.id);
+  if (existingIdx >= 0) {
+    rewards[existingIdx] = newReward;
+  } else {
+    rewards.push(newReward);
+  }
+
+  await fetch('/api/rewards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rewards)
+  });
+
+  renderRewards(rewards);
+  toggleRewardForm(false);
+  document.getElementById('editRewardId').value = '';
+  document.getElementById('rewardNameInput').value = '';
+  showToast(`Recompensa "${name}" guardada`, 'success');
+}
+
+async function editReward(rewardId) {
+  const rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  const r = rewards.find(item => item.id === rewardId);
+  if (!r) return;
+
+  document.getElementById('editRewardId').value = r.id;
+  document.getElementById('rewardNameInput').value = r.rewardName;
+  document.getElementById('rewardActionSelect').value = r.action;
+  handleRewardActionChange(r.action);
+  if (r.soundUrl && document.getElementById('rewardSoundSelect')) {
+    document.getElementById('rewardSoundSelect').value = r.soundUrl;
+  }
+  document.getElementById('rewardCostInput').value = r.cost || 100;
+  toggleRewardForm(true);
+}
+
+async function deleteReward(rewardId) {
+  const rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  const filtered = rewards.filter(r => r.id !== rewardId);
+  await fetch('/api/rewards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(filtered)
+  });
+  renderRewards(filtered);
+  showToast('Recompensa eliminada');
+}
+
+async function testReward(rewardId) {
+  const rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  const r = rewards.find(item => item.id === rewardId);
+  if (!r) return;
+
+  showToast(`Probando canje: ${r.rewardName}...`, 'info');
+
+  if (r.action === 'tts') {
+    broadcastEvent('tts', {
+      user: 'VisorDePrueba',
+      text: `¡Hola streamer! Este es un mensaje de prueba con puntos de canal para ${r.rewardName}`,
+      source: 'channel_points',
+      audioUrl: `https://api.streamelements.com/kappa/v2/speech?voice=Mia&text=${encodeURIComponent(`¡Hola streamer! Este es un mensaje de prueba con puntos de canal para ${r.rewardName}`)}`
+    });
+    broadcastEvent('alert', {
+      type: 'channel_points',
+      user: 'VisorDePrueba',
+      reward: r.rewardName,
+      message: '¡Probando canje de TTS con puntos!'
+    });
+  } else if (r.action === 'song_request') {
+    await fetch('/api/sr/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'Daft Punk One More Time', requester: 'VisorVIP' })
+    }).catch(() => {});
+    showToast('Canción añadida con prioridad VIP a la cola', 'success');
+  } else if (r.action === 'sound') {
+    broadcastEvent('alert', {
+      type: 'sound',
+      user: 'VisorDePrueba',
+      reward: r.rewardName,
+      soundUrl: r.soundUrl || '/assets/sounds/airhorn.mp3'
+    });
+    previewSound(r.soundUrl || '/assets/sounds/airhorn.mp3');
+  }
 }
 
 // ================= SAVE CONFIG =================
@@ -1795,12 +2078,15 @@ function setupEventListeners() {
   // TTS Test
   document.getElementById('btnTestTtsPlay').addEventListener('click', triggerTestTTS);
 
-  // New Command
+  // Save or Update Command
   document.getElementById('btnSaveNewCommand').addEventListener('click', async () => {
     const name = document.getElementById('newCmdName').value.trim();
     const response = document.getElementById('newCmdResponse').value.trim();
-    const cooldown = Number(document.getElementById('newCmdCooldown').value) || 10;
+    const noCooldown = document.getElementById('newCmdNoCooldown')?.checked;
+    const cooldownVal = Number(document.getElementById('newCmdCooldown').value);
+    const cooldown = noCooldown ? 0 : (isNaN(cooldownVal) ? 10 : Math.max(0, cooldownVal));
     const userLevel = document.getElementById('newCmdUserLevel').value;
+    const editId = document.getElementById('editCmdId')?.value;
 
     if (!name || !response) {
       showToast('Debes ingresar el nombre del comando y su respuesta', 'warn');
@@ -1810,10 +2096,12 @@ function setupEventListeners() {
     const formattedName = name.startsWith('!') ? name : `!${name}`;
     const commands = await fetch('/api/commands').then(r => r.json());
 
-    // Check if exists or update
-    const existingIdx = commands.findIndex(c => c.name.toLowerCase() === formattedName.toLowerCase());
+    const targetIdx = editId 
+      ? commands.findIndex(c => c.id === editId)
+      : commands.findIndex(c => c.name.toLowerCase() === formattedName.toLowerCase());
+
     const newCmd = {
-      id: existingIdx >= 0 ? commands[existingIdx].id : `cmd-${Date.now()}`,
+      id: targetIdx >= 0 ? commands[targetIdx].id : `cmd-${Date.now()}`,
       name: formattedName,
       response,
       cooldown,
@@ -1821,8 +2109,8 @@ function setupEventListeners() {
       enabled: true
     };
 
-    if (existingIdx >= 0) {
-      commands[existingIdx] = newCmd;
+    if (targetIdx >= 0) {
+      commands[targetIdx] = newCmd;
     } else {
       commands.push(newCmd);
     }
@@ -1835,35 +2123,9 @@ function setupEventListeners() {
     const data = await res.json();
     renderCommands(data.commands);
     showToast(`Comando ${formattedName} guardado con éxito`, 'success');
-
-    document.getElementById('newCmdName').value = '';
-    document.getElementById('newCmdResponse').value = '';
+    cancelEditCommand();
   });
 
-  // Add Reward Dummy Modal
-  document.getElementById('btnAddRewardBtn').addEventListener('click', async () => {
-    const title = prompt('Nombre de la recompensa en Twitch (debe coincidir con tu panel de Twitch):', 'Pedir Canción VIP');
-    if (!title) return;
-
-    const action = prompt('Acción a ejecutar (tts / song_request / sound):', 'song_request');
-    if (!action) return;
-
-    const rewards = await fetch('/api/rewards').then(r => r.json());
-    rewards.push({
-      id: `reward-${Date.now()}`,
-      rewardName: title,
-      action: action.toLowerCase(),
-      cost: 500,
-      enabled: true
-    });
-
-    const res = await fetch('/api/rewards', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rewards)
-    });
-    const data = await res.json();
-    renderRewards(data.rewards);
-    showToast('Recompensa vinculada');
-  });
+  // Load custom sounds on startup
+  loadSounds();
 }

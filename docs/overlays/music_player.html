@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,6 +13,7 @@
       margin: 0;
       padding: 0;
     }
+
     body {
       background: transparent;
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -51,6 +53,7 @@
       align-items: center;
       justify-content: center;
     }
+
     .thumb-box img {
       width: 100%;
       height: 100%;
@@ -61,6 +64,7 @@
       flex: 1;
       min-width: 0;
     }
+
     .status-badge {
       font-size: 10px;
       font-weight: 700;
@@ -72,6 +76,7 @@
       gap: 5px;
       margin-bottom: 2px;
     }
+
     .status-dot {
       width: 6px;
       height: 6px;
@@ -79,6 +84,7 @@
       border-radius: 50%;
       box-shadow: 0 0 8px #00ff88;
     }
+
     .song-title {
       font-size: 13px;
       font-weight: 600;
@@ -87,6 +93,7 @@
       text-overflow: ellipsis;
       color: #fff;
     }
+
     .song-requester {
       font-size: 11px;
       color: #adadb8;
@@ -111,6 +118,7 @@
     }
   </style>
 </head>
+
 <body>
 
   <div class="player-card" id="playerCard">
@@ -124,7 +132,6 @@
       </div>
       <div class="song-title" id="trackTitle">Esperando canciones con !sr...</div>
       <div class="song-requester" id="trackRequester">Emite el audio directamente en OBS Studio</div>
-      <div class="obs-hint">☑ Controlar audio vía OBS activado</div>
     </div>
   </div>
 
@@ -151,7 +158,7 @@
     let currentSongData = null;
 
     // Inicializar YouTube IFrame Player
-    window.onYouTubeIframeAPIReady = function() {
+    window.onYouTubeIframeAPIReady = function () {
       ytPlayer = new YT.Player('ytPlayer', {
         height: '200',
         width: '200',
@@ -177,8 +184,6 @@
               statusText.innerText = 'Canción Finalizada';
               notifySongEnded();
             } else if (event.data === 1) {
-              statusText.innerText = 'Reproduciendo en OBS';
-              statusDot.style.background = '#00ff88';
             } else if (event.data === 2) {
               statusText.innerText = 'Pausado';
               statusDot.style.background = '#ffb700';
@@ -201,7 +206,7 @@
         try {
           ytPlayer.loadVideoById(videoId);
           ytPlayer.playVideo();
-        } catch(e) {
+        } catch (e) {
           console.error('Error al reproducir en YT:', e);
         }
       } else {
@@ -212,25 +217,25 @@
     function stopYouTubeVideo() {
       pendingVideoId = null;
       if (ytPlayer && ytPlayer.stopVideo) {
-        try { ytPlayer.stopVideo(); } catch(e) {}
+        try { ytPlayer.stopVideo(); } catch (e) { }
       }
     }
 
     function pauseYouTubeVideo() {
       if (ytPlayer && ytPlayer.pauseVideo) {
-        try { ytPlayer.pauseVideo(); } catch(e) {}
+        try { ytPlayer.pauseVideo(); } catch (e) { }
       }
     }
 
     function resumeYouTubeVideo() {
       if (ytPlayer && ytPlayer.playVideo) {
-        try { ytPlayer.playVideo(); } catch(e) {}
+        try { ytPlayer.playVideo(); } catch (e) { }
       }
     }
 
     function notifySongEnded() {
       // 1. Intentar API local
-      fetch('/api/sr/skip', { method: 'POST' }).catch(() => {});
+      fetch('/api/sr/skip', { method: 'POST' }).catch(() => { });
 
       // 2. BroadcastChannel para sincronizar pestañas locales
       if (typeof BroadcastChannel !== 'undefined') {
@@ -261,7 +266,7 @@
     try {
       const saved = localStorage.getItem('orbibot_current_song');
       if (saved) updateSongDisplay(JSON.parse(saved));
-    } catch(e) {}
+    } catch (e) { }
 
     fetch('/api/sr/state')
       .then(r => r.json())
@@ -270,7 +275,7 @@
           updateSongDisplay(state.currentSong);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // Manejar mensajes entrantes
     function handleIncomingMessage(msg) {
@@ -315,7 +320,7 @@
             try {
               const payload = JSON.parse(message.payloadString);
               handleIncomingMessage(payload);
-            } catch(e) {}
+            } catch (e) { }
           };
           mqttClient.connect({
             useSSL: true,
@@ -327,7 +332,7 @@
               mqttClient.subscribe(`orbibot/${relayChannel}/events`);
             }
           });
-        } catch(e) {}
+        } catch (e) { }
       }
 
       // 2. Local WebSocket Server
@@ -335,9 +340,9 @@
         try {
           const ws = new WebSocket(url);
           ws.onmessage = (event) => {
-            try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
+            try { handleIncomingMessage(JSON.parse(event.data)); } catch (e) { }
           };
-        } catch(e) {}
+        } catch (e) { }
       }
 
       const isGitHubPages = location.hostname.endsWith('github.io');
@@ -357,7 +362,7 @@
 
       window.addEventListener('storage', (e) => {
         if (e.key === 'orbibot_last_event' && e.newValue) {
-          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) { }
         }
       });
     }
@@ -365,4 +370,5 @@
     connectChannels();
   </script>
 </body>
+
 </html>

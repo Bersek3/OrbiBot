@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
+const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
 
@@ -17,7 +18,8 @@ const wss = new WebSocketServer({ server });
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Render Health Check
@@ -230,6 +232,72 @@ app.get('/api/commands', (req, res) => {
 app.post('/api/commands', (req, res) => {
   const commands = storage.saveCommands(req.body);
   res.json({ success: true, commands });
+});
+
+app.put('/api/commands/:id', (req, res) => {
+  const { id } = req.params;
+  const updatedCmd = req.body;
+  const commands = storage.getCommands();
+  const index = commands.findIndex(c => c.id === id);
+  if (index !== -1) {
+    commands[index] = { ...commands[index], ...updatedCmd, id };
+    storage.saveCommands(commands);
+    return res.json({ success: true, commands });
+  }
+  res.status(404).json({ success: false, message: 'Comando no encontrado.' });
+});
+
+// Sound files management
+app.get('/api/sounds', (req, res) => {
+  try {
+    const soundsDir = path.join(__dirname, 'public', 'assets', 'sounds');
+    if (!fs.existsSync(soundsDir)) {
+      fs.mkdirSync(soundsDir, { recursive: true });
+    }
+    const files = fs.readdirSync(soundsDir)
+      .filter(f => /\.(mp3|wav|ogg|m4a|aac)$/i.test(f))
+      .map(f => ({
+        name: f,
+        url: `/assets/sounds/${f}`
+      }));
+    res.json(files);
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.post('/api/sounds/upload', (req, res) => {
+  try {
+    const { name, data } = req.body;
+    if (!name || !data) {
+      return res.status(400).json({ success: false, message: 'Falta nombre o archivo de audio.' });
+    }
+
+    const cleanName = name.replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
+    const soundsDir = path.join(__dirname, 'public', 'assets', 'sounds');
+    if (!fs.existsSync(soundsDir)) {
+      fs.mkdirSync(soundsDir, { recursive: true });
+    }
+
+    const base64Data = data.replace(/^data:audio\/\w+;base64,/, '').replace(/^data:application\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const targetPath = path.join(soundsDir, cleanName);
+
+    fs.writeFileSync(targetPath, buffer);
+
+    // Sync to docs if present
+    const docsDir = path.join(__dirname, 'docs', 'assets', 'sounds');
+    if (fs.existsSync(path.join(__dirname, 'docs'))) {
+      if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
+      fs.writeFileSync(path.join(docsDir, cleanName), buffer);
+    }
+
+    const soundUrl = `/assets/sounds/${cleanName}`;
+    res.json({ success: true, name: cleanName, url: soundUrl });
+  } catch (err) {
+    console.error('Error al subir sonido:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // Alerts
