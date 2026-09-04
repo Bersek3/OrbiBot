@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: orbibot
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TWITCH_CLIENT_ID
+        value: yw1vr664ichms8an2x5lhji58v7ozk

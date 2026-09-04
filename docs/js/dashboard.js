@@ -182,8 +182,9 @@ function connectWebSocket() {
     }
   });
 
-  // WebSocket for local backend
-  if (location.port) {
+  // WebSocket for backend (works on Render, localhost, or any custom domain; skips only static github.io)
+  const isGitHubPages = location.hostname.endsWith('github.io');
+  if (!isGitHubPages) {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     try {
       socket = new WebSocket(`${protocol}//${location.host}`);
@@ -239,6 +240,22 @@ async function loadInitialData() {
       fetch('/api/rewards').then(r => r.json()),
       fetch('/api/sr/state').then(r => r.json())
     ]);
+
+    // If backend Twitch is not connected yet, but browser localStorage has saved credentials, sync to backend!
+    const localTwitch = localStorage.getItem('orbibot_twitch_auth');
+    if (localTwitch && (!cfgRes.twitch || !cfgRes.twitch.connected || !cfgRes.twitch.oauthToken)) {
+      try {
+        const parsedTwitch = JSON.parse(localTwitch);
+        if (parsedTwitch.oauthToken) {
+          await fetch('/api/auth/twitch-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: parsedTwitch.oauthToken })
+          });
+          cfgRes.twitch = { ...cfgRes.twitch, ...parsedTwitch };
+        }
+      } catch(e) {}
+    }
 
     appConfig = cfgRes;
     bindConfigToUI(cfgRes);

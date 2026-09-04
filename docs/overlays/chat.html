@@ -128,7 +128,8 @@
         } catch(e) {}
       }
 
-      if (location.port) {
+      const isGitHubPages = location.hostname.endsWith('github.io');
+      if (!isGitHubPages) {
         const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
         connectLocalWs(`${protocol}//${location.host}`);
       } else {

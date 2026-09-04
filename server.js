@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
@@ -18,6 +19,11 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Render Health Check
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime(), botStatus: twitchBot.status });
+});
 
 // Set of connected WebSocket clients
 const clients = new Set();
