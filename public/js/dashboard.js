@@ -1008,9 +1008,39 @@ window.onYouTubeIframeAPIReady = function() {
   });
 };
 
+let dashboardAudioMuted = false;
+
+function toggleDashboardAudio() {
+  dashboardAudioMuted = !dashboardAudioMuted;
+  const btn = document.getElementById('btnSrMuteDashboard');
+  if (ytPlayer) {
+    if (dashboardAudioMuted) {
+      if (ytPlayer.mute) ytPlayer.mute();
+      if (btn) {
+        btn.innerText = '🔇 Audio Panel: OFF';
+        btn.classList.add('btn-danger');
+        btn.classList.remove('btn-secondary');
+      }
+      showToast('Audio de este panel silenciado (ideal si usas audio vía OBS)', 'info');
+    } else {
+      if (ytPlayer.unMute) ytPlayer.unMute();
+      if (btn) {
+        btn.innerText = '🔊 Audio Panel: ON';
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-secondary');
+      }
+      showToast('Audio de este panel activado', 'success');
+    }
+  }
+}
+window.toggleDashboardAudio = toggleDashboardAudio;
+
 function playYouTubeSong(videoId) {
   if (ytPlayer && ytPlayer.loadVideoById) {
     ytPlayer.loadVideoById(videoId);
+    if (dashboardAudioMuted && ytPlayer.mute) {
+      ytPlayer.mute();
+    }
     ytPlayer.playVideo();
   }
 }

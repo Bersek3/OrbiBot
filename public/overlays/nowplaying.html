@@ -28,15 +28,84 @@
     </div>
   </div>
 
+  <!-- Reproductor oculto de YouTube para emitir audio directamente en OBS -->
+  <div id="obsYtContainer" style="position: fixed; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none;">
+    <div id="obsYtPlayer"></div>
+  </div>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     const npCard = document.getElementById('npCard');
     const npThumb = document.getElementById('npThumb');
     const npTitle = document.getElementById('npTitle');
     const npRequester = document.getElementById('npRequester');
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const enableAudio = urlParams.get('audio') !== '0';
+
+    let ytPlayer = null;
+    let ytApiReady = false;
+    let pendingVideoId = null;
+
+    window.onYouTubeIframeAPIReady = function() {
+      if (!enableAudio) return;
+      ytPlayer = new YT.Player('obsYtPlayer', {
+        height: '200',
+        width: '200',
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          rel: 0
+        },
+        events: {
+          onReady: (event) => {
+            ytApiReady = true;
+            if (pendingVideoId) {
+              playYouTubeVideo(pendingVideoId);
+              pendingVideoId = null;
+            }
+          },
+          onStateChange: (event) => {
+            // YT.PlayerState.ENDED is 0
+            if (event.data === 0) {
+              fetch('/api/sr/skip', { method: 'POST' }).catch(() => {});
+            }
+          },
+          onError: (event) => {
+            console.warn('YouTube OBS Player error, skipping:', event.data);
+            setTimeout(() => {
+              fetch('/api/sr/skip', { method: 'POST' }).catch(() => {});
+            }, 3000);
+          }
+        }
+      });
+    };
+
+    function playYouTubeVideo(videoId) {
+      if (!enableAudio || !videoId) return;
+      if (ytPlayer && ytApiReady && ytPlayer.loadVideoById) {
+        try {
+          ytPlayer.loadVideoById(videoId);
+          ytPlayer.playVideo();
+        } catch(e) {}
+      } else {
+        pendingVideoId = videoId;
+      }
+    }
+
+    function stopYouTubeVideo() {
+      pendingVideoId = null;
+      if (ytPlayer && ytPlayer.stopVideo) {
+        try { ytPlayer.stopVideo(); } catch(e) {}
+      }
+    }
+
     function updateSong(song) {
       if (!song) {
         npCard.classList.remove('visible');
+        stopYouTubeVideo();
         return;
       }
 
@@ -44,6 +113,10 @@
       npTitle.innerText = song.title || 'Canción desconocida';
       npRequester.innerHTML = `Pedida por <strong>@${song.requester || 'Anónimo'}</strong>`;
       npCard.classList.add('visible');
+
+      if (song.videoId) {
+        playYouTubeVideo(song.videoId);
+      }
     }
 
     // Initial check from localStorage or API

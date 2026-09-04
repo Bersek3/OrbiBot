@@ -405,7 +405,8 @@
                     <span class="music-bar"></span>
                   </div>
                 </div>
-                <div style="display: flex; gap: 8px;">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button id="btnSrMuteDashboard" class="btn btn-secondary btn-sm" onclick="toggleDashboardAudio()" title="Silenciar o activar el audio en este panel web">🔊 Audio Panel: ON</button>
                   <button id="btnSrSkip" class="btn btn-secondary btn-sm" title="Saltar a la siguiente canción">⏭️ Saltar</button>
                   <button id="btnSrClear" class="btn btn-danger btn-sm" title="Vaciar toda la cola">🗑️ Vaciar Cola</button>
                 </div>
@@ -427,6 +428,15 @@
                 <div style="display: flex; gap: 10px;">
                   <input type="text" id="srManualInput" class="form-control" placeholder="Pega un enlace de YouTube o escribe el nombre de la canción...">
                   <button id="btnSrAddManual" class="btn btn-primary" style="flex-shrink: 0;">Añadir a la Cola</button>
+                </div>
+              </div>
+
+              <!-- Guía de Audio para OBS Studio -->
+              <div style="margin-top: 16px; padding: 12px 16px; background: rgba(0, 242, 254, 0.05); border: 1px solid rgba(0, 242, 254, 0.2); border-radius: 8px; font-size: 12px; line-height: 1.5;">
+                <strong style="color: var(--cyan-accent); display: block; margin-bottom: 4px;">🎧 ¿Cómo escuchar la música de !sr en OBS Studio?</strong>
+                <div style="color: var(--text-secondary);">
+                  <p style="margin: 0 0 6px 0;"><strong>Opción 1 (Directo en OBS como pista separada):</strong> En OBS añade la fuente de Navegador con el widget <em>Now Playing</em> y marca la casilla <strong>☑ Controlar audio vía OBS</strong>. Luego pulsa arriba en <strong>"Audio Panel: OFF"</strong> para evitar eco.</p>
+                  <p style="margin: 0;"><strong>Opción 2 (Audio de Escritorio):</strong> Mantén este panel abierto en tu navegador. Si OBS captura tu <em>Audio del Escritorio</em>, la música ya se escuchará automáticamente en tu directo sin configurar nada extra.</p>
                 </div>
               </div>
             </div>
@@ -665,13 +675,13 @@
                 <h4 style="font-size: 16px; font-weight: 700;">Now Playing (Música)</h4>
               </div>
               <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
-                Tarjeta flotante elegante que muestra la canción actual, la portada del video, el solicitante y un ecualizador animado.
+                Muestra la canción actual, la portada del video, solicitante y ecualizador animado. ¡También emite el audio de la canción directamente dentro de OBS Studio!
               </p>
               <div class="widget-url-box">
                 <input type="text" readonly class="widget-url-input" id="urlNowPlayingWidget">
                 <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlNowPlayingWidget')">Copiar</button>
               </div>
-              <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 500 x 140</div>
+              <div style="font-size: 11px; color: var(--cyan-accent); font-weight: 600;">Resolución: 500 x 140 | En OBS marcar: <strong>☑ Controlar audio vía OBS</strong></div>
             </div>
             <div style="margin-top: 16px;">
               <a id="btnPreviewNowPlaying" href="./overlays/nowplaying.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Vista Previa ↗</a>
