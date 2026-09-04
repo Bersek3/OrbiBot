@@ -65,54 +65,86 @@
       ttsIndicator.classList.add('active');
       ttsUser.innerText = `TTS: ${item.user}`;
 
-      if (item.audioUrl) {
-        const audio = new Audio(item.audioUrl);
+      let finished = false;
+      // Safety timeout: si el audio no termina en 10s, forzar el avance de la cola
+      const safetyTimer = setTimeout(() => {
+        if (!finished) {
+          console.warn('TTS safety timeout reached, advancing queue');
+          finalize();
+        }
+      }, 10000);
+
+      function finalize() {
+        if (finished) return;
+        finished = true;
+        clearTimeout(safetyTimer);
+        finishSpeaking();
+      }
+
+      // 1. Prioridad: Audio streaming nativo (StreamElements / Google TTS)
+      const primaryUrl = item.audioUrl || (item.text ? `https://api.streamelements.com/kappa/v2/speech?voice=Mia&text=${encodeURIComponent(item.text)}` : null);
+      const secondaryUrl = item.fallbackUrl || (item.text ? `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(item.text)}&tl=es&client=tw-ob` : null);
+
+      if (primaryUrl) {
+        const audio = new Audio(primaryUrl);
         audio.volume = item.volume !== undefined ? item.volume : 0.9;
-        audio.onended = () => {
-          finishSpeaking();
-        };
+        audio.onended = () => finalize();
         audio.onerror = () => {
-          speakWebSpeech(item);
+          console.warn('Primary TTS audio failed, trying fallback');
+          playFallback();
         };
-        audio.play().catch(() => {
-          speakWebSpeech(item);
-        });
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            playFallback();
+          });
+        }
         return;
       }
 
-      speakWebSpeech(item);
+      function playFallback() {
+        if (secondaryUrl) {
+          const fbAudio = new Audio(secondaryUrl);
+          fbAudio.volume = item.volume !== undefined ? item.volume : 0.9;
+          fbAudio.onended = () => finalize();
+          fbAudio.onerror = () => speakWebSpeech(item, finalize);
+          const fbPromise = fbAudio.play();
+          if (fbPromise !== undefined) {
+            fbPromise.catch(() => speakWebSpeech(item, finalize));
+          }
+        } else {
+          speakWebSpeech(item, finalize);
+        }
+      }
     }
 
-    function speakWebSpeech(item) {
+    function speakWebSpeech(item, onDone) {
       if (!('speechSynthesis' in window)) {
-        console.warn('Speech synthesis not supported');
-        finishSpeaking();
+        if (onDone) onDone();
         return;
       }
 
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(item.text);
+        utterance.volume = item.volume !== undefined ? item.volume : 0.9;
+        utterance.rate = item.rate || 1.0;
+        utterance.pitch = item.pitch || 1.0;
 
-      const utterance = new SpeechSynthesisUtterance(item.text);
-      utterance.volume = item.volume !== undefined ? item.volume : 0.9;
-      utterance.rate = item.rate || 1.0;
-      utterance.pitch = item.pitch || 1.0;
+        const voices = window.speechSynthesis.getVoices();
+        const spanishVoice = voices.find(v => v.lang.startsWith('es') || v.name.includes('Spanish'));
+        if (spanishVoice) {
+          utterance.voice = spanishVoice;
+        }
 
-      const voices = window.speechSynthesis.getVoices();
-      const spanishVoice = voices.find(v => v.lang.startsWith('es') || v.name.includes('Spanish'));
-      if (spanishVoice) {
-        utterance.voice = spanishVoice;
+        utterance.onend = () => { if (onDone) onDone(); };
+        utterance.onerror = () => { if (onDone) onDone(); };
+
+        window.speechSynthesis.speak(utterance);
+      } catch(e) {
+        if (onDone) onDone();
       }
-
-      utterance.onend = () => {
-        finishSpeaking();
-      };
-
-      utterance.onerror = (e) => {
-        console.warn('Speech error:', e);
-        finishSpeaking();
-      };
-
-      window.speechSynthesis.speak(utterance);
     }
 
     function finishSpeaking() {
@@ -120,7 +152,7 @@
       setTimeout(() => {
         isSpeaking = false;
         processQueue();
-      }, 500);
+      }, 400);
     }
 
     if ('speechSynthesis' in window) {
