@@ -9,15 +9,53 @@
   <script>
     // Intercept OAuth callback if Twitch redirects directly to index.html
     (function() {
+      const search = window.location.search;
       const hash = window.location.hash;
+      const isPopup = window.opener !== null ||
+                      window.name === 'TwitchOAuthLogin' ||
+                      (window.innerWidth < 850 && window.innerHeight < 900);
+
+      // 1. Check for Twitch Error (e.g., redirect_mismatch, access_denied)
+      if (search && (search.includes('error=') || search.includes('error_description='))) {
+        const searchParams = new URLSearchParams(search);
+        const error = searchParams.get('error') || 'error';
+        const desc = searchParams.get('error_description') || 'Parameter redirect_uri does not match registered URI';
+        
+        try {
+          const errPayload = { type: 'TWITCH_AUTH_ERROR', error, desc, timestamp: Date.now() };
+          localStorage.setItem('orbibot_twitch_auth_error', JSON.stringify(errPayload));
+          if (window.opener) window.opener.postMessage(errPayload, '*');
+          if (typeof BroadcastChannel !== 'undefined') new BroadcastChannel('orbibot_stream_channel').postMessage(errPayload);
+        } catch(e) {}
+
+        if (isPopup) {
+          window.addEventListener('DOMContentLoaded', function() {
+            document.body.innerHTML = `
+              <div style="background:#090c14; color:#fff; font-family:'Outfit',sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; text-align:center; padding:24px; box-sizing:border-box;">
+                <div style="background:#141a29; border:2px solid #ef4444; border-radius:16px; padding:28px 24px; max-width:440px; box-shadow:0 10px 40px rgba(0,0,0,0.8);">
+                  <div style="font-size:44px; margin-bottom:12px;">⚠️</div>
+                  <h2 style="font-size:18px; font-weight:800; color:#ef4444; margin-bottom:8px;">Error de Configuración en Twitch</h2>
+                  <p style="color:#cbd5e1; font-size:13px; line-height:1.5; margin-bottom:16px;">
+                    Twitch devolvió: <strong>${desc}</strong>
+                  </p>
+                  <div style="background:rgba(0,0,0,0.5); padding:14px; border-radius:10px; font-size:12px; text-align:left; color:#94a3b8; margin-bottom:20px; line-height:1.6;">
+                    <strong style="color:#fff;">Solución rápida:</strong><br>
+                    Ve a tu <a href="https://dev.twitch.tv/console/apps" target="_blank" style="color:#00f2fe; text-decoration:underline;">Twitch Developer Console</a> y en <strong>OAuth Redirect URLs</strong> asegúrate de tener registrada esta URL exacta:<br>
+                    <code style="display:block; margin-top:6px; background:#0b0f19; padding:8px 10px; border-radius:6px; color:#a78bfa; font-weight:bold; word-break:break-all;">${window.location.origin + window.location.pathname}</code>
+                  </div>
+                  <button onclick="window.close()" style="background:#ef4444; color:#fff; border:none; padding:12px 24px; border-radius:10px; font-weight:700; cursor:pointer; font-size:14px; width:100%;">Cerrar ventana</button>
+                </div>
+              </div>
+            `;
+          });
+          return;
+        }
+      }
+
+      // 2. Check for Access Token (Successful Auth)
       if (hash && (hash.includes('access_token=') || hash.includes('code='))) {
         const hashParams = new URLSearchParams(hash.substring(1));
         const token = hashParams.get('access_token') || hashParams.get('code');
-        const isPopup = window.opener !== null ||
-                        window.name === 'TwitchOAuthLogin' ||
-                        window.location.search.includes('popup=1') ||
-                        (window.innerWidth < 850 && window.innerHeight < 900);
-
         if (token) {
           const authPayload = {
             type: 'TWITCH_AUTH_SUCCESS',
@@ -28,8 +66,7 @@
           try { localStorage.setItem('orbibot_twitch_auth_event', JSON.stringify(authPayload)); } catch(e) {}
           try {
             if (typeof BroadcastChannel !== 'undefined') {
-              const bc = new BroadcastChannel('orbibot_stream_channel');
-              bc.postMessage(authPayload);
+              new BroadcastChannel('orbibot_stream_channel').postMessage(authPayload);
             }
           } catch(e) {}
           if (window.opener) {
@@ -38,10 +75,9 @@
           }
 
           if (isPopup) {
-            window.stop();
-            document.addEventListener('DOMContentLoaded', () => {
+            window.addEventListener('DOMContentLoaded', function() {
               document.body.innerHTML = `
-                <div style="background:#090c14; color:#fff; font-family:sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; text-align:center; padding:20px;">
+                <div style="background:#090c14; color:#fff; font-family:'Outfit',sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; text-align:center; padding:20px; box-sizing:border-box;">
                   <div style="background:#121826; border:1px solid #9146ff; border-radius:16px; padding:32px 24px; max-width:380px; box-shadow:0 10px 40px rgba(0,0,0,0.6);">
                     <div style="font-size:44px; margin-bottom:12px;">✅</div>
                     <h2 style="font-size:20px; font-weight:700; margin-bottom:8px;">¡Sesión Iniciada!</h2>
@@ -315,9 +351,20 @@
                 <input type="password" id="cfgTwitchToken" class="form-control" placeholder="oauth:...">
               </div>
             </div>
-            <div class="form-group" style="margin-top: 8px;">
-              <label class="form-label" style="font-size: 11px;">Twitch Client ID</label>
-              <input type="text" id="cfgTwitchClientId" class="form-control" value="yw1vr664ichms8an2x5lhji58v7ozk">
+            <div class="grid-2" style="margin-top: 8px; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label" style="font-size: 11px;">Twitch Client ID</label>
+                <input type="text" id="cfgTwitchClientId" class="form-control" value="yw1vr664ichms8an2x5lhji58v7ozk">
+              </div>
+              <div class="form-group">
+                <label class="form-label" style="font-size: 11px;">OAuth Redirect URI (Debe coincidir con Twitch Developers)</label>
+                <input type="text" id="cfgTwitchRedirectUri" class="form-control" placeholder="Automático">
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.5;">
+              💡 <strong>URL de Redirección actual:</strong> <code id="displayRedirectUri" style="color: var(--cyan-accent); background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px;"></code>
+              <button class="btn btn-secondary btn-sm" style="padding: 1px 6px; font-size: 10px; margin-left: 4px;" onclick="copyWidgetUrl('displayRedirectUri')">Copiar</button>
+              <br>Asegúrate de agregar esta URL exacta en tu app de <a href="https://dev.twitch.tv/console/apps" target="_blank" style="color: var(--cyan-accent); text-decoration: underline;">Twitch Developer Console</a>.
             </div>
             <div style="display: flex; gap: 10px; margin-top: 12px;">
               <button id="btnConnectTwitch" class="btn btn-secondary btn-sm">Guardar y Conectar</button>

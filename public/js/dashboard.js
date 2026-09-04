@@ -604,20 +604,23 @@ function populateWidgetUrls() {
   document.getElementById('urlGoalWidget').value = `${baseUrl}/overlays/goals.html?type=subs`;
   document.getElementById('urlTtsWidget').value = `${baseUrl}/overlays/tts.html`;
   document.getElementById('urlChatWidget').value = `${baseUrl}/overlays/chat.html`;
-  if (document.getElementById('redirectUrlDisplay')) {
-    document.getElementById('redirectUrlDisplay').innerText = `${baseUrl}/auth/callback.html`;
+  const appBaseUrl = `${baseUrl}/`;
+  if (document.getElementById('displayRedirectUri')) {
+    document.getElementById('displayRedirectUri').innerText = appBaseUrl;
+  }
+  if (document.getElementById('cfgTwitchRedirectUri') && !document.getElementById('cfgTwitchRedirectUri').value) {
+    document.getElementById('cfgTwitchRedirectUri').value = appBaseUrl;
   }
 }
 
 function copyWidgetUrl(inputId) {
-  const input = document.getElementById(inputId);
-  if (input) {
-    input.select();
-    navigator.clipboard.writeText(input.value).then(() => {
-      showToast('¡URL copiada al portapapeles! Pégala en OBS Studio.', 'success');
+  const el = document.getElementById(inputId);
+  if (el) {
+    const text = el.value || el.innerText || el.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('¡Copiado al portapapeles!', 'success');
     }).catch(() => {
-      document.execCommand('copy');
-      showToast('¡URL copiada al portapapeles!', 'success');
+      showToast('¡Copiado!', 'success');
     });
   }
 }
@@ -853,11 +856,17 @@ function setupEventListeners() {
   // Direct Twitch OAuth Authentication
   let activeAuthPopup = null;
 
+  function getTwitchRedirectUri() {
+    const custom = document.getElementById('cfgTwitchRedirectUri')?.value?.trim();
+    if (custom) return custom;
+    const cleanPath = window.location.pathname.replace(/\/index\.html$/i, '').replace(/\/$/, '');
+    return `${window.location.origin}${cleanPath}/`;
+  }
+
   function triggerTwitchOAuthLogin() {
     const customClientId = document.getElementById('cfgTwitchClientId')?.value?.trim();
     const clientId = customClientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
-    const path = window.location.pathname.replace(/\/index\.html$/i, '').replace(/\/$/, '');
-    const redirectUri = `${window.location.origin}${path}/auth/callback.html`;
+    const redirectUri = getTwitchRedirectUri();
     const scopes = encodeURIComponent('chat:read chat:edit channel:read:redemptions bits:read channel:read:subscriptions');
 
     const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scopes}&state=popup&force_verify=true`;
@@ -868,8 +877,9 @@ function setupEventListeners() {
 
     showToast('Abriendo ventana segura de inicio de sesión con Twitch...', 'info');
 
-    // Clean any prior auth event
+    // Clean any prior auth event or error
     localStorage.removeItem('orbibot_twitch_auth_event');
+    localStorage.removeItem('orbibot_twitch_auth_error');
 
     activeAuthPopup = window.open(twitchAuthUrl, 'TwitchOAuthLogin', `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no,scrollbars=yes`);
     if (!activeAuthPopup || activeAuthPopup.closed || typeof activeAuthPopup.closed === 'undefined') {
@@ -877,11 +887,11 @@ function setupEventListeners() {
       return;
     }
 
-    // Active polling interval: checks localStorage while popup is open
-    // NOTE: We do NOT stop on authWindow.closed because modern browsers report closed=true on cross-origin redirects!
     let pollCount = 0;
     const authPollInterval = setInterval(async () => {
       pollCount++;
+
+      // 1. Check for success
       const rawEvent = localStorage.getItem('orbibot_twitch_auth_event');
       if (rawEvent) {
         clearInterval(authPollInterval);
@@ -897,6 +907,19 @@ function setupEventListeners() {
         } catch(err) {
           console.error('Error handling auth success payload:', err);
         }
+        return;
+      }
+
+      // 2. Check for error (e.g. redirect_mismatch)
+      const rawError = localStorage.getItem('orbibot_twitch_auth_error');
+      if (rawError) {
+        clearInterval(authPollInterval);
+        localStorage.removeItem('orbibot_twitch_auth_error');
+        try {
+          const errData = JSON.parse(rawError);
+          showToast(`⚠️ Twitch: ${errData.desc || errData.error}`, 'error');
+        } catch(e) {}
+        return;
       }
 
       if (pollCount > 600) {
