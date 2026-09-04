@@ -132,7 +132,10 @@ class TwitchBot {
         message,
         isMod,
         isSub,
-        badges: tags.badges || {}
+        badges: tags.badges || {},
+        badgesRaw: tags['badges-raw'] || null,
+        emotes: tags.emotes || null,
+        roomId: tags['room-id'] || null
       });
 
       // Check for Bits donation in chat message

@@ -389,7 +389,10 @@ function connectInBrowserTwitchBot(twitchData) {
         message,
         isMod,
         isSub,
-        badges: tags.badges || {}
+        badges: tags.badges || {},
+        badgesRaw: tags['badges-raw'] || null,
+        emotes: tags.emotes || null,
+        roomId: tags['room-id'] || null
       };
 
       appendChatMessage(chatData);
@@ -615,21 +618,230 @@ function updateBotStatusUI(botStatus) {
   }
 }
 
+// ================= TWITCH BADGES & EMOTES =================
+const DEFAULT_TWITCH_BADGES = {
+  broadcaster: {
+    title: 'Streamer / Transmisor',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/5527c58c-fb7d-422d-b71b-f309dcb85cc1/1'
+  },
+  moderator: {
+    title: 'Moderador',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/3267646d-33f0-4b17-b3df-f923a41db1d0/1'
+  },
+  vip: {
+    title: 'VIP',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/b817aba4-fad8-49e2-b88a-7cc744dfa6ec/1'
+  },
+  subscriber: {
+    title: 'Suscriptor',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/5d9f2208-5dd8-11e7-8513-2ff4adfae661/1'
+  },
+  founder: {
+    title: 'Fundador',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/511b78a9-ab37-472f-9569-457753bbe7d3/1'
+  },
+  premium: {
+    title: 'Prime Gaming',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/bbbe0db0-a598-423e-86d0-f9fb98ca1933/1'
+  },
+  turbo: {
+    title: 'Turbo',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/bd444ec6-8f34-4bf9-91f4-af1e3428d80f/1'
+  },
+  partner: {
+    title: 'Verificado',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/d12a2e27-16f6-41d0-ab77-b780518f00a3/1'
+  },
+  'artist-badge': {
+    title: 'Artista',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/4300a897-03dc-4e83-8c0e-c332fee7057f/1'
+  },
+  'bot-badge': {
+    title: 'Bot de Chat',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/3ffa9565-c35b-4cad-800b-041e60659cf2/1'
+  },
+  staff: {
+    title: 'Twitch Staff',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/d97c37bd-a6f5-4c38-8f57-4e4bef88af34/1'
+  },
+  admin: {
+    title: 'Twitch Admin',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/9ef7e029-4cdf-4d4d-a0d5-e2b3fb2583fe/1'
+  },
+  global_mod: {
+    title: 'Moderador Global',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/9384c43e-4ce7-4e94-b2a1-b93656896eba/1'
+  },
+  'glhf-pledge': {
+    title: 'GLHF Pledge',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/3158e758-3cb4-43c5-94b3-7639810451c5/1'
+  },
+  'sub-gifter': {
+    title: 'Regalador de Suscripciones',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/a5ef6c17-2e5b-4d8f-9b80-2779fd722414/1'
+  },
+  no_video: {
+    title: 'Solo Audio',
+    url: 'https://static-cdn.jtvnw.net/badges/v1/aef2cd08-f292-42c6-917d-f4728562d49b/1'
+  }
+};
+
+const channelBadgesCache = {};
+const loadedBadgesChannels = new Set();
+
+async function loadChannelBadges(channelIdOrName) {
+  if (!channelIdOrName || loadedBadgesChannels.has(channelIdOrName)) return;
+  loadedBadgesChannels.add(channelIdOrName);
+  try {
+    const isId = /^\d+$/.test(channelIdOrName);
+    const param = isId ? `id=${channelIdOrName}` : `name=${channelIdOrName.toLowerCase().replace(/^#/, '')}`;
+    const res = await fetch(`https://api.ivr.fi/v2/twitch/badges/channel?${param}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        data.forEach(set => {
+          if (!channelBadgesCache[set.set_id]) channelBadgesCache[set.set_id] = {};
+          if (Array.isArray(set.versions)) {
+            set.versions.forEach(v => {
+              channelBadgesCache[set.set_id][v.id] = {
+                title: v.title,
+                url: v.image_url_1x || v.image_url_2x || v.image_url_4x
+              };
+            });
+          }
+        });
+      }
+    }
+  } catch (e) {}
+}
+
+function getTwitchBadgeInfo(setId, version) {
+  if (channelBadgesCache[setId] && channelBadgesCache[setId][version]) {
+    return channelBadgesCache[setId][version];
+  }
+  if (DEFAULT_TWITCH_BADGES[setId]) {
+    return DEFAULT_TWITCH_BADGES[setId];
+  }
+  return null;
+}
+
+function renderTwitchBadges(badgesData, isMod, isSub) {
+  let badges = {};
+  if (typeof badgesData === 'string') {
+    badgesData.split(',').forEach(part => {
+      const [k, v] = part.split('/');
+      if (k) badges[k] = v || '1';
+    });
+  } else if (badgesData && typeof badgesData === 'object') {
+    badges = badgesData;
+  }
+
+  let html = '';
+  const badgeOrder = [
+    'staff', 'admin', 'global_mod', 'broadcaster', 'moderator',
+    'vip', 'founder', 'subscriber', 'artist-badge', 'partner',
+    'premium', 'turbo', 'sub-gifter', 'bot-badge', 'glhf-pledge', 'no_video'
+  ];
+
+  const processed = new Set();
+  for (const key of badgeOrder) {
+    if (badges[key] !== undefined) {
+      processed.add(key);
+      const info = getTwitchBadgeInfo(key, badges[key]);
+      if (info) {
+        html += `<img class="twitch-badge" src="${info.url}" alt="${escapeHtml(info.title)}" title="${escapeHtml(info.title)}" loading="lazy">`;
+      }
+    }
+  }
+
+  for (const key in badges) {
+    if (!processed.has(key)) {
+      const info = getTwitchBadgeInfo(key, badges[key]);
+      if (info) {
+        html += `<img class="twitch-badge" src="${info.url}" alt="${escapeHtml(info.title)}" title="${escapeHtml(info.title)}" loading="lazy">`;
+      }
+    }
+  }
+
+  // Fallback if badges object is empty
+  if (!html) {
+    if (isMod) {
+      const m = DEFAULT_TWITCH_BADGES.moderator;
+      html += `<img class="twitch-badge" src="${m.url}" alt="${m.title}" title="${m.title}" loading="lazy">`;
+    } else if (isSub) {
+      const s = DEFAULT_TWITCH_BADGES.subscriber;
+      html += `<img class="twitch-badge" src="${s.url}" alt="${s.title}" title="${s.title}" loading="lazy">`;
+    }
+  }
+
+  return html;
+}
+
+function formatTwitchEmotes(message, emotes) {
+  if (!message) return '';
+  if (!emotes || typeof emotes !== 'object' || Object.keys(emotes).length === 0) {
+    return escapeHtml(message);
+  }
+  const ranges = [];
+  for (const emoteId in emotes) {
+    const list = emotes[emoteId];
+    if (Array.isArray(list)) {
+      list.forEach(range => {
+        const parts = range.split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parseInt(parts[1], 10);
+        if (!isNaN(start) && !isNaN(end)) {
+          ranges.push({ id: emoteId, start, end });
+        }
+      });
+    }
+  }
+  if (ranges.length === 0) {
+    return escapeHtml(message);
+  }
+  ranges.sort((a, b) => a.start - b.start);
+
+  let html = '';
+  let lastIdx = 0;
+  for (const r of ranges) {
+    if (r.start > lastIdx) {
+      html += escapeHtml(message.slice(lastIdx, r.start));
+    }
+    const emoteName = message.slice(r.start, r.end + 1);
+    html += `<img class="twitch-emote" src="https://static-cdn.jtvnw.net/emoticons/v2/${r.id}/default/dark/1.0" alt="${escapeHtml(emoteName)}" title="${escapeHtml(emoteName)}" loading="lazy">`;
+    lastIdx = r.end + 1;
+  }
+  if (lastIdx < message.length) {
+    html += escapeHtml(message.slice(lastIdx));
+  }
+  return html;
+}
+
 // ================= CHAT LIVE LOG =================
 function appendChatMessage(data) {
   const container = document.getElementById('liveChatMessages');
+  if (!container) return;
+
+  // Clear initial placeholder notice if present
+  const placeholder = container.querySelector('em');
+  if (placeholder && placeholder.parentElement && placeholder.parentElement.parentElement === container) {
+    container.innerHTML = '';
+  }
+
+  if (data.roomId) {
+    loadChannelBadges(data.roomId);
+  }
+
   const row = document.createElement('div');
   row.className = 'chat-msg-row';
 
-  let badge = '';
-  if (data.badges?.broadcaster) badge = '<span class="chat-badge" style="background:#ff007f">STREAMER</span>';
-  else if (data.isMod) badge = '<span class="chat-badge" style="background:#00f2fe; color:#000">MOD</span>';
-  else if (data.isSub) badge = '<span class="chat-badge">SUB</span>';
+  const badgeHtml = renderTwitchBadges(data.badges || data.badgesRaw, data.isMod, data.isSub);
+  const formattedText = formatTwitchEmotes(data.message, data.emotes);
 
   row.innerHTML = `
-    ${badge}
-    <span class="chat-user" style="color: ${data.color || '#9146ff'}">${data.user}:</span>
-    <span class="chat-text">${escapeHtml(data.message)}</span>
+    <span class="chat-badges">${badgeHtml}</span>
+    <span class="chat-user" style="color: ${data.color || '#9146ff'}">${escapeHtml(data.user)}:</span>
+    <span class="chat-text">${formattedText}</span>
   `;
 
   container.appendChild(row);
@@ -640,6 +852,57 @@ function escapeHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
+
+function triggerTestChat() {
+  const channel = (appConfig?.twitch?.channel || 'StreamerMaster').replace(/^#/, '');
+  const sampleMessages = [
+    {
+      user: channel,
+      color: '#ff007f',
+      message: '¡Hola a todos! Bienvenidos al directo Kappa Keepo',
+      badges: { broadcaster: '1', subscriber: '12' },
+      isMod: true,
+      isSub: true,
+      emotes: { '25': ['36-40'], '1902': ['42-46'] }
+    },
+    {
+      user: 'Moderador_Pro',
+      color: '#00f2fe',
+      message: 'Recuerden respetar las reglas del chat y pasarla bien PogChamp',
+      badges: { moderator: '1', partner: '1' },
+      isMod: true,
+      isSub: false,
+      emotes: { '88': ['52-59'] }
+    },
+    {
+      user: 'SuperVIP_Fan',
+      color: '#ffd700',
+      message: '¡Aquí apoyando con suscripción de regalo! <3 LUL',
+      badges: { vip: '1', premium: '1', 'sub-gifter': '5' },
+      isMod: false,
+      isSub: true,
+      emotes: { '425618': ['45-47'] }
+    },
+    {
+      user: 'FundadorTier3',
+      color: '#a855f7',
+      message: '¡Esa canción está brutal! VoHiYo',
+      badges: { founder: '0', turbo: '1', 'artist-badge': '1' },
+      isMod: false,
+      isSub: true,
+      emotes: { '81274': ['26-31'] }
+    }
+  ];
+
+  sampleMessages.forEach((msg, idx) => {
+    setTimeout(() => {
+      appendChatMessage(msg);
+      broadcastEvent('chat_message', msg);
+    }, idx * 600);
+  });
+  showToast('💬 Mensajes de prueba con emblemas originales enviados a OBS y Chat', 'success');
+}
+window.triggerTestChat = triggerTestChat;
 
 // ================= SONG REQUEST UI & YOUTUBE =================
 function updateSongRequestUI(state) {

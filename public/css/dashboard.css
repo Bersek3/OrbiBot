@@ -572,6 +572,34 @@ input[type=range]::-webkit-slider-thumb {
   margin-right: 4px;
 }
 
+.chat-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.twitch-badge {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  vertical-align: -3px;
+  border-radius: 2px;
+  object-fit: contain;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.twitch-emote {
+  display: inline-block;
+  height: 24px;
+  max-height: 28px;
+  vertical-align: -5px;
+  margin: 0 2px;
+  object-fit: contain;
+}
+
 /* =========================================================
    SONG REQUEST COMPONENTS
    ========================================================= */
