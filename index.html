@@ -701,22 +701,22 @@
             </div>
           </div>
 
-          <!-- Widget 2: Now Playing (Song Request) -->
+          <!-- Widget 2: Now Playing (Song Request Banner) -->
           <div class="widget-card">
             <div>
               <div class="widget-header">
                 <span class="widget-icon">🎵</span>
-                <h4 style="font-size: 16px; font-weight: 700;">Now Playing (Música)</h4>
+                <h4 style="font-size: 16px; font-weight: 700;">Now Playing (Banner Visual)</h4>
               </div>
               <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
-                Muestra la canción actual, la portada del video, solicitante y ecualizador animado. ¡También emite el audio de la canción directamente dentro de OBS Studio!
+                Muestra la carátula animada, título de la canción actual, quién la pidió con !sr y un ecualizador de neón flotante en tu stream.
               </p>
               <div class="widget-url-box">
                 <input type="password" readonly class="widget-url-input" id="urlNowPlayingWidget" style="font-family: monospace; letter-spacing: 1px;">
                 <button class="btn btn-secondary btn-sm" onclick="toggleWidgetUrlVisibility('urlNowPlayingWidget', this)" title="Mostrar u ocultar enlace">👁️</button>
                 <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlNowPlayingWidget')">Copiar</button>
               </div>
-              <div style="font-size: 11px; color: var(--cyan-accent); font-weight: 600;">Resolución: 500 x 140 | En OBS marcar: <strong>☑ Controlar audio vía OBS</strong></div>
+              <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 500 x 140</div>
             </div>
             <div style="margin-top: 16px;">
               <a id="btnPreviewNowPlaying" href="./overlays/nowplaying.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Vista Previa ↗</a>
@@ -746,13 +746,35 @@
           </div>
         </div>
 
-        <div class="grid-2">
-          <!-- Widget 4: TTS Audio Source -->
+        <div class="grid-3">
+          <!-- Widget 4: Song Request Audio Player -->
+          <div class="widget-card">
+            <div>
+              <div class="widget-header">
+                <span class="widget-icon">🎧</span>
+                <h4 style="font-size: 16px; font-weight: 700;">Song Request Audio (OBS)</h4>
+              </div>
+              <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+                Fuente de navegador dedicada para reproducir la música de <code>!sr</code>. Te da una pista de audio propia en el mezclador de OBS para controlar su volumen o aislarla del VOD.
+              </p>
+              <div class="widget-url-box">
+                <input type="password" readonly class="widget-url-input" id="urlMusicPlayerWidget" style="font-family: monospace; letter-spacing: 1px;">
+                <button class="btn btn-secondary btn-sm" onclick="toggleWidgetUrlVisibility('urlMusicPlayerWidget', this)" title="Mostrar u ocultar enlace">👁️</button>
+                <button class="btn btn-primary btn-sm" onclick="copyWidgetUrl('urlMusicPlayerWidget')">Copiar</button>
+              </div>
+              <div style="font-size: 11px; color: var(--cyan-accent); font-weight: 600;">En OBS marcar: <strong>☑ Controlar audio vía OBS</strong></div>
+            </div>
+            <div style="margin-top: 16px;">
+              <a id="btnPreviewMusicPlayer" href="./overlays/music_player.html" target="_blank" class="btn btn-secondary btn-sm" style="width:100%">Abrir Reproductor ↗</a>
+            </div>
+          </div>
+
+          <!-- Widget 5: TTS Audio Source -->
           <div class="widget-card">
             <div>
               <div class="widget-header">
                 <span class="widget-icon">🔊</span>
-                <h4 style="font-size: 16px; font-weight: 700;">TTS Audio Player (OBS Browser)</h4>
+                <h4 style="font-size: 16px; font-weight: 700;">TTS Audio Player (OBS)</h4>
               </div>
               <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
                 Fuente invisible para OBS Studio que procesa y reproduce todos los mensajes de voz (TTS) para que la audiencia en streaming los escuche directamente.
@@ -769,7 +791,7 @@
             </div>
           </div>
 
-          <!-- Widget 5: Chat en Pantalla -->
+          <!-- Widget 6: Chat en Pantalla -->
           <div class="widget-card">
             <div>
               <div class="widget-header">

@@ -1204,12 +1204,14 @@ function populateWidgetUrls() {
   const alertsUrl = `${baseUrl}/overlays/alerts.html${qs}`;
   const npUrl = `${baseUrl}/overlays/nowplaying.html${qs}`;
   const goalUrl = `${baseUrl}/overlays/goals.html${goalQs}`;
+  const musicPlayerUrl = `${baseUrl}/overlays/music_player.html${qs}`;
   const ttsUrl = `${baseUrl}/overlays/tts.html${qs}`;
   const chatUrl = `${baseUrl}/overlays/chat.html${qs}`;
 
   if (document.getElementById('urlAlertsWidget')) document.getElementById('urlAlertsWidget').value = alertsUrl;
   if (document.getElementById('urlNowPlayingWidget')) document.getElementById('urlNowPlayingWidget').value = npUrl;
   if (document.getElementById('urlGoalWidget')) document.getElementById('urlGoalWidget').value = goalUrl;
+  if (document.getElementById('urlMusicPlayerWidget')) document.getElementById('urlMusicPlayerWidget').value = musicPlayerUrl;
   if (document.getElementById('urlTtsWidget')) document.getElementById('urlTtsWidget').value = ttsUrl;
   if (document.getElementById('urlChatWidget')) document.getElementById('urlChatWidget').value = chatUrl;
 
@@ -1217,6 +1219,7 @@ function populateWidgetUrls() {
   if (document.getElementById('btnPreviewAlerts')) document.getElementById('btnPreviewAlerts').href = alertsUrl;
   if (document.getElementById('btnPreviewNowPlaying')) document.getElementById('btnPreviewNowPlaying').href = npUrl;
   if (document.getElementById('btnPreviewGoal')) document.getElementById('btnPreviewGoal').href = goalUrl;
+  if (document.getElementById('btnPreviewMusicPlayer')) document.getElementById('btnPreviewMusicPlayer').href = musicPlayerUrl;
   if (document.getElementById('btnPreviewTts')) document.getElementById('btnPreviewTts').href = ttsUrl;
   if (document.getElementById('btnPreviewChat')) document.getElementById('btnPreviewChat').href = chatUrl;
 
