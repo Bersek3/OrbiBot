@@ -2,34 +2,63 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Conectando con Twitch...</title>
-  <link rel="stylesheet" href="../css/dashboard.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iniciando Sesión con Twitch...</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg-dark: #090c14;
+      --card-bg: rgba(18, 24, 38, 0.95);
+      --twitch-purple: #9146ff;
+      --twitch-purple-glow: rgba(145, 70, 255, 0.4);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --green-accent: #10b981;
+      --red-danger: #ef4444;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
     body {
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 100vh;
-      margin: 0;
-      background: #0a0d14;
+      min-height: 100vh;
+      background: radial-gradient(circle at 50% 20%, #1e1338, #090c14 80%);
       font-family: 'Outfit', sans-serif;
-      color: #fff;
+      color: var(--text-main);
+      padding: 20px;
     }
     .auth-card {
       text-align: center;
-      padding: 40px;
-      background: rgba(16, 21, 34, 0.95);
-      border: 1px solid rgba(145, 70, 255, 0.4);
+      padding: 36px 28px;
+      background: var(--card-bg);
+      border: 1px solid var(--twitch-purple-glow);
       border-radius: 20px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 30px rgba(145, 70, 255, 0.2);
-      max-width: 420px;
-      width: 90%;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(145, 70, 255, 0.2);
+      max-width: 400px;
+      width: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+    .auth-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #9146ff, #00f2fe);
     }
     .spinner {
-      width: 50px;
-      height: 50px;
+      width: 48px;
+      height: 48px;
       border: 4px solid rgba(145, 70, 255, 0.2);
-      border-top-color: #9146ff;
+      border-top-color: var(--twitch-purple);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       margin: 0 auto 20px auto;
@@ -37,40 +66,107 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    .avatar-preview {
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      border: 3px solid var(--twitch-purple);
+      box-shadow: 0 0 20px var(--twitch-purple-glow);
+      margin: 0 auto 16px auto;
+      object-fit: cover;
+      display: block;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--twitch-purple);
+      color: #fff;
+      box-shadow: 0 4px 15px var(--twitch-purple-glow);
+    }
+    .btn-primary:hover {
+      filter: brightness(1.15);
+      transform: translateY(-2px);
+    }
   </style>
 </head>
 <body>
-  <div class="auth-card">
-    <div class="spinner"></div>
-    <h2 id="authStatusTitle" style="font-size: 20px; font-weight: 800; margin-bottom: 8px;">Conectando con Twitch</h2>
-    <p id="authStatusDesc" style="font-size: 14px; color: #94a3b8;">Validando tu token de acceso e importando tus datos...</p>
+  <div class="auth-card" id="authCard">
+    <div id="loadingState">
+      <div class="spinner"></div>
+      <h2 id="authStatusTitle" style="font-size: 20px; font-weight: 800; margin-bottom: 8px;">Conectando con Twitch</h2>
+      <p id="authStatusDesc" style="font-size: 14px; color: var(--text-muted); line-height: 1.5;">Validando tu cuenta de Twitch e importando tus datos...</p>
+    </div>
+
+    <div id="successState" style="display: none;">
+      <img id="userAvatar" class="avatar-preview" src="" alt="Avatar">
+      <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 4px; color: #fff;">¡Bienvenido a OrbiBot!</h2>
+      <p id="userNameDisplay" style="font-size: 16px; color: #a78bfa; font-weight: 700; margin-bottom: 12px;">@Streamer</p>
+      <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--green-accent); padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 20px;">
+        ✅ Sesión iniciada correctamente
+      </div>
+      <p id="closeAdvice" style="font-size: 13px; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
+        Cerrando esta ventana para volver al panel principal...
+      </p>
+      <button id="btnCloseNow" onclick="closePopup()" class="btn btn-primary" style="width: 100%;">
+        Cerrar esta ventana
+      </button>
+    </div>
+
+    <div id="errorState" style="display: none;">
+      <div style="font-size: 40px; margin-bottom: 12px;">❌</div>
+      <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 8px; color: var(--red-danger);">Error de Autenticación</h2>
+      <p id="errorMessage" style="font-size: 14px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;"></p>
+      <button onclick="closePopup()" class="btn btn-primary" style="width: 100%;">
+        Cerrar ventana
+      </button>
+    </div>
   </div>
 
   <script>
+    function closePopup() {
+      try {
+        window.close();
+      } catch(e) {}
+    }
+
     async function handleAuth() {
-      const titleEl = document.getElementById('authStatusTitle');
-      const descEl = document.getElementById('authStatusDesc');
-
       const hash = window.location.hash.substring(1);
-      const params = new URLSearchParams(hash);
-      const accessToken = params.get('access_token');
+      const hashParams = new URLSearchParams(hash);
       const queryParams = new URLSearchParams(window.location.search);
-      const code = queryParams.get('code') || queryParams.get('access_token');
 
+      const accessToken = hashParams.get('access_token');
+      const code = queryParams.get('code') || queryParams.get('access_token');
+      const state = hashParams.get('state') || queryParams.get('state');
       const token = (accessToken || code || '').replace(/^oauth:/i, '').trim();
 
+      // Check if opened as popup
+      const isPopup = state === 'popup' ||
+                      window.opener !== null ||
+                      window.name === 'TwitchOAuthLogin' ||
+                      (window.innerWidth < 850 && window.innerHeight < 900);
+
       if (!token) {
-        titleEl.innerText = '❌ Error de Autenticación';
-        descEl.innerText = 'No se recibió ningún token de acceso de Twitch. Por favor, intenta de nuevo.';
-        setTimeout(() => {
-          if (window.opener) window.close();
-          else window.location.href = '../';
-        }, 3000);
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('errorState').style.display = 'block';
+        document.getElementById('errorMessage').innerText = 'No se recibió ningún token de acceso de Twitch. Por favor, reintenta iniciar sesión.';
         return;
       }
 
       try {
-        let data = null;
+        let authResult = null;
+
+        // 1. Try local backend first
         try {
           const res = await fetch('/api/auth/twitch-token', {
             method: 'POST',
@@ -78,19 +174,20 @@
             body: JSON.stringify({ token })
           });
           if (res.ok) {
-            data = await res.json();
+            authResult = await res.json();
           }
-        } catch(e) {}
+        } catch (backendErr) {}
 
-        // Fallback for GitHub Pages (Client-side validation)
-        if (!data || !data.success) {
+        // 2. Direct client-side validation fallback (for GitHub Pages or direct mode)
+        if (!authResult || !authResult.success) {
           const valRes = await fetch('https://id.twitch.tv/oauth2/validate', {
             headers: { 'Authorization': `OAuth ${token}` }
           });
+
           if (valRes.ok) {
             const valData = await valRes.json();
-            let dName = valData.login;
-            let pImg = 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
+            let displayName = valData.login;
+            let avatarUrl = 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
 
             try {
               const userRes = await fetch(`https://api.twitch.tv/helix/users?id=${valData.user_id}`, {
@@ -101,57 +198,108 @@
               });
               if (userRes.ok) {
                 const uData = await userRes.json();
-                if (uData.data?.length > 0) {
-                  dName = uData.data[0].display_name;
-                  pImg = uData.data[0].profile_image_url || pImg;
+                if (uData.data && uData.data.length > 0) {
+                  displayName = uData.data[0].display_name;
+                  avatarUrl = uData.data[0].profile_image_url || avatarUrl;
                 }
               }
-            } catch (err) {}
+            } catch (helixErr) {}
 
-            const twitchCfg = {
+            const twitchConfig = {
               channel: valData.login,
               botUsername: valData.login,
               oauthToken: token,
               clientId: valData.client_id,
-              displayName: dName,
-              profileImage: pImg,
+              displayName: displayName,
+              profileImage: avatarUrl,
               userId: valData.user_id,
               connected: true
             };
 
-            localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twitchCfg));
-            data = {
+            // Save persistent auth
+            localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twitchConfig));
+            
+            // Also sync into orbibot_config
+            try {
+              let existingCfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
+              existingCfg.twitch = { ...(existingCfg.twitch || {}), ...twitchConfig };
+              localStorage.setItem('orbibot_config', JSON.stringify(existingCfg));
+            } catch (e) {}
+
+            authResult = {
               success: true,
               user: {
                 login: valData.login,
-                display_name: dName,
-                profile_image_url: pImg
-              }
+                display_name: displayName,
+                profile_image_url: avatarUrl,
+                user_id: valData.user_id
+              },
+              token
             };
           }
         }
 
-        if (data && data.success) {
-          titleEl.innerText = '✅ ¡Conexión Exitosa!';
-          descEl.innerText = `Conectado como @${data.user?.display_name || 'Streamer'}. Redirigiendo...`;
+        if (authResult && authResult.success) {
+          const user = authResult.user || {};
+          const displayName = user.display_name || user.login || 'Streamer';
+          const avatar = user.profile_image_url || 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
 
+          // Show success card
+          document.getElementById('loadingState').style.display = 'none';
+          document.getElementById('successState').style.display = 'block';
+          document.getElementById('userAvatar').src = avatar;
+          document.getElementById('userNameDisplay').innerText = `@${displayName}`;
+
+          const authEventPayload = {
+            type: 'TWITCH_AUTH_SUCCESS',
+            user: {
+              login: user.login || displayName.toLowerCase(),
+              display_name: displayName,
+              profile_image_url: avatar,
+              user_id: user.user_id || ''
+            },
+            token,
+            timestamp: Date.now()
+          };
+
+          // 1. Broadcast via localStorage event
+          localStorage.setItem('orbibot_twitch_auth_event', JSON.stringify(authEventPayload));
+
+          // 2. Broadcast via BroadcastChannel
+          if (typeof BroadcastChannel !== 'undefined') {
+            try {
+              const bc = new BroadcastChannel('orbibot_stream_channel');
+              bc.postMessage(authEventPayload);
+            } catch (bcErr) {}
+          }
+
+          // 3. Post to opener if accessible
           if (window.opener) {
-            window.opener.postMessage({ type: 'TWITCH_AUTH_SUCCESS', data }, '*');
-            setTimeout(() => { window.close(); }, 1200);
+            try {
+              window.opener.postMessage(authEventPayload, '*');
+            } catch (opErr) {}
+          }
+
+          // In popup mode: close automatically
+          if (isPopup) {
+            setTimeout(() => {
+              window.close();
+            }, 800);
           } else {
-            setTimeout(() => { window.location.href = '../'; }, 1500);
+            // In full window mode: redirect to dashboard
+            setTimeout(() => {
+              window.location.href = '../';
+            }, 1200);
           }
         } else {
-          titleEl.innerText = '❌ Error de Validación';
-          descEl.innerText = data?.message || 'No se pudo validar el token con Twitch.';
-          setTimeout(() => {
-            if (window.opener) window.close();
-            else window.location.href = '../';
-          }, 3000);
+          document.getElementById('loadingState').style.display = 'none';
+          document.getElementById('errorState').style.display = 'block';
+          document.getElementById('errorMessage').innerText = authResult?.message || 'No se pudo validar el token con Twitch. Revisa los permisos e inténtalo de nuevo.';
         }
       } catch (err) {
-        titleEl.innerText = '❌ Error de Conexión';
-        descEl.innerText = 'Ocurrió un fallo de red al comunicar con Twitch.';
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('errorState').style.display = 'block';
+        document.getElementById('errorMessage').innerText = 'Error al comunicar con Twitch: ' + err.message;
       }
     }
 

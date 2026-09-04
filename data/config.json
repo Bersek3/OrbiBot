@@ -18,19 +18,14 @@
   "tts": {
     "enabled": true,
     "engine": "webspeech",
-    "voice": "es_001",
+    "voice": "es_female",
     "volume": 90,
     "rate": 1,
     "pitch": 1,
     "minBits": 50,
     "allowChatCommand": true,
     "chatCommand": "!tts",
-    "bannedWords": [
-      "nazi",
-      "hitler",
-      "racismo",
-      "tonto"
-    ],
+    "bannedWords": [],
     "maxLength": 250,
     "channelPointsRewardName": "TTS"
   },

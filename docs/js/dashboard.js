@@ -40,6 +40,18 @@ function setupNavigation() {
   });
 }
 
+function switchTab(tabId) {
+  const navItem = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
+  if (navItem) {
+    navItem.click();
+  } else {
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    tabPanes.forEach(p => p.classList.remove('active'));
+    const target = document.getElementById(tabId);
+    if (target) target.classList.add('active');
+  }
+}
+
 // ================= TOAST NOTIFICATIONS =================
 function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
@@ -76,10 +88,16 @@ function broadcastEvent(event, data) {
 }
 
 function connectWebSocket() {
-  // Listen on BroadcastChannel for multi-tab sync
+  // Listen on BroadcastChannel for multi-tab sync & OAuth callback
   if (broadcastChannel) {
     broadcastChannel.onmessage = (e) => {
-      if (e.data) handleSocketMessage(e.data);
+      if (e.data) {
+        if (e.data.type === 'TWITCH_AUTH_SUCCESS') {
+          handleAuthSuccess(e.data);
+          return;
+        }
+        handleSocketMessage(e.data);
+      }
     };
   }
 
@@ -87,6 +105,12 @@ function connectWebSocket() {
   window.addEventListener('storage', (e) => {
     if (e.key === 'orbibot_last_event' && e.newValue) {
       try { handleSocketMessage(JSON.parse(e.newValue)); } catch(err) {}
+    }
+    if (e.key === 'orbibot_twitch_auth_event' && e.newValue) {
+      try {
+        const payload = JSON.parse(e.newValue);
+        handleAuthSuccess(payload);
+      } catch(err) {}
     }
   });
 
@@ -278,38 +302,56 @@ function bindConfigToUI(cfg) {
   // Twitch Profile & Connection
   if (cfg.twitch) {
     const isConn = cfg.twitch.connected && (cfg.twitch.channel || cfg.twitch.oauthToken);
-    const profileBox = document.getElementById('twitchConnectedProfile');
-    const disconnectBox = document.getElementById('twitchDisconnectedBox');
+    
+    // Header elements
+    const topTwitchLoginBtn = document.getElementById('topTwitchLoginBtn');
     const topUserPill = document.getElementById('topUserPill');
+    const topUserAvatar = document.getElementById('topUserAvatar');
+    const topUserName = document.getElementById('topUserName');
+
+    // Dashboard Hero elements
+    const loginHero = document.getElementById('dashboardLoginHero');
+    const connectedHero = document.getElementById('dashboardConnectedHero');
+    const dashUserAvatar = document.getElementById('dashUserAvatar');
+    const dashUserName = document.getElementById('dashUserName');
+    const dashUserTag = document.getElementById('dashUserTag');
+
+    const avatar = cfg.twitch.profileImage || 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
+    const dName = cfg.twitch.displayName || cfg.twitch.channel || 'Streamer';
+    const login = cfg.twitch.channel || '';
 
     if (isConn) {
-      if (profileBox) profileBox.style.display = 'flex';
-      if (disconnectBox) disconnectBox.style.display = 'none';
-
-      const avatar = cfg.twitch.profileImage || 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
-      const dName = cfg.twitch.displayName || cfg.twitch.channel || 'Streamer';
-      const login = cfg.twitch.channel || '';
-
-      document.getElementById('twitchUserAvatar').src = avatar;
-      document.getElementById('twitchUserDisplayName').innerText = dName;
-      document.getElementById('twitchUserLogin').innerText = `@${login}`;
-
+      if (topTwitchLoginBtn) topTwitchLoginBtn.style.display = 'none';
       if (topUserPill) {
-        topUserPill.style.display = 'flex';
-        document.getElementById('topUserAvatar').src = avatar;
-        document.getElementById('topUserName').innerText = `@${login}`;
+        topUserPill.style.display = 'inline-flex';
+        if (topUserAvatar) topUserAvatar.src = avatar;
+        if (topUserName) topUserName.innerText = `@${login || dName}`;
       }
+
+      if (loginHero) loginHero.style.display = 'none';
+      if (connectedHero) {
+        connectedHero.style.display = 'block';
+        if (dashUserAvatar) dashUserAvatar.src = avatar;
+        if (dashUserName) dashUserName.innerText = dName;
+        if (dashUserTag) dashUserTag.innerText = `@${login || dName}`;
+      }
+
+      updateBotStatusUI({ status: 'connected', channel: login });
     } else {
-      if (profileBox) profileBox.style.display = 'none';
-      if (disconnectBox) disconnectBox.style.display = 'block';
+      if (topTwitchLoginBtn) topTwitchLoginBtn.style.display = 'inline-flex';
       if (topUserPill) topUserPill.style.display = 'none';
+
+      if (loginHero) loginHero.style.display = 'block';
+      if (connectedHero) connectedHero.style.display = 'none';
+
+      updateBotStatusUI({ status: 'disconnected' });
     }
 
-    document.getElementById('cfgTwitchChannel').value = cfg.twitch.channel || '';
-    document.getElementById('cfgTwitchBotUser').value = cfg.twitch.botUsername || '';
-    document.getElementById('cfgTwitchToken').value = cfg.twitch.oauthToken || '';
+    if (document.getElementById('cfgTwitchChannel')) document.getElementById('cfgTwitchChannel').value = cfg.twitch.channel || '';
+    if (document.getElementById('cfgTwitchBotUser')) document.getElementById('cfgTwitchBotUser').value = cfg.twitch.botUsername || '';
+    if (document.getElementById('cfgTwitchToken')) document.getElementById('cfgTwitchToken').value = cfg.twitch.oauthToken || '';
     if (document.getElementById('cfgTwitchClientId')) {
-      document.getElementById('cfgTwitchClientId').value = cfg.twitch.clientId || '';
+      document.getElementById('cfgTwitchClientId').value = cfg.twitch.clientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
     }
     document.getElementById('statChannelName').innerText = cfg.twitch.channel ? `#${cfg.twitch.channel}` : 'Ninguno';
   }
@@ -809,78 +851,153 @@ function setupEventListeners() {
   });
 
   // Direct Twitch OAuth Authentication
-  const btnDirectAuth = document.getElementById('btnTwitchDirectAuth');
-  if (btnDirectAuth) {
-    btnDirectAuth.addEventListener('click', () => {
-      const customClientId = document.getElementById('cfgTwitchClientId').value.trim();
-      const clientId = customClientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
-      const path = window.location.pathname.replace(/\/index\.html$/i, '').replace(/\/$/, '');
-      const redirectUri = `${window.location.origin}${path}/auth/callback.html`;
-      const scopes = encodeURIComponent('chat:read chat:edit channel:read:redemptions bits:read channel:read:subscriptions');
+  function triggerTwitchOAuthLogin() {
+    const customClientId = document.getElementById('cfgTwitchClientId')?.value?.trim();
+    const clientId = customClientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
+    const path = window.location.pathname.replace(/\/index\.html$/i, '').replace(/\/$/, '');
+    const redirectUri = `${window.location.origin}${path}/auth/callback.html`;
+    const scopes = encodeURIComponent('chat:read chat:edit channel:read:redemptions bits:read channel:read:subscriptions');
 
-      const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scopes}&force_verify=true`;
+    const twitchAuthUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${scopes}&state=popup&force_verify=true`;
 
-      const width = 600, height = 750;
-      const left = (window.innerWidth - width) / 2 + window.screenX;
-      const top = (window.innerHeight - height) / 2 + window.screenY;
+    const width = 560, height = 750;
+    const left = Math.max(0, (window.innerWidth - width) / 2 + window.screenX);
+    const top = Math.max(0, (window.innerHeight - height) / 2 + window.screenY);
 
-      showToast('Abriendo ventana segura de autorización de Twitch...', 'info');
-      const authWindow = window.open(twitchAuthUrl, 'TwitchOAuthLogin', `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no`);
-      if (!authWindow || authWindow.closed || typeof authWindow.closed === 'undefined') {
-        // If popup blocked, redirect directly
-        window.location.href = twitchAuthUrl;
+    showToast('Abriendo ventana segura de inicio de sesión con Twitch...', 'info');
+
+    // Clean any prior auth event
+    localStorage.removeItem('orbibot_twitch_auth_event');
+
+    const authWindow = window.open(twitchAuthUrl, 'TwitchOAuthLogin', `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no,scrollbars=yes`);
+    if (!authWindow || authWindow.closed || typeof authWindow.closed === 'undefined') {
+      window.location.href = twitchAuthUrl;
+      return;
+    }
+
+    // Active polling interval: checks localStorage while popup is open
+    let pollCount = 0;
+    const authPollInterval = setInterval(async () => {
+      pollCount++;
+      const rawEvent = localStorage.getItem('orbibot_twitch_auth_event');
+      if (rawEvent) {
+        clearInterval(authPollInterval);
+        localStorage.removeItem('orbibot_twitch_auth_event');
+        try {
+          if (authWindow && !authWindow.closed) authWindow.close();
+        } catch(e) {}
+
+        try {
+          const payload = JSON.parse(rawEvent);
+          await handleAuthSuccess(payload);
+        } catch(err) {
+          console.error('Error handling auth success payload:', err);
+        }
       }
-    });
+
+      if (pollCount > 600 || (authWindow && authWindow.closed)) {
+        clearInterval(authPollInterval);
+      }
+    }, 400);
   }
 
-  // Listen for OAuth callback message from popup
+  // Handle successful OAuth event
+  async function handleAuthSuccess(payload) {
+    const user = payload.user || payload.data?.user || {};
+    const displayName = user.display_name || user.login || 'Streamer';
+    const token = payload.token || '';
+
+    showToast(`¡Conectado exitosamente como @${displayName}!`, 'success');
+
+    // Submit token to backend if available
+    if (token) {
+      try {
+        await fetch('/api/auth/twitch-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+      } catch (e) {}
+    }
+
+    await loadInitialData();
+  }
+
+  // Twitch Disconnect Account
+  async function disconnectTwitchAccount() {
+    if (!confirm('¿Deseas cerrar sesión de Twitch y desconectar el bot?')) return;
+
+    try {
+      await fetch('/api/bot/disconnect', { method: 'POST' });
+    } catch (e) {}
+
+    localStorage.removeItem('orbibot_twitch_auth');
+    localStorage.removeItem('orbibot_twitch_auth_event');
+
+    try {
+      let cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
+      if (cfg.twitch) {
+        cfg.twitch.connected = false;
+        cfg.twitch.channel = '';
+        cfg.twitch.oauthToken = '';
+        cfg.twitch.displayName = '';
+        cfg.twitch.profileImage = '';
+        localStorage.setItem('orbibot_config', JSON.stringify(cfg));
+      }
+    } catch(e) {}
+
+    if (browserTmiClient) {
+      try { browserTmiClient.disconnect(); } catch(e) {}
+      browserTmiClient = null;
+    }
+
+    showToast('Has cerrado sesión de Twitch.', 'info');
+    await loadInitialData();
+  }
+
+  // Twitch Login Buttons
+  const topLoginBtn = document.getElementById('topTwitchLoginBtn');
+  if (topLoginBtn) topLoginBtn.addEventListener('click', triggerTwitchOAuthLogin);
+
+  const heroLoginBtn = document.getElementById('heroTwitchLoginBtn');
+  if (heroLoginBtn) heroLoginBtn.addEventListener('click', triggerTwitchOAuthLogin);
+
+  // Twitch Logout Buttons
+  const topLogoutBtn = document.getElementById('topLogoutBtn');
+  if (topLogoutBtn) topLogoutBtn.addEventListener('click', disconnectTwitchAccount);
+
+  const dashLogoutBtn = document.getElementById('dashLogoutBtn');
+  if (dashLogoutBtn) dashLogoutBtn.addEventListener('click', disconnectTwitchAccount);
+
+  // Dashboard quick actions
+  const dashGotoObsBtn = document.getElementById('dashGotoObsBtn');
+  if (dashGotoObsBtn) dashGotoObsBtn.addEventListener('click', () => switchTab('tab-overlays'));
+
+  const dashGotoSrBtn = document.getElementById('dashGotoSrBtn');
+  if (dashGotoSrBtn) dashGotoSrBtn.addEventListener('click', () => switchTab('tab-sr'));
+
+  const dashGotoTtsBtn = document.getElementById('dashGotoTtsBtn');
+  if (dashGotoTtsBtn) dashGotoTtsBtn.addEventListener('click', () => switchTab('tab-tts'));
+
+  // Listen for OAuth callback message from popup if opener works
   window.addEventListener('message', async (event) => {
     if (event.data && event.data.type === 'TWITCH_AUTH_SUCCESS') {
-      const user = event.data.data.user;
-      showToast(`¡Conectado exitosamente como @${user.display_name}!`, 'success');
-      await loadInitialData();
+      await handleAuthSuccess(event.data);
     }
   });
-
-  // Direct Disconnect Button
-  const btnDirectDisc = document.getElementById('btnDirectDisconnect');
-  if (btnDirectDisc) {
-    btnDirectDisc.addEventListener('click', async () => {
-      try {
-        const res = await fetch('/api/bot/disconnect', { method: 'POST' });
-        const data = await res.json();
-        showToast('Cuenta de Twitch desconectada correctamente.', 'info');
-        await loadInitialData();
-      } catch (e) {
-        showToast('Error al desconectar cuenta.', 'error');
-      }
-    });
-  }
-
-  // Toggle Manual Config Collapsible
-  const toggleBtn = document.getElementById('toggleManualConfigBtn');
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', () => {
-      const body = document.getElementById('manualConfigBody');
-      if (body.style.display === 'none') {
-        body.style.display = 'block';
-        toggleBtn.innerText = 'Ocultar';
-      } else {
-        body.style.display = 'none';
-        toggleBtn.innerText = 'Mostrar';
-      }
-    });
-  }
 
   // Sidebar Quick Connect Button
-  document.getElementById('quickConnectBtn').addEventListener('click', async () => {
-    const isConnected = document.getElementById('botStatusText').innerText === 'En Línea';
-    if (isConnected) {
-      document.getElementById('btnDisconnectTwitch').click();
-    } else {
-      document.getElementById('btnConnectTwitch').click();
-    }
-  });
+  const quickConnectBtn = document.getElementById('quickConnectBtn');
+  if (quickConnectBtn) {
+    quickConnectBtn.addEventListener('click', async () => {
+      const isConnected = appConfig?.twitch?.connected && appConfig?.twitch?.channel;
+      if (isConnected) {
+        disconnectTwitchAccount();
+      } else {
+        triggerTwitchOAuthLogin();
+      }
+    });
+  }
 
   // Song Request Controls
   document.getElementById('btnSrSkip').addEventListener('click', skipCurrentSong);
