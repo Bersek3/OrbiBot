@@ -24,10 +24,6 @@
         <span class="nav-icon">📊</span>
         <span>Panel General</span>
       </li>
-      <li class="nav-item" data-tab="tab-twitch">
-        <span class="nav-icon">🟣</span>
-        <span>Conexión Twitch</span>
-      </li>
       <li class="nav-item" data-tab="tab-sr">
         <span class="nav-icon">🎵</span>
         <span>Song Request</span>
@@ -38,7 +34,7 @@
       </li>
       <li class="nav-item" data-tab="tab-overlays">
         <span class="nav-icon">📺</span>
-        <span>Widgets para OBS</span>
+        <span>Widgets y Escenas OBS</span>
       </li>
       <li class="nav-item" data-tab="tab-points">
         <span class="nav-icon">⭐</span>
@@ -55,7 +51,7 @@
         <div id="botStatusDot" class="status-dot"></div>
         <span id="botStatusText">Desconectado</span>
       </div>
-      <button id="quickConnectBtn" class="btn btn-primary btn-sm">Conectar</button>
+      <button id="quickConnectBtn" class="btn btn-primary btn-sm">Iniciar Sesión</button>
     </div>
   </aside>
 
@@ -66,10 +62,19 @@
         <h2 id="currentTabTitle">Panel General</h2>
       </div>
       <div class="top-actions">
+        <!-- Botón Iniciar Sesión con Twitch (visible cuando no está conectado) -->
+        <button id="topTwitchLoginBtn" class="btn" style="background: #9146FF; color: #fff; font-weight: 700; gap: 8px; box-shadow: 0 4px 15px rgba(145, 70, 255, 0.4);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+          <span>Iniciar Sesión con Twitch</span>
+        </button>
+
+        <!-- Píldora de Perfil (visible cuando está conectado) -->
         <div id="topUserPill" style="display:none; align-items:center; gap:10px; padding:4px 12px 4px 6px; background:rgba(145,70,255,0.15); border:1px solid rgba(145,70,255,0.3); border-radius:999px;">
           <img id="topUserAvatar" src="" style="width:28px; height:28px; border-radius:50%; object-fit:cover;" alt="Avatar">
           <span id="topUserName" style="font-size:13px; font-weight:700; color:#fff;">@streamer</span>
+          <button id="topLogoutBtn" title="Cerrar sesión" class="btn btn-sm btn-secondary" style="padding:2px 8px; font-size:11px; margin-left:4px; border-radius:999px;">Salir</button>
         </div>
+
         <button id="testAlertQuickBtn" class="btn btn-secondary btn-sm">🎉 Probar Alerta</button>
         <button id="saveGlobalBtn" class="btn btn-primary btn-sm">💾 Guardar Cambios</button>
       </div>
@@ -79,6 +84,69 @@
 
       <!-- ================= TAB 1: DASHBOARD ================= -->
       <section id="tab-dashboard" class="tab-pane active">
+
+        <!-- HERO: NO CONECTADO (Botón Iniciar Sesión con Twitch) -->
+        <div id="dashboardLoginHero" class="card" style="margin-bottom: 24px; padding: 28px 32px; background: radial-gradient(circle at 85% 20%, rgba(145, 70, 255, 0.22), rgba(15, 23, 42, 0.95) 75%); border: 1px solid rgba(145, 70, 255, 0.35); position: relative; overflow: hidden; border-radius: 16px;">
+          <div style="position: absolute; top:0; left:0; right:0; height:3px; background: linear-gradient(90deg, #9146ff, #00f2fe);"></div>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap;">
+            <div style="max-width: 620px;">
+              <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(145, 70, 255, 0.15); border: 1px solid rgba(145, 70, 255, 0.3); padding: 4px 12px; border-radius: 999px; font-size: 12px; color: #c4b5fd; font-weight: 700; margin-bottom: 12px;">
+                <span>✨</span> <span>Panel de Control Integral para Streamers</span>
+              </div>
+              <h2 style="font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 8px;">Conecta tu Twitch para activar Widgets y Bot</h2>
+              <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px;">
+                Inicia sesión en un solo clic. Detectaremos tu canal automáticamente para habilitar tus fuentes de OBS Studio, Song Request con YouTube, Text to Speech (TTS) y comandos de chat en tiempo real.
+              </p>
+              <div style="display: flex; gap: 20px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
+                <span style="display: flex; align-items: center; gap: 6px;"><span style="color: var(--green-success);">✓</span> 1 Clic seguro sin tokens complicados</span>
+                <span style="display: flex; align-items: center; gap: 6px;"><span style="color: var(--cyan-accent);">✓</span> Escenas y Widgets listos para OBS</span>
+                <span style="display: flex; align-items: center; gap: 6px;"><span style="color: var(--twitch-purple);">✓</span> Bot y alertas sincronizadas</span>
+              </div>
+            </div>
+            <div>
+              <button id="heroTwitchLoginBtn" class="btn" style="background: #9146FF; color: #fff; font-size: 16px; font-weight: 800; padding: 15px 28px; border-radius: 12px; display: inline-flex; align-items: center; gap: 12px; box-shadow: 0 6px 25px rgba(145, 70, 255, 0.45); cursor: pointer; transition: all 0.2s;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+                <span>Iniciar Sesión con Twitch</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- HERO: CONECTADO (Información del Canal y Acciones Rápidas) -->
+        <div id="dashboardConnectedHero" class="card" style="display: none; margin-bottom: 24px; padding: 22px 28px; background: radial-gradient(circle at 90% 20%, rgba(16, 185, 129, 0.15), rgba(15, 23, 42, 0.95) 75%); border: 1px solid rgba(16, 185, 129, 0.35); position: relative; overflow: hidden; border-radius: 16px;">
+          <div style="position: absolute; top:0; left:0; right:0; height:3px; background: linear-gradient(90deg, #10b981, #00f2fe);"></div>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <div style="position: relative;">
+                <img id="dashUserAvatar" src="" style="width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--twitch-purple); box-shadow: 0 0 20px rgba(145, 70, 255, 0.4); object-fit: cover;" alt="Avatar">
+                <div style="position: absolute; bottom: 0; right: 0; width: 14px; height: 14px; border-radius: 50%; background: var(--green-success); border: 2px solid #090c14;"></div>
+              </div>
+              <div>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+                  <h3 id="dashUserName" style="font-size: 19px; font-weight: 800; color: #fff;">Streamer</h3>
+                  <span class="btn btn-sm btn-accent" style="padding: 2px 8px; font-size: 11px; pointer-events: none;">● Canal Conectado</span>
+                </div>
+                <p id="dashUserTag" style="font-size: 13px; color: var(--cyan-accent); font-weight: 600;">@streamer</p>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <button id="dashGotoObsBtn" class="btn btn-primary btn-sm" style="gap: 6px;">
+                <span>📺</span> <span>Widgets y Escenas OBS</span>
+              </button>
+              <button id="dashGotoSrBtn" class="btn btn-secondary btn-sm" style="gap: 6px;">
+                <span>🎵</span> <span>Song Request</span>
+              </button>
+              <button id="dashGotoTtsBtn" class="btn btn-secondary btn-sm" style="gap: 6px;">
+                <span>🗣️</span> <span>TTS</span>
+              </button>
+              <button id="dashLogoutBtn" class="btn btn-danger btn-sm" style="margin-left: 6px;">
+                Desconectar
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="grid-4" style="margin-bottom: 24px;">
           <div class="card stat-card">
             <div class="stat-icon">🤖</div>
@@ -165,111 +233,45 @@
             <div style="margin-top: 24px; padding: 16px; background: rgba(0,0,0,0.3); border-radius: var(--radius-md); border-left: 3px solid var(--cyan-accent);">
               <h5 style="font-size: 13px; margin-bottom: 6px; color: #fff;">💡 ¿Cómo agregar a OBS Studio?</h5>
               <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
-                Ve a la pestaña <strong>Widgets para OBS</strong>, haz clic en <em>Copiar URL</em> y en OBS agrega una nueva fuente de tipo <strong>Navegador (Browser Source)</strong>.
+                Ve a la pestaña <strong>Widgets y Escenas OBS</strong>, haz clic en <em>Copiar URL</em> y en OBS agrega una nueva fuente de tipo <strong>Navegador (Browser Source)</strong>.
               </p>
             </div>
           </div>
         </div>
-      </section>
 
-      <!-- ================= TAB 2: CONEXIÓN TWITCH ================= -->
-      <section id="tab-twitch" class="tab-pane">
-        <div style="max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px;">
-
-          <!-- TARJETA 1: CONEXIÓN DIRECTA CON TWITCH -->
-          <div class="card" style="border: 2px solid var(--twitch-purple-glow); position: relative; overflow: hidden;">
-            <div style="position: absolute; top:0; left:0; right:0; height: 4px; background: linear-gradient(90deg, #9146FF, #00f2fe);"></div>
-
-            <!-- Estado: Conectado -->
-            <div id="twitchConnectedProfile" style="display: none; flex-direction: column; align-items: center; text-align: center; padding: 16px 0;">
-              <div style="position: relative; margin-bottom: 16px;">
-                <img id="twitchUserAvatar" src="" style="width: 84px; height: 84px; border-radius: 50%; border: 3px solid var(--twitch-purple); box-shadow: 0 0 25px var(--twitch-purple-glow); object-fit: cover;" alt="Avatar">
-                <div style="position: absolute; bottom: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--green-success); border: 2px solid #0b0e14;"></div>
+        <!-- OPCIONES AVANZADAS / CONFIGURACIÓN MANUAL (Colapsable) -->
+        <details style="margin-top: 24px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px 18px;">
+          <summary style="font-size: 13px; font-weight: 700; color: var(--text-secondary); cursor: pointer; user-select: none;">
+            ⚙️ Opciones Avanzadas / Cuenta Secundaria de Bot (Opcional)
+          </summary>
+          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+              Si deseas que las respuestas del bot las envíe una cuenta secundaria diferente (ej: <code>MiBotCanal</code>), o configurar un Client ID personalizado de desarrollador:
+            </p>
+            <div class="grid-3" style="gap: 12px;">
+              <div class="form-group" style="margin-bottom: 8px;">
+                <label class="form-label" style="font-size: 11px;">Canal del Streamer</label>
+                <input type="text" id="cfgTwitchChannel" class="form-control" placeholder="tu_canal">
               </div>
-              <h3 id="twitchUserDisplayName" style="font-size: 24px; font-weight: 800; color: #fff;">Streamer</h3>
-              <p id="twitchUserLogin" style="font-size: 15px; color: var(--cyan-accent); font-weight: 600; margin-top: 2px;">@streamer</p>
-              
-              <div style="display: flex; gap: 12px; margin-top: 20px;">
-                <span class="btn btn-sm btn-accent" style="pointer-events: none;">● Conectado a Twitch</span>
-                <button id="btnDirectDisconnect" class="btn btn-sm btn-danger">Desconectar Cuenta</button>
+              <div class="form-group" style="margin-bottom: 8px;">
+                <label class="form-label" style="font-size: 11px;">Usuario Bot</label>
+                <input type="text" id="cfgTwitchBotUser" class="form-control" placeholder="MiCanalBot">
+              </div>
+              <div class="form-group" style="margin-bottom: 8px;">
+                <label class="form-label" style="font-size: 11px;">Token OAuth Bot</label>
+                <input type="password" id="cfgTwitchToken" class="form-control" placeholder="oauth:...">
               </div>
             </div>
-
-            <!-- Estado: Desconectado / Iniciar Sesión -->
-            <div id="twitchDisconnectedBox">
-              <div class="card-header">
-                <span class="card-title">🟣 Conexión Directa con Twitch</span>
-                <span class="btn btn-sm btn-danger">No Conectado</span>
-              </div>
-
-              <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 24px;">
-                Inicia sesión directamente con tu cuenta de Twitch en 1 clic. El bot detectará automáticamente tu canal, foto de perfil, permisos y se conectará al chat en tiempo real sin tener que copiar tokens complicados.
-              </p>
-
-              <!-- Botón Gigante de Conectar con Twitch -->
-              <button id="btnTwitchDirectAuth" class="btn" style="background: #9146FF; color: #fff; font-size: 16px; font-weight: 800; padding: 16px 28px; width: 100%; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 12px; box-shadow: 0 6px 25px rgba(145, 70, 255, 0.45); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
-                <span>Conectar con Cuenta de Twitch</span>
-              </button>
-
-              <!-- Configuración del Client ID para OAuth Directo -->
-              <div style="margin-top: 24px; padding: 18px; background: rgba(0,0,0,0.35); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                  <span style="font-size: 13px; font-weight: 700; color: #fff;">🔑 Client ID de Twitch (App de Desarrollador)</span>
-                  <a href="https://dev.twitch.tv/console/apps/create" target="_blank" style="font-size: 12px; color: var(--cyan-accent); text-decoration: none;">Crear App en Twitch ↗</a>
-                </div>
-
-                <div class="form-group" style="margin-bottom: 8px;">
-                  <input type="text" id="cfgTwitchClientId" class="form-control" value="yw1vr664ichms8an2x5lhji58v7ozk" placeholder="Pega aquí tu Client ID de dev.twitch.tv">
-                </div>
-
-                <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
-                  En tu aplicación de <a href="https://dev.twitch.tv/console/apps" target="_blank" style="color:var(--cyan-accent)">Twitch Developer Console</a>, añade la siguiente URL en <strong>OAuth Redirect URLs</strong>:<br>
-                  <code id="redirectUrlDisplay" style="color: var(--cyan-accent); background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px;">http://localhost:3000/auth/callback.html</code>
-                  <button class="btn btn-secondary btn-sm" style="padding: 2px 8px; margin-left: 6px;" onclick="copyWidgetUrl('redirectUrlDisplay')">Copiar</button>
-                </div>
-              </div>
+            <div class="form-group" style="margin-top: 8px;">
+              <label class="form-label" style="font-size: 11px;">Twitch Client ID</label>
+              <input type="text" id="cfgTwitchClientId" class="form-control" value="yw1vr664ichms8an2x5lhji58v7ozk">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 12px;">
+              <button id="btnConnectTwitch" class="btn btn-secondary btn-sm">Guardar y Conectar</button>
+              <button id="btnDisconnectTwitch" class="btn btn-danger btn-sm">Desconectar</button>
             </div>
           </div>
-
-          <!-- TARJETA 2: CONFIGURACIÓN MANUAL O CUENTA BOT SECUNDARIA -->
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">⚙️ Conexión Manual / Cuenta Secundaria del Bot</span>
-              <button id="toggleManualConfigBtn" class="btn btn-secondary btn-sm">Mostrar / Ocultar</button>
-            </div>
-
-            <div id="manualConfigBody" style="display: none;">
-              <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
-                Si deseas que las respuestas en el chat las envíe una cuenta bot diferente (por ejemplo <code>MiCanalBot</code>), puedes ingresar su token aquí:
-              </p>
-
-              <div class="form-group">
-                <label class="form-label">Canal del Streamer</label>
-                <input type="text" id="cfgTwitchChannel" class="form-control" placeholder="ej: tu_canal">
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Nombre de Usuario del Bot</label>
-                <input type="text" id="cfgTwitchBotUser" class="form-control" placeholder="ej: MiCanalBot">
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">Token OAuth del Bot</label>
-                <input type="password" id="cfgTwitchToken" class="form-control" placeholder="oauth:abcdef1234567890...">
-                <div class="form-help">
-                  Generar token en: <a href="https://twitchtokengenerator.com" target="_blank">TwitchTokenGenerator.com ↗</a>
-                </div>
-              </div>
-
-              <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button id="btnConnectTwitch" class="btn btn-primary" style="flex:1;">Guardar y Conectar Manualmente</button>
-                <button id="btnDisconnectTwitch" class="btn btn-secondary">Desconectar</button>
-              </div>
-            </div>
-          </div>
-
-        </div>
+        </details>
       </section>
 
       <!-- ================= TAB 3: SONG REQUEST ================= -->
