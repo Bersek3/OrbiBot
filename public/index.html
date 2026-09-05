@@ -103,348 +103,201 @@
 
   <!-- ================= LANDING PAGE VIEW (ESTILO BOTRIX.LIVE) ================= -->
   <div id="landingView" class="landing-view-wrapper">
-    <!-- Navbar -->
-    <header class="landing-navbar">
-      <div class="landing-nav-container">
-        <a href="#home" class="landing-brand" onclick="showLandingView(); return false;">
-          <div class="landing-brand-icon">⚡</div>
-          <div class="landing-brand-text">
-            <h1>OrbiBot</h1>
-            <span>Twitch Cloud Suite</span>
-          </div>
-        </a>
-
-        <ul class="landing-nav-links">
-          <li><a href="#features" class="landing-nav-link">Características</a></li>
-          <li><a href="#widgets" class="landing-nav-link">Widgets & OBS</a></li>
-          <li><a href="#how-it-works" class="landing-nav-link">Cómo Funciona</a></li>
-          <li><a href="#faq" class="landing-nav-link">Preguntas Frecuentes</a></li>
-        </ul>
-
-        <div class="landing-nav-actions">
-          <button id="landingNavDashboardBtn" class="btn btn-secondary btn-sm" style="font-weight: 700; gap: 6px;">
-            <span>📊</span> <span>Panel de Control</span>
-          </button>
-          <button id="landingNavLoginBtn" class="btn btn-primary btn-sm" style="font-weight: 800; background: #9146FF; gap: 8px; box-shadow: 0 4px 15px rgba(145, 70, 255, 0.4);">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
-            <span>Iniciar Sesión</span>
+    <!-- Top Minimalist Bar -->
+    <header class="landing-top-bar">
+      <div class="landing-top-bar-inner">
+        <div class="landing-brand-minimal" onclick="showLandingView()">
+          <span class="landing-brand-glow">⚡</span>
+          <span class="landing-brand-title">OrbiBot</span>
+        </div>
+        <div class="landing-top-actions">
+          <button id="landingNavDashboardBtn" class="landing-btn-pill-subtle" onclick="showDashboardView('tab-dashboard')">
+            <span>⚙️ Panel de Control</span>
           </button>
         </div>
       </div>
     </header>
 
     <!-- Hero Section -->
-    <section class="landing-hero-section" id="home">
-      <div class="landing-hero-content">
-        <div class="landing-hero-badge">
-          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981; box-shadow:0 0 10px #10b981;"></span>
-          <span>⚡ La plataforma todo en uno para Streamers de Twitch</span>
-        </div>
+    <section class="landing-hero-simple">
+      <h1 class="landing-hero-title-simple">
+        El mejor software para<br>potenciar tu stream
+      </h1>
 
-        <h1 class="landing-hero-title">
-          Todo lo que tu Stream necesita en un <span class="highlight-purple">solo lugar</span>.
-        </h1>
+      <p class="landing-hero-desc-simple">
+        <strong>OrbiBot</strong> es el mejor software para creadores de contenido, ya sea que emitas en 
+        <span class="brand-text-trovo">Trovo</span>, 
+        <span class="brand-text-twitch">Twitch</span>, 
+        <span class="brand-text-youtube">YouTube</span>, 
+        <span class="brand-text-kick">Kick</span> o que simplemente tengas una comunidad de 
+        <span class="brand-text-discord">Discord</span> que quieras llevar al siguiente nivel.
+      </p>
 
-        <p class="landing-hero-desc">
-          Potencia tus directos con <strong>Alertas ultrarrápidas</strong>, <strong>Song Request con YouTube</strong>, <strong>Text-to-Speech (TTS) con IA</strong>, <strong>Metas interactivas</strong> y un <strong>Personalizador de Widgets</strong> con fuentes de Google Fonts y CSS en tiempo real guardado en la nube con Supabase.
-        </p>
+      <!-- Platform Login Buttons -->
+      <div class="landing-platform-buttons">
+        <!-- Kick Button -->
+        <button class="btn-platform btn-platform-kick" onclick="triggerTwitchOAuthLogin()">
+          <span class="platform-icon-kick">K</span>
+          <span>Entrar con Kick</span>
+        </button>
 
-        <div class="landing-hero-ctas">
-          <button id="landingHeroLoginBtn" class="landing-btn-hero-primary">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
-            <span>Comenzar Gratis con Twitch</span>
-          </button>
-          <button id="landingHeroDashboardBtn" class="landing-btn-hero-secondary">
-            <span>⚙️ Abrir Panel de Control</span>
-          </button>
-        </div>
+        <!-- Twitch Button (Primary OAuth) -->
+        <button id="landingHeroLoginBtn" class="btn-platform btn-platform-twitch" onclick="triggerTwitchOAuthLogin()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+          <span>Entrar con Twitch</span>
+        </button>
 
-        <div class="landing-hero-features-list">
-          <span><span style="color: #10b981;">✓</span> 100% Gratuito y en la nube</span>
-          <span><span style="color: #00f2fe;">✓</span> Compatible con OBS Studio</span>
-          <span><span style="color: #9146ff;">✓</span> 1 Clic seguro con Twitch OAuth</span>
-        </div>
-      </div>
+        <!-- YouTube Button -->
+        <button class="btn-platform btn-platform-youtube" onclick="triggerTwitchOAuthLogin()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#FF0000"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          <span>Entrar con YouTube</span>
+        </button>
 
-      <!-- Live Interactive Hero Showcase -->
-      <div class="landing-showcase-card">
-        <div class="landing-showcase-header">
-          <div class="landing-showcase-dots">
-            <span style="background: #ef4444;"></span>
-            <span style="background: #f5a623;"></span>
-            <span style="background: #10b981;"></span>
-          </div>
-          <div style="font-size: 11px; font-weight: 700; color: #a970ff; background: rgba(145, 70, 255, 0.15); padding: 3px 10px; border-radius: 999px;">
-            ● OBS STUDIO LIVE OVERLAY
-          </div>
-        </div>
+        <!-- Trovo Button -->
+        <button class="btn-platform btn-platform-trovo" onclick="triggerTwitchOAuthLogin()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7.4 3h9.2c2.4 0 4.4 2 4.4 4.4v9.2c0 2.4-2 4.4-4.4 4.4H7.4C5 21 3 19 3 16.6V7.4C3 5 5 3 7.4 3zm4.6 3.8a5.2 5.2 0 1 0 0 10.4 5.2 5.2 0 0 0 0-10.4zm0 2.8a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8z"/></svg>
+          <span>Entrar con Trovo</span>
+        </button>
 
-        <!-- Simulated Alert Card -->
-        <div class="landing-mock-alert">
-          <span class="landing-mock-badge">✨ NUEVO SEGUIDOR</span>
-          <img class="landing-mock-img" src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif" alt="GIF Alerta">
-          <div class="landing-mock-title">¡Nuevo Seguidor!</div>
-          <div class="landing-mock-sub"><span style="color:#00f2fe; font-weight:700;">AlexGamer_99</span> ahora sigue el canal</div>
-        </div>
-
-        <!-- Simulated Now Playing Card -->
-        <div class="landing-mock-music">
-          <div style="font-size: 20px;">🎵</div>
-          <div style="flex: 1; min-width: 0;">
-            <div style="font-size: 11px; color: var(--cyan-accent); font-weight: 700;">SONG REQUEST • REPRODUCIENDO</div>
-            <div style="font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Daft Punk - One More Time</div>
-          </div>
-          <span style="font-size: 11px; color: #10b981; font-weight: 700;">3:45</span>
-        </div>
-
-        <!-- Simulated Chat Bubble -->
-        <div class="landing-mock-chat">
-          <div>
-            <span style="background: #9146ff; color: #fff; padding: 1px 4px; border-radius: 4px; font-size: 10px; font-weight: 800;">MOD</span>
-            <strong style="color: #00f2fe;">StreamFan:</strong> ¡El mejor bot para OBS! 🔥
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features Grid Section -->
-    <section class="landing-section" id="features">
-      <div class="landing-section-header">
-        <span class="landing-section-badge">CARACTERÍSTICAS PREMIUM</span>
-        <h2 class="landing-section-title">Herramientas poderosas diseñadas para Streamers</h2>
-        <p class="landing-section-desc">
-          Todo lo necesario para hacer directos profesionales, dinámicos e interactivos en Twitch sin configuraciones complejas.
-        </p>
-      </div>
-
-      <div class="landing-features-grid">
-        <!-- Feature 1: Alert Box -->
-        <div class="landing-feature-card">
-          <div class="landing-feature-icon" style="background: rgba(145, 70, 255, 0.15); color: #9146ff; border: 1px solid rgba(145, 70, 255, 0.3);">⚡</div>
-          <h3>Alert Box Ultrarrápido</h3>
-          <p>Alertas animadas en vivo para seguidores, suscripciones, donaciones de bits, raids y canjes de puntos de canal con selector de imágenes/GIFs y sonidos personalizables.</p>
-          <div class="landing-feature-tags">
-            <span class="landing-feature-tag">Followers</span>
-            <span class="landing-feature-tag">Subs</span>
-            <span class="landing-feature-tag">Bits</span>
-            <span class="landing-feature-tag">Raids</span>
-            <span class="landing-feature-tag">Puntos</span>
-          </div>
-        </div>
-
-        <!-- Feature 2: Song Request -->
-        <div class="landing-feature-card">
-          <div class="landing-feature-icon" style="background: rgba(0, 242, 254, 0.15); color: #00f2fe; border: 1px solid rgba(0, 242, 254, 0.3);">🎵</div>
-          <h3>Song Request Inteligente</h3>
-          <p>Tus espectadores pueden pedir canciones desde el chat con el comando <code>!sr</code> o canjeando puntos. Reproducción automática, cola en vivo y widget con portada en OBS.</p>
-          <div class="landing-feature-tags">
-            <span class="landing-feature-tag">YouTube API</span>
-            <span class="landing-feature-tag">Comando !sr</span>
-            <span class="landing-feature-tag">Cola en vivo</span>
-            <span class="landing-feature-tag">Filtro de duración</span>
-          </div>
-        </div>
-
-        <!-- Feature 3: TTS -->
-        <div class="landing-feature-card">
-          <div class="landing-feature-icon" style="background: rgba(255, 0, 127, 0.15); color: #ff007f; border: 1px solid rgba(255, 0, 127, 0.3);">🗣️</div>
-          <h3>Text-To-Speech (TTS) con IA</h3>
-          <p>Lee donaciones de bits y mensajes canjeados con voces naturales. Control de volumen, velocidad, tono y lista negra de palabras ofensivas para máxima moderación.</p>
-          <div class="landing-feature-tags">
-            <span class="landing-feature-tag">Voces en Español</span>
-            <span class="landing-feature-tag">Bits & Puntos</span>
-            <span class="landing-feature-tag">Filtro Anti-Spam</span>
-          </div>
-        </div>
-
-        <!-- Feature 4: Customizer -->
-        <div class="landing-feature-card">
-          <div class="landing-feature-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">🎨</div>
-          <h3>Personalizador Didáctico & CSS/JS</h3>
-          <p>Cambia fuentes de Google Fonts (Inter, Outfit, Anton, Bangers, Orbitron...), colores, bordes y tamaños visualmente, o inyecta tu propio CSS y JS personalizado.</p>
-          <div class="landing-feature-tags">
-            <span class="landing-feature-tag">Google Fonts</span>
-            <span class="landing-feature-tag">Editor Visual</span>
-            <span class="landing-feature-tag">CSS Puro</span>
-            <span class="landing-feature-tag">Live Preview</span>
-          </div>
-        </div>
-
-        <!-- Feature 5: Metas de Stream -->
-        <div class="landing-feature-card">
-          <div class="landing-feature-icon" style="background: rgba(245, 166, 35, 0.15); color: #f5a623; border: 1px solid rgba(245, 166, 35, 0.3);">📊</div>
-          <h3>Metas de Stream (Goals)</h3>
-          <p>Barras de progreso en tiempo real para metas de seguidores, suscriptores y donaciones de bits. Se actualizan automáticamente durante tu transmisión.</p>
-          <div class="landing-feature-tags">
-            <span class="landing-feature-tag">Meta Followers</span>
-            <span class="landing-feature-tag">Meta Subs</span>
-            <span class="landing-feature-tag">Meta Bits</span>
-          </div>
-        </div>
-
-        <!-- Feature 6: Cloud Supabase -->
-        <div class="landing-feature-card">
-          <div class="landing-feature-icon" style="background: rgba(63, 230, 230, 0.15); color: #3fe6e6; border: 1px solid rgba(63, 230, 230, 0.3);">☁️</div>
-          <h3>Persistencia Cloud (Supabase)</h3>
-          <p>Todo lo que configures se guarda automáticamente bajo tu canal en Supabase. Inicia sesión en cualquier computadora y todos tus ajustes se cargan al instante.</p>
-          <div class="landing-feature-tags">
-            <span class="landing-feature-tag">Supabase DB</span>
-            <span class="landing-feature-tag">Multidispositivo</span>
-            <span class="landing-feature-tag">Autoguardado</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- How It Works Section -->
-    <section class="landing-section" id="how-it-works" style="background: radial-gradient(circle at center, rgba(145, 70, 255, 0.08), transparent 70%);">
-      <div class="landing-section-header">
-        <span class="landing-section-badge">FÁCIL Y RÁPIDO</span>
-        <h2 class="landing-section-title">Listo para transmitir en 3 simples pasos</h2>
-        <p class="landing-section-desc">Sin instalaciones pesadas ni configuraciones tediosas. Todo funciona directamente en tu navegador y en OBS Studio.</p>
-      </div>
-
-      <div class="landing-steps-grid">
-        <div class="landing-step-card">
-          <div class="landing-step-number">01</div>
-          <h3>Conecta con Twitch</h3>
-          <p>Inicia sesión en 1 clic de forma segura con tu cuenta de streamer mediante Twitch OAuth. Detectamos tu canal automáticamente.</p>
-        </div>
-        <div class="landing-step-card">
-          <div class="landing-step-number">02</div>
-          <h3>Personaliza tus Widgets</h3>
-          <p>Elige tus fuentes tipográficas, GIFs, sonidos de alerta y comandos. Todo se sincroniza en vivo y se guarda en la base de datos.</p>
-        </div>
-        <div class="landing-step-card">
-          <div class="landing-step-number">03</div>
-          <h3>Pega en OBS Studio</h3>
-          <p>Copia los enlaces de tus widgets, agrégalos como "Fuente de Navegador" (Browser Source) en OBS y ¡disfruta de tu directo!</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Widgets Showcase Section -->
-    <section class="landing-section" id="widgets">
-      <div class="landing-section-header">
-        <span class="landing-section-badge">OVERLAYS PROFESIONALES</span>
-        <h2 class="landing-section-title">Widgets listos para tus fuentes de OBS Studio</h2>
-        <p class="landing-section-desc">Overlays optimizados, transparentes y ultraligeros con soporte para Paho MQTT y WebSockets en tiempo real.</p>
-      </div>
-
-      <div class="landing-widgets-grid">
-        <div class="landing-widget-box">
-          <div>
-            <div style="font-size: 28px; margin-bottom: 10px;">🔔</div>
-            <h4>Alert Box</h4>
-            <p>Notificaciones visuales y sonoras para todos los eventos de tu canal con efectos y animaciones.</p>
-          </div>
-          <button class="btn btn-secondary btn-sm" onclick="showDashboardView('tab-overlays')" style="width: 100%;">Configurar Widget</button>
-        </div>
-
-        <div class="landing-widget-box">
-          <div>
-            <div style="font-size: 28px; margin-bottom: 10px;">🎵</div>
-            <h4>Now Playing</h4>
-            <p>Muestra la canción actual de YouTube con portada del video, título y barra de progreso.</p>
-          </div>
-          <button class="btn btn-secondary btn-sm" onclick="showDashboardView('tab-overlays')" style="width: 100%;">Configurar Widget</button>
-        </div>
-
-        <div class="landing-widget-box">
-          <div>
-            <div style="font-size: 28px; margin-bottom: 10px;">🎯</div>
-            <h4>Goal Bar</h4>
-            <p>Barras de meta personalizables para seguidores, suscriptores y bits que impulsan el apoyo de tu comunidad.</p>
-          </div>
-          <button class="btn btn-secondary btn-sm" onclick="showDashboardView('tab-overlays')" style="width: 100%;">Configurar Widget</button>
-        </div>
-
-        <div class="landing-widget-box">
-          <div>
-            <div style="font-size: 28px; margin-bottom: 10px;">💬</div>
-            <h4>Chat Overlay</h4>
-            <p>Chat flotante transparente con emotes oficiales animados de Twitch y emblemas de suscriptor y moderador.</p>
-          </div>
-          <button class="btn btn-secondary btn-sm" onclick="showDashboardView('tab-overlays')" style="width: 100%;">Configurar Widget</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- FAQ Section -->
-    <section class="landing-section" id="faq">
-      <div class="landing-section-header">
-        <span class="landing-section-badge">PREGUNTAS FRECUENTES</span>
-        <h2 class="landing-section-title">¿Tienes dudas? Te ayudamos</h2>
-        <p class="landing-section-desc">Respuestas a las preguntas más comunes sobre el uso y configuración de OrbiBot.</p>
-      </div>
-
-      <div class="landing-faq-accordion">
-        <div class="landing-faq-item active">
-          <div class="landing-faq-question">
-            <span>¿OrbiBot es completamente gratuito?</span>
-            <span class="landing-faq-icon">▼</span>
-          </div>
-          <div class="landing-faq-answer">
-            Sí, OrbiBot es 100% gratuito y de código abierto. Puedes usar todas las funciones de alertas, bot de chat, Song Request y TTS sin ningún costo ni límite artificial.
-          </div>
-        </div>
-
-        <div class="landing-faq-item">
-          <div class="landing-faq-question">
-            <span>¿Es compatible con OBS Studio, Streamlabs y Prism Live?</span>
-            <span class="landing-faq-icon">▼</span>
-          </div>
-          <div class="landing-faq-answer">
-            Sí, todos los widgets funcionan mediante URLs estándar como fuentes de navegador (Browser Source), compatibles con cualquier software de transmisión como OBS Studio, Streamlabs Desktop, vMix y Prism.
-          </div>
-        </div>
-
-        <div class="landing-faq-item">
-          <div class="landing-faq-question">
-            <span>¿Cómo se guardan mis personalizaciones si cambio de PC?</span>
-            <span class="landing-faq-icon">▼</span>
-          </div>
-          <div class="landing-faq-answer">
-            OrbiBot está integrado con Supabase en la nube. Todas tus configuraciones de fuentes tipográficas, colores, imágenes y sonidos quedan asociadas a tu ID de streamer, por lo que al iniciar sesión desde otra máquina tus datos se cargan inmediatamente.
-          </div>
-        </div>
-
-        <div class="landing-faq-item">
-          <div class="landing-faq-question">
-            <span>¿Puedo personalizar el diseño con mi propio código CSS?</span>
-            <span class="landing-faq-icon">▼</span>
-          </div>
-          <div class="landing-faq-answer">
-            ¡Por supuesto! Cuentas con un editor visual didáctico para ajustes rápidos y un editor de CSS y JavaScript puro para crear animaciones y diseños únicos.
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Bottom CTA Banner -->
-    <div class="landing-cta-banner-wrap">
-      <div class="landing-cta-banner">
-        <h2>¿Listo para llevar tus streams al siguiente nivel?</h2>
-        <p>Únete a la plataforma de streaming más moderna, flexible y fácil de usar para Twitch.</p>
-        <button id="landingBottomLoginBtn" class="landing-btn-hero-primary" style="margin: 0 auto;">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
-          <span>Iniciar Sesión Gratis con Twitch</span>
+        <!-- Discord Button -->
+        <button class="btn-platform btn-platform-discord" onclick="triggerTwitchOAuthLogin()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+          <span>Entrar con Discord</span>
         </button>
       </div>
-    </div>
+    </section>
 
-    <!-- Footer -->
-    <footer class="landing-footer">
-      <div class="landing-footer-container">
-        <div class="landing-footer-text">
-          © 2026 <strong>OrbiBot</strong> — Twitch StreamBot & Overlay Suite. Creado para la comunidad de streamers.
+    <!-- Section: Why choose OrbiBot? -->
+    <section class="landing-content-simple">
+      <h2 class="landing-section-title-green">¿Por qué elegir OrbiBot?</h2>
+
+      <div class="landing-grid-simple">
+        <!-- 1. Fácil -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+          <div class="landing-card-title-green">Fácil</div>
+          <p class="landing-card-desc-simple">Ya seas un profesional de la informática o simplemente un aficionado, OrbiBot ofrece herramientas para que todos puedan configurarlo sin problemas en función de sus conocimientos.</p>
         </div>
-        <ul class="landing-footer-links">
-          <li><a href="#features" class="landing-footer-link">Características</a></li>
-          <li><a href="#widgets" class="landing-footer-link">Widgets OBS</a></li>
-          <li><a href="#faq" class="landing-footer-link">FAQ</a></li>
-          <li><a href="https://github.com/Bersek3/OrbiBot" target="_blank" class="landing-footer-link">GitHub</a></li>
-        </ul>
+
+        <!-- 2. Personalización -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          </div>
+          <div class="landing-card-title-green">Personalización</div>
+          <p class="landing-card-desc-simple">Aunque nuestra configuración estándar es muy buena, te permitimos ajustar cada detalle como desees para que tu contenido sea único.</p>
+        </div>
+
+        <!-- 3. Alojado en la nube -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
+          </div>
+          <div class="landing-card-title-green">Alojado en la nube</div>
+          <p class="landing-card-desc-simple">No tienes que instalar nada. OrbiBot funciona en la nube para que te olvides de lo técnico y disfrutes tu streaming con tranquilidad.</p>
+        </div>
+
+        <!-- 4. Sistema AntiSpam -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+          </div>
+          <div class="landing-card-title-green">Sistema AntiSpam</div>
+          <p class="landing-card-desc-simple">OrbiBot ayudará a sus moderadores, eliminando automáticamente los mensajes de spam, enlaces, etc. Y todo completamente configurable.</p>
+        </div>
+
+        <!-- 5. Widgets -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 12L2 9z"></path></svg>
+          </div>
+          <div class="landing-card-title-green">Widgets</div>
+          <p class="landing-card-desc-simple">Disponemos de todos los widgets necesarios para que tu streaming tenga un toque único además de interactivo.</p>
+        </div>
+
+        <!-- 6. Comandos -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+          </div>
+          <div class="landing-card-title-green">Comandos</div>
+          <p class="landing-card-desc-simple">Contamos con un sistema de comandos personalizados con infinidad de variables para que el único límite sea tu imaginación.</p>
+        </div>
+
+        <!-- 7. Notificaciones -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+          </div>
+          <div class="landing-card-title-green">Notificaciones</div>
+          <p class="landing-card-desc-simple">Cree alertas en su servidor de Discord para notificar a su comunidad cuando empiece un nuevo streaming o suba un video en YouTube.</p>
+        </div>
+
+        <!-- 8. Temporizadores -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          </div>
+          <div class="landing-card-title-green">Temporizadores</div>
+          <p class="landing-card-desc-simple">OrbiBot puede publicar mensajes automáticamente en su chat en el intervalo que defina. Promocione sus redes sociales, información importante para sus espectadores, etc.</p>
+        </div>
+
+        <!-- 9. Puntos y niveles -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H8v4h8v-4h-1c-.55 0-1-.45-1-1v-2.34c3.42-.77 6-3.83 6-7.66V4H4v5.66c0 3.83 2.58 6.89 6 7.66z"></path></svg>
+          </div>
+          <div class="landing-card-title-green">Puntos y niveles</div>
+          <p class="landing-card-desc-simple">Puede activar un sistema para recompensar a sus espectadores por ver su transmisión o enviar mensajes en el chat otorgándoles puntos y niveles completamente automático.</p>
+        </div>
+
+        <!-- 10. Sorteos -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>
+          </div>
+          <div class="landing-card-title-green">Sorteos</div>
+          <p class="landing-card-desc-simple">OrbiBot tiene un sistema de sorteos incorporado para que pueda recompensar a su comunidad dándoles un regalo de vez en cuando.</p>
+        </div>
+
+        <!-- 11. Registro rápido -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          </div>
+          <div class="landing-card-title-green">Registro rápido</div>
+          <p class="landing-card-desc-simple">Para registrarte simplemente tienes que autorizar con la plataforma que desees y en menos de un minuto tendrás tu cuenta creada, ¡Sin usuarios contraseñas ni complicaciones!</p>
+        </div>
+
+        <!-- 12. Sugerencias -->
+        <div class="landing-card-simple">
+          <div class="landing-card-icon-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.76.76 1.23 1.52 1.41 2.5h6.18z"></path></svg>
+          </div>
+          <div class="landing-card-title-green">Sugerencias</div>
+          <p class="landing-card-desc-simple">Nuestro equipo siempre está listo para escuchar sus sugerencias e incorporarlas si cree que merecen la pena para mejorar aún más su experiencia.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Minimalist BotRix-Style Footer -->
+    <footer class="landing-footer-simple">
+      <div class="landing-footer-left">
+        © 2026 OrbiBot Todos los derechos reservados.
+      </div>
+      <div class="landing-footer-center">
+        <a href="#terminos" onclick="return false;">Términos y Condiciones</a>
+        <a href="#privacidad" onclick="return false;">Política de Privacidad</a>
+      </div>
+      <div class="landing-footer-right">
+        <button class="footer-icon-btn" title="Ayuda" onclick="alert('OrbiBot Suite - Plataforma de Streaming en la Nube.');">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
+        </button>
+        <button class="footer-icon-btn" title="Discord" onclick="window.open('https://discord.com', '_blank');">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+        </button>
       </div>
     </footer>
   </div>
