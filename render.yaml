@@ -14,3 +14,11 @@ services:
         value: production
       - key: TWITCH_CLIENT_ID
         value: yw1vr664ichms8an2x5lhji58v7ozk
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        sync: false

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { createClient } = require('@supabase/supabase-js');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 
@@ -193,6 +194,89 @@ function writeJSON(filename, data) {
 }
 
 class StorageService {
+  constructor() {
+    this.supabase = null;
+    this.isSupabaseReady = false;
+    this.initSupabase();
+  }
+
+  initSupabase() {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_KEY;
+
+    if (supabaseUrl && supabaseKey) {
+      try {
+        this.supabase = createClient(supabaseUrl, supabaseKey, {
+          auth: { persistSession: false }
+        });
+        console.log('🟢 [Supabase] Cliente inicializado correctamente.');
+        this.syncFromSupabase();
+      } catch (err) {
+        console.warn('⚠️ [Supabase] Error al inicializar cliente:', err.message);
+      }
+    } else {
+      console.log('ℹ️ [Storage] Supabase no configurado. Utilizando almacenamiento local JSON.');
+    }
+  }
+
+  async syncFromSupabase() {
+    if (!this.supabase) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('orbibot_settings')
+        .select('*');
+
+      if (error) {
+        console.warn('⚠️ [Supabase] Nota: La tabla "orbibot_settings" aún no existe en Supabase o requiere creación. Usando almacenamiento local.');
+        return;
+      }
+
+      if (data && data.length > 0) {
+        this.isSupabaseReady = true;
+        console.log(`✅ [Supabase] ${data.length} configuraciones sincronizadas desde la nube.`);
+        data.forEach(item => {
+          if (item.key === 'config') writeJSON('config.json', item.value);
+          if (item.key === 'commands') writeJSON('commands.json', item.value);
+          if (item.key === 'alerts') writeJSON('alerts.json', item.value);
+          if (item.key === 'channel_points') writeJSON('channel_points.json', item.value);
+        });
+      } else {
+        this.isSupabaseReady = true;
+        console.log('🌱 [Supabase] Sembrando datos iniciales en la base de datos...');
+        await this.syncToSupabase('config', this.getConfig());
+        await this.syncToSupabase('commands', this.getCommands());
+        await this.syncToSupabase('alerts', this.getAlerts());
+        await this.syncToSupabase('channel_points', this.getRewards());
+      }
+    } catch (err) {
+      console.warn('⚠️ [Supabase] Error durante la sincronización inicial:', err.message);
+    }
+  }
+
+  async syncToSupabase(key, value) {
+    if (!this.supabase) return;
+    try {
+      const { error } = await this.supabase
+        .from('orbibot_settings')
+        .upsert({
+          key,
+          value,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
+
+      if (error) {
+        // Silencioso si la tabla no existe aún para no spamear consola
+        if (error.code !== 'PGRST205') {
+          console.warn(`⚠️ [Supabase] Error al guardar "${key}":`, error.message);
+        }
+      } else {
+        this.isSupabaseReady = true;
+      }
+    } catch (err) {
+      // Ignorar errores de conexión transitorios
+    }
+  }
+
   getConfig() {
     const cfg = readJSON('config.json', DEFAULT_CONFIG);
     let changed = false;
@@ -212,6 +296,7 @@ class StorageService {
     };
     if (changed) {
       writeJSON('config.json', merged);
+      this.syncToSupabase('config', merged);
     }
     return merged;
   }
@@ -224,6 +309,7 @@ class StorageService {
       widgetToken: newToken
     };
     writeJSON('config.json', cfg);
+    this.syncToSupabase('config', cfg);
     return newToken;
   }
 
@@ -239,6 +325,7 @@ class StorageService {
       security: { ...current.security, ...(newConfig.security || {}) }
     };
     writeJSON('config.json', merged);
+    this.syncToSupabase('config', merged);
     return merged;
   }
 
@@ -248,6 +335,7 @@ class StorageService {
 
   saveCommands(commands) {
     writeJSON('commands.json', commands);
+    this.syncToSupabase('commands', commands);
     return commands;
   }
 
@@ -258,6 +346,7 @@ class StorageService {
 
   saveAlerts(alerts) {
     writeJSON('alerts.json', alerts);
+    this.syncToSupabase('alerts', alerts);
     return alerts;
   }
 
@@ -267,6 +356,7 @@ class StorageService {
 
   saveRewards(rewards) {
     writeJSON('channel_points.json', rewards);
+    this.syncToSupabase('channel_points', rewards);
     return rewards;
   }
 }
