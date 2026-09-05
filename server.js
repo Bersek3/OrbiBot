@@ -188,7 +188,11 @@ app.post('/api/auth/twitch-token', async (req, res) => {
       console.warn('Helix user fetch warning:', helixErr.message);
     }
 
-    // 3. Save to storage
+    // 3. Set streamer_id and re-sync from Supabase for this streamer
+    storage.setStreamerId(login);
+    await storage.resyncForStreamer(login);
+
+    // 4. Save to storage (now scoped to this streamer's data)
     const updated = storage.saveConfig({
       twitch: {
         channel: login,
@@ -202,7 +206,7 @@ app.post('/api/auth/twitch-token', async (req, res) => {
       }
     });
 
-    // 4. Connect bot automatically
+    // 5. Connect bot automatically
     const connectResult = await twitchBot.connect();
 
     broadcast('config_updated', updated);

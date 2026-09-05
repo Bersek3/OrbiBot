@@ -194,7 +194,32 @@ class StorageService {
   constructor() {
     this.supabase = null;
     this.isSupabaseReady = false;
+    this._streamerId = null; // Cache del streamer_id activo
     this.initSupabase();
+  }
+
+  /**
+   * Obtiene el streamer_id actual basándose en el canal de Twitch configurado.
+   * Si no hay canal configurado, retorna 'default'.
+   */
+  getStreamerId() {
+    if (this._streamerId) return this._streamerId;
+    try {
+      const cfg = readJSON('config.json', DEFAULT_CONFIG);
+      const channel = (cfg.twitch && cfg.twitch.channel) ? cfg.twitch.channel.toLowerCase().replace(/^#/, '').trim() : '';
+      return channel || 'default';
+    } catch (e) {
+      return 'default';
+    }
+  }
+
+  /**
+   * Establece el streamer_id manualmente (al autenticar con Twitch).
+   */
+  setStreamerId(id) {
+    const cleanId = (id || 'default').toLowerCase().replace(/^#/, '').trim();
+    this._streamerId = cleanId || 'default';
+    console.log(`🔑 [Storage] Streamer ID establecido: "${this._streamerId}"`);
   }
 
   initSupabase() {
@@ -218,19 +243,26 @@ class StorageService {
 
   async syncFromSupabase() {
     if (!this.supabase) return;
+    const streamerId = this.getStreamerId();
     try {
       const { data, error } = await this.supabase
         .from('orbibot_settings')
-        .select('*');
+        .select('*')
+        .eq('streamer_id', streamerId);
 
       if (error) {
-        console.warn('⚠️ [Supabase] Nota: La tabla "orbibot_settings" aún no existe en Supabase o requiere creación. Usando almacenamiento local.');
+        // Si la tabla no tiene la columna streamer_id aún, intentar lectura legacy
+        if (error.message && error.message.includes('streamer_id')) {
+          console.warn('⚠️ [Supabase] La tabla aún no tiene columna "streamer_id". Ejecuta supabase_migration.sql para actualizar.');
+          return this.syncFromSupabaseLegacy();
+        }
+        console.warn('⚠️ [Supabase] Error al sincronizar:', error.message);
         return;
       }
 
       if (data && data.length > 0) {
         this.isSupabaseReady = true;
-        console.log(`✅ [Supabase] ${data.length} configuraciones sincronizadas desde la nube.`);
+        console.log(`✅ [Supabase] ${data.length} configuraciones sincronizadas para streamer "${streamerId}".`);
         data.forEach(item => {
           if (item.key === 'config') writeJSON('config.json', item.value);
           if (item.key === 'commands') writeJSON('commands.json', item.value);
@@ -239,7 +271,12 @@ class StorageService {
         });
       } else {
         this.isSupabaseReady = true;
-        console.log('🌱 [Supabase] Sembrando datos iniciales en la base de datos...');
+        // Verificar si hay datos en 'default' que podríamos migrar
+        if (streamerId !== 'default') {
+          const migrated = await this.migrateFromDefault(streamerId);
+          if (migrated) return;
+        }
+        console.log(`🌱 [Supabase] Sembrando datos iniciales para streamer "${streamerId}"...`);
         await this.syncToSupabase('config', this.getConfig());
         await this.syncToSupabase('commands', this.getCommands());
         await this.syncToSupabase('alerts', this.getAlerts());
@@ -250,7 +287,101 @@ class StorageService {
     }
   }
 
+  /**
+   * Fallback: lee datos del esquema anterior (sin streamer_id) para compatibilidad.
+   */
+  async syncFromSupabaseLegacy() {
+    if (!this.supabase) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('orbibot_settings')
+        .select('*');
+
+      if (error) {
+        console.warn('⚠️ [Supabase] Nota: La tabla "orbibot_settings" no existe o requiere creación.');
+        return;
+      }
+
+      if (data && data.length > 0) {
+        this.isSupabaseReady = true;
+        console.log(`✅ [Supabase] ${data.length} configuraciones sincronizadas (modo legacy).`);
+        data.forEach(item => {
+          if (item.key === 'config') writeJSON('config.json', item.value);
+          if (item.key === 'commands') writeJSON('commands.json', item.value);
+          if (item.key === 'alerts') writeJSON('alerts.json', item.value);
+          if (item.key === 'channel_points') writeJSON('channel_points.json', item.value);
+        });
+      }
+    } catch (err) {
+      console.warn('⚠️ [Supabase] Error en sincronización legacy:', err.message);
+    }
+  }
+
+  /**
+   * Migra datos del streamer_id 'default' al streamer_id real cuando se autentica.
+   */
+  async migrateFromDefault(newStreamerId) {
+    if (!this.supabase) return false;
+    try {
+      const { data } = await this.supabase
+        .from('orbibot_settings')
+        .select('*')
+        .eq('streamer_id', 'default');
+
+      if (data && data.length > 0) {
+        console.log(`🔄 [Supabase] Migrando ${data.length} registros de "default" a "${newStreamerId}"...`);
+        for (const item of data) {
+          await this.supabase
+            .from('orbibot_settings')
+            .upsert({
+              streamer_id: newStreamerId,
+              key: item.key,
+              value: item.value,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'streamer_id,key' });
+        }
+        console.log(`✅ [Supabase] Migración completada: "default" → "${newStreamerId}".`);
+        return true;
+      }
+    } catch (e) {
+      console.warn('⚠️ [Supabase] Error en migración:', e.message);
+    }
+    return false;
+  }
+
   async syncToSupabase(key, value) {
+    if (!this.supabase) return;
+    const streamerId = this.getStreamerId();
+    try {
+      const { error } = await this.supabase
+        .from('orbibot_settings')
+        .upsert({
+          streamer_id: streamerId,
+          key,
+          value,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'streamer_id,key' });
+
+      if (error) {
+        // Si falla por columna faltante, intentar modo legacy
+        if (error.message && error.message.includes('streamer_id')) {
+          return this.syncToSupabaseLegacy(key, value);
+        }
+        if (error.code !== 'PGRST205') {
+          console.warn(`⚠️ [Supabase] Error al guardar "${key}" para "${streamerId}":`, error.message);
+        }
+      } else {
+        this.isSupabaseReady = true;
+      }
+    } catch (err) {
+      // Ignorar errores de conexión transitorios
+    }
+  }
+
+  /**
+   * Fallback: guarda sin streamer_id para compatibilidad con esquema anterior.
+   */
+  async syncToSupabaseLegacy(key, value) {
     if (!this.supabase) return;
     try {
       const { error } = await this.supabase
@@ -261,17 +392,23 @@ class StorageService {
           updated_at: new Date().toISOString()
         }, { onConflict: 'key' });
 
-      if (error) {
-        // Silencioso si la tabla no existe aún para no spamear consola
-        if (error.code !== 'PGRST205') {
-          console.warn(`⚠️ [Supabase] Error al guardar "${key}":`, error.message);
-        }
+      if (error && error.code !== 'PGRST205') {
+        console.warn(`⚠️ [Supabase] Error en guardado legacy "${key}":`, error.message);
       } else {
         this.isSupabaseReady = true;
       }
     } catch (err) {
-      // Ignorar errores de conexión transitorios
+      // Ignorar errores transitorios
     }
+  }
+
+  /**
+   * Re-sincroniza toda la data desde Supabase para el streamer actual.
+   * Llamar después de cambiar el streamer_id (ej: después de autenticación Twitch).
+   */
+  async resyncForStreamer(streamerId) {
+    this.setStreamerId(streamerId);
+    await this.syncFromSupabase();
   }
 
   getConfig() {
@@ -321,6 +458,15 @@ class StorageService {
       goals: { ...current.goals, ...(newConfig.goals || {}) },
       security: { ...current.security, ...(newConfig.security || {}) }
     };
+
+    // Actualizar streamer_id cache si cambió el canal de Twitch
+    if (newConfig.twitch && newConfig.twitch.channel) {
+      const newChannel = newConfig.twitch.channel.toLowerCase().replace(/^#/, '').trim();
+      if (newChannel && newChannel !== this._streamerId) {
+        this.setStreamerId(newChannel);
+      }
+    }
+
     writeJSON('config.json', merged);
     this.syncToSupabase('config', merged);
     return merged;
