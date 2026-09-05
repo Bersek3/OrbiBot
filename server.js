@@ -228,6 +228,33 @@ app.post('/api/auth/twitch-token', async (req, res) => {
   }
 });
 
+// Disconnect / Logout
+app.post(['/api/bot/disconnect', '/api/auth/logout'], async (req, res) => {
+  try {
+    if (twitchBot) {
+      try { await twitchBot.disconnect(); } catch(e) {}
+    }
+    const current = storage.getConfig();
+    const updated = storage.saveConfig({
+      twitch: {
+        ...current.twitch,
+        connected: false,
+        channel: '',
+        oauthToken: '',
+        displayName: '',
+        profileImage: '',
+        userId: ''
+      }
+    });
+    storage.setStreamerId('default');
+    broadcast('config_updated', updated);
+    return res.json({ success: true, message: 'Sesión cerrada exitosamente.' });
+  } catch(err) {
+    console.error('Error during disconnect:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // Commands
 app.get('/api/commands', (req, res) => {
   res.json(storage.getCommands());

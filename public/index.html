@@ -1146,6 +1146,34 @@
                   </div>
                 </div>
 
+                <!-- Sound Picker for active alert event -->
+                <div style="background: rgba(0,0,0,0.35); border: 1px solid rgba(0, 242, 254, 0.25); border-radius: var(--radius-md); padding: 14px; margin-bottom: 14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="font-size: 13px; font-weight: 700; color: #00f2fe;" id="wcAlertSoundTitle">🔊 Sonido de Alerta (Seguidor)</span>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="playActiveAlertSound()" style="padding: 3px 10px; font-size: 11px;">
+                      ▶ Escuchar
+                    </button>
+                  </div>
+
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <select class="form-control" id="wc-alert-soundSelect" style="font-size: 12px; flex:1;" onchange="handleAlertSoundSelect(this.value)">
+                      <option value="/assets/sounds/campana_alerta.wav">🔔 Campana de Alerta (Clásico)</option>
+                      <option value="/assets/sounds/notificacion_puntos.wav">💎 Notificación de Puntos (Chime)</option>
+                      <option value="/assets/sounds/airhorn.mp3">📢 Corneta / Airhorn (Hype)</option>
+                      <option value="synthesizer">🎹 Chime Sintetizado (WebAudio)</option>
+                      <option value="custom">🌐 URL o Archivo Personalizado...</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('wcAlertSoundFileInput').click()" title="Subir archivo de audio local (MP3/WAV)">
+                      📁 Subir Audio
+                    </button>
+                    <input type="file" id="wcAlertSoundFileInput" accept="audio/*" style="display: none;" onchange="handleAlertSoundUpload(this)">
+                  </div>
+
+                  <div id="wcAlertCustomSoundRow" style="display: none; margin-top: 8px;">
+                    <input type="text" class="form-control" id="wc-alert-soundUrl" placeholder="Pega la URL del audio (ej: https://.../alerta.mp3)..." style="font-size: 12px;" oninput="handleAlertSoundUrlInput(this.value)">
+                  </div>
+                </div>
+
                 <!-- Font Family Selector -->
                 <div class="wc-control-row">
                   <label class="form-label">🔤 Tipo de Letra (Fuente)</label>

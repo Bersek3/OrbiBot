@@ -2127,20 +2127,28 @@ function setupEventListeners() {
 
     showToast(`🎉 ¡Sesión iniciada con éxito! Bienvenido, @${displayName || channelName}`, 'success');
 
-    // Submit token to backend if available
+    // Submit token to backend if available and resync from DB
     if (token) {
       try {
-        await fetch('/api/auth/twitch-token', {
+        const authRes = await fetch('/api/auth/twitch-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token, channel: channelName })
         });
+        if (authRes.ok) {
+          const authData = await authRes.json();
+          if (authData.config) {
+            appConfig = authData.config;
+          }
+        }
       } catch (e) {}
     }
 
+    await loadInitialData();
     bindConfigToUI(appConfig);
     populateWidgetUrls();
     initDashboardMqtt();
+    if (typeof initWidgetCustomization === 'function') initWidgetCustomization();
 
     if (channelName && window.tmi) {
       connectInBrowserTwitchBot(twitchCfg);
@@ -2157,25 +2165,45 @@ function setupEventListeners() {
 
     localStorage.removeItem('orbibot_twitch_auth');
     localStorage.removeItem('orbibot_twitch_auth_event');
-
-    try {
-      let cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
-      if (cfg.twitch) {
-        cfg.twitch.connected = false;
-        cfg.twitch.channel = '';
-        cfg.twitch.oauthToken = '';
-        cfg.twitch.displayName = '';
-        cfg.twitch.profileImage = '';
-        localStorage.setItem('orbibot_config', JSON.stringify(cfg));
-      }
-    } catch(e) {}
+    localStorage.removeItem('orbibot_config');
 
     if (browserTmiClient) {
       try { browserTmiClient.disconnect(); } catch(e) {}
       browserTmiClient = null;
     }
 
-    showToast('Has cerrado sesión de Twitch.', 'info');
+    // Explicitly reset in-memory config state
+    appConfig = {
+      twitch: { connected: false, channel: '', oauthToken: '', displayName: '', profileImage: '' },
+      songRequest: { prefix: '!sr', enabled: true, volume: 75, autoplay: true },
+      tts: { enabled: true, volume: 90, rate: 1.0, voice: 'es_001' }
+    };
+
+    // Reset Top Bar & Header Profile Display
+    const topUserPill = document.getElementById('topUserPill');
+    const topLoginBtn = document.getElementById('topTwitchLoginBtn');
+    const heroLoginBtn = document.getElementById('heroTwitchLoginBtn');
+    const heroLoggedBox = document.getElementById('heroLoggedBox');
+    const botStatusDot = document.getElementById('botStatusDot');
+    const botStatusText = document.getElementById('botStatusText');
+    const quickConnectBtn = document.getElementById('quickConnectBtn');
+
+    if (topUserPill) topUserPill.style.display = 'none';
+    if (topLoginBtn) topLoginBtn.style.display = 'flex';
+    if (heroLoginBtn) heroLoginBtn.style.display = 'inline-flex';
+    if (heroLoggedBox) heroLoggedBox.style.display = 'none';
+    if (botStatusDot) botStatusDot.className = 'status-dot';
+    if (botStatusText) botStatusText.innerText = 'Desconectado';
+    if (quickConnectBtn) {
+      quickConnectBtn.innerText = 'Iniciar Sesión';
+      quickConnectBtn.className = 'btn btn-primary btn-sm';
+    }
+
+    const chanInput = document.getElementById('cfgTwitchChannel');
+    if (chanInput) chanInput.value = '';
+
+    showToast('🔒 Has cerrado sesión de Twitch correctamente.', 'info');
+    switchTab('tab-dashboard');
     await loadInitialData();
     populateWidgetUrls();
     initDashboardMqtt();
@@ -2328,6 +2356,14 @@ let wcAlertImages = {
   channel_points: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOW11aWRqZG56YWNka2R3N3N6M2cydDV0OW15bmw0NWJ1ZW51bnd4eiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif'
 };
 
+let wcAlertSounds = {
+  follower: '/assets/sounds/campana_alerta.wav',
+  sub: '/assets/sounds/campana_alerta.wav',
+  bits: '/assets/sounds/notificacion_puntos.wav',
+  raid: '/assets/sounds/airhorn.mp3',
+  channel_points: '/assets/sounds/notificacion_puntos.wav'
+};
+
 const WC_WIDGET_NAMES = {
   alerts: 'Alert Box',
   nowplaying: 'Now Playing',
@@ -2449,10 +2485,15 @@ function selectAlertEvent(eventKey) {
     btn.classList.toggle('active', btn.dataset.event === eventKey);
   });
 
-  // Update media header title
+  // Update media and sound header titles
   const mediaTitle = document.getElementById('wcAlertMediaTitle');
   if (mediaTitle) {
     mediaTitle.innerText = `🖼️ Imagen / GIF de Alerta (${WC_EVENT_NAMES[eventKey] || eventKey})`;
+  }
+
+  const soundTitle = document.getElementById('wcAlertSoundTitle');
+  if (soundTitle) {
+    soundTitle.innerText = `🔊 Sonido de Alerta (${WC_EVENT_NAMES[eventKey] || eventKey})`;
   }
 
   // Load current image URL into input
@@ -2462,6 +2503,24 @@ function selectAlertEvent(eventKey) {
 
   // Populate GIF Gallery grid
   renderGifGallery(eventKey);
+
+  // Load sound select
+  const currentSound = wcAlertSounds[eventKey] || '/assets/sounds/campana_alerta.wav';
+  const soundSelect = document.getElementById('wc-alert-soundSelect');
+  const customSoundRow = document.getElementById('wcAlertCustomSoundRow');
+  const customSoundInput = document.getElementById('wc-alert-soundUrl');
+
+  if (soundSelect) {
+    const isStandardOption = Array.from(soundSelect.options).some(o => o.value === currentSound);
+    if (isStandardOption) {
+      soundSelect.value = currentSound;
+      if (customSoundRow) customSoundRow.style.display = 'none';
+    } else {
+      soundSelect.value = 'custom';
+      if (customSoundRow) customSoundRow.style.display = 'block';
+      if (customSoundInput) customSoundInput.value = currentSound;
+    }
+  }
 
   // Update live preview card content
   const pvInfo = WC_EVENT_PREVIEWS[eventKey] || { badge: eventKey.toUpperCase(), title: '¡Usuario!', msg: 'ha interactuado' };
@@ -2532,9 +2591,109 @@ function handleAlertFileUpload(input) {
   }
 }
 
+// Sound Management
+function handleAlertSoundSelect(val) {
+  const customRow = document.getElementById('wcAlertCustomSoundRow');
+  if (val === 'custom') {
+    if (customRow) customRow.style.display = 'block';
+  } else {
+    if (customRow) customRow.style.display = 'none';
+    wcAlertSounds[wcActiveAlertEvent] = val;
+    playActiveAlertSound();
+  }
+}
+
+function handleAlertSoundUrlInput(url) {
+  wcAlertSounds[wcActiveAlertEvent] = url.trim();
+}
+
+function handleAlertSoundUpload(input) {
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      const dataUrl = e.target.result;
+      
+      // Try uploading to backend /api/sounds/upload
+      try {
+        const res = await fetch('/api/sounds/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: file.name, data: dataUrl })
+        });
+        const data = await res.json();
+        if (data.success && data.url) {
+          wcAlertSounds[wcActiveAlertEvent] = data.url;
+          addSoundOption(data.url, file.name);
+          showToast(`Audio "${file.name}" subido correctamente`, 'success');
+          playActiveAlertSound();
+          return;
+        }
+      } catch(err) {}
+
+      // Fallback: use dataUrl directly
+      wcAlertSounds[wcActiveAlertEvent] = dataUrl;
+      addSoundOption(dataUrl, file.name);
+      showToast(`Audio local "${file.name}" asignado`, 'success');
+      playActiveAlertSound();
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function addSoundOption(url, name) {
+  const sel = document.getElementById('wc-alert-soundSelect');
+  if (!sel) return;
+  const opt = document.createElement('option');
+  opt.value = url;
+  opt.innerText = `🎵 ${name}`;
+  sel.insertBefore(opt, sel.lastElementChild);
+  sel.value = url;
+}
+
+function playActiveAlertSound() {
+  const sound = wcAlertSounds[wcActiveAlertEvent] || '/assets/sounds/campana_alerta.wav';
+  if (sound === 'synthesizer') {
+    playSynthesizedAlertChime(wcActiveAlertEvent);
+    return;
+  }
+  try {
+    const audio = new Audio(sound);
+    audio.play().catch(() => playSynthesizedAlertChime(wcActiveAlertEvent));
+  } catch(e) {
+    playSynthesizedAlertChime(wcActiveAlertEvent);
+  }
+}
+
+function playSynthesizedAlertChime(type) {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    let freqs = [523.25, 659.25, 783.99, 1046.50];
+    if (type === 'bits') freqs = [587.33, 739.99, 880.00, 1174.66];
+    if (type === 'sub') freqs = [440.00, 554.37, 659.25, 880.00];
+    if (type === 'raid') freqs = [493.88, 659.25, 987.77, 1318.51];
+    osc.frequency.setValueAtTime(freqs[0], now);
+    osc.frequency.exponentialRampToValueAtTime(freqs[3], now + 0.35);
+    gain.gain.setValueAtTime(0.01, now);
+    gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.6);
+  } catch(e) {}
+}
+
 function previewAlertAnimation() {
   const card = document.getElementById('wcPvAlertCard');
   if (!card) return;
+
+  playActiveAlertSound();
 
   // Trigger bounce / pulse animation
   card.style.transform = 'scale(0.85)';
@@ -2846,9 +3005,10 @@ async function saveWidgetStyles() {
     finalCSS: finalCSS
   };
 
-  // If alerts widget, also attach custom images
+  // If alerts widget, also attach custom images and sounds
   if (wcCurrentWidget === 'alerts') {
     wcWidgetStyles.alerts.images = wcAlertImages;
+    wcWidgetStyles.alerts.sounds = wcAlertSounds;
   }
 
   // Save to config
@@ -2860,7 +3020,7 @@ async function saveWidgetStyles() {
     cfg.widgetStyles = wcWidgetStyles;
     localStorage.setItem('orbibot_config', JSON.stringify(cfg));
 
-    // Save to backend config
+    // Save to backend config (Syncs to Supabase)
     const res = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2871,7 +3031,7 @@ async function saveWidgetStyles() {
       appConfig = data.config;
     }
 
-    // Also update /api/alerts if alert images changed
+    // Also update /api/alerts (Syncs to Supabase under key='alerts')
     if (wcCurrentWidget === 'alerts') {
       try {
         const currentAlertsRes = await fetch('/api/alerts');
@@ -2883,6 +3043,11 @@ async function saveWidgetStyles() {
           updatedAlerts[evKey].image = wcAlertImages[evKey];
         });
 
+        Object.keys(wcAlertSounds).forEach(evKey => {
+          if (!updatedAlerts[evKey]) updatedAlerts[evKey] = {};
+          updatedAlerts[evKey].sound = wcAlertSounds[evKey];
+        });
+
         await fetch('/api/alerts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2892,7 +3057,7 @@ async function saveWidgetStyles() {
     }
 
     setAutoSaveStatus('saved');
-    showToast(`✅ Estilos de "${WC_WIDGET_NAMES[wcCurrentWidget]}" guardados correctamente`, 'success');
+    showToast(`✅ Estilos de "${WC_WIDGET_NAMES[wcCurrentWidget]}" guardados en la nube`, 'success');
   } catch (e) {
     setAutoSaveStatus('saved');
     showToast('Estilos guardados localmente', 'info');
@@ -2907,6 +3072,13 @@ function resetWidgetStyles() {
 
   if (wcCurrentWidget === 'alerts') {
     wcAlertImages = { ...WC_DEFAULT_ALERT_IMAGES };
+    wcAlertSounds = {
+      follower: '/assets/sounds/campana_alerta.wav',
+      sub: '/assets/sounds/campana_alerta.wav',
+      bits: '/assets/sounds/notificacion_puntos.wav',
+      raid: '/assets/sounds/airhorn.mp3',
+      channel_points: '/assets/sounds/notificacion_puntos.wav'
+    };
   }
 
   // Reset code editor
@@ -2923,21 +3095,30 @@ function initWidgetCustomization() {
   // Load saved widget styles from appConfig
   if (appConfig && appConfig.widgetStyles) {
     wcWidgetStyles = appConfig.widgetStyles;
-    if (wcWidgetStyles.alerts && wcWidgetStyles.alerts.images) {
-      wcAlertImages = { ...wcAlertImages, ...wcWidgetStyles.alerts.images };
+    if (wcWidgetStyles.alerts) {
+      if (wcWidgetStyles.alerts.images) {
+        wcAlertImages = { ...wcAlertImages, ...wcWidgetStyles.alerts.images };
+      }
+      if (wcWidgetStyles.alerts.sounds) {
+        wcAlertSounds = { ...wcAlertSounds, ...wcWidgetStyles.alerts.sounds };
+      }
     }
   }
 
-  // Also fetch saved alert images from /api/alerts
+  // Also fetch saved alert images and sounds from /api/alerts
   fetch('/api/alerts')
     .then(r => r.json())
     .then(data => {
       if (data && typeof data === 'object') {
         Object.keys(data).forEach(k => {
-          if (data[k] && data[k].image) {
-            wcAlertImages[k] = data[k].image;
+          if (data[k]) {
+            if (data[k].image) wcAlertImages[k] = data[k].image;
+            if (data[k].sound) wcAlertSounds[k] = data[k].sound;
           }
         });
+        if (wcCurrentWidget === 'alerts') {
+          selectAlertEvent(wcActiveAlertEvent || 'follower');
+        }
       }
     })
     .catch(() => {});
@@ -2972,4 +3153,5 @@ loadInitialData = async function() {
   await _origLoadInitialData();
   initWidgetCustomization();
 };
+
 

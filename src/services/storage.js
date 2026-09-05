@@ -94,7 +94,7 @@ const DEFAULT_ALERTS = {
     enabled: true,
     title: 'Nuevo Seguidor',
     message: '¡{user} ahora sigue el canal!',
-    sound: '/assets/sounds/follow.mp3',
+    sound: '/assets/sounds/campana_alerta.wav',
     duration: 6,
     image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif',
     textColor: '#ffffff',
@@ -104,7 +104,7 @@ const DEFAULT_ALERTS = {
     enabled: true,
     title: '¡Nueva Suscripción!',
     message: '¡{user} se ha suscrito al canal! (Nivel {tier})',
-    sound: '/assets/sounds/sub.mp3',
+    sound: '/assets/sounds/campana_alerta.wav',
     duration: 7,
     image: 'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
     textColor: '#ffffff',
@@ -114,7 +114,7 @@ const DEFAULT_ALERTS = {
     enabled: true,
     title: 'Donación de Bits',
     message: '¡{user} ha donado {amount} bits! {message}',
-    sound: '/assets/sounds/bits.mp3',
+    sound: '/assets/sounds/notificacion_puntos.wav',
     duration: 7,
     image: 'https://media.giphy.com/media/26FPJGjhefSJuaRhu/giphy.gif',
     textColor: '#ffffff',
@@ -124,7 +124,7 @@ const DEFAULT_ALERTS = {
     enabled: true,
     title: '¡Raid Entrante!',
     message: '¡{user} lidera una raid con {viewers} espectadores!',
-    sound: '/assets/sounds/raid.mp3',
+    sound: '/assets/sounds/airhorn.mp3',
     duration: 8,
     image: 'https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif',
     textColor: '#ffffff',
@@ -134,7 +134,7 @@ const DEFAULT_ALERTS = {
     enabled: true,
     title: 'Puntos de Canal',
     message: '¡{user} ha canjeado {reward}!',
-    sound: '/assets/sounds/points.mp3',
+    sound: '/assets/sounds/notificacion_puntos.wav',
     duration: 6,
     image: 'https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif',
     textColor: '#ffffff',
@@ -489,9 +489,20 @@ class StorageService {
   }
 
   saveAlerts(alerts) {
-    writeJSON('alerts.json', alerts);
-    this.syncToSupabase('alerts', alerts);
-    return alerts;
+    const current = this.getAlerts();
+    const merged = { ...current };
+    if (alerts && typeof alerts === 'object') {
+      Object.keys(alerts).forEach(k => {
+        if (alerts[k] && typeof alerts[k] === 'object') {
+          merged[k] = { ...(current[k] || {}), ...alerts[k] };
+        } else {
+          merged[k] = alerts[k];
+        }
+      });
+    }
+    writeJSON('alerts.json', merged);
+    this.syncToSupabase('alerts', merged);
+    return merged;
   }
 
   getRewards() {

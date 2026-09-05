@@ -45,6 +45,12 @@
               alertsConfig[k].image = data.alerts.images[k];
             });
           }
+          if (data.alerts.sounds) {
+            Object.keys(data.alerts.sounds).forEach(k => {
+              if (!alertsConfig[k]) alertsConfig[k] = {};
+              alertsConfig[k].sound = data.alerts.sounds[k];
+            });
+          }
           if (data.alerts.finalCSS || data.alerts.generatedCSS) {
             const style = document.createElement('style');
             style.id = 'orbibot-custom-styles';
