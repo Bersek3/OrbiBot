@@ -83,9 +83,26 @@ const broadcastChannel = typeof BroadcastChannel !== 'undefined' ? new Broadcast
 let dashboardMqttClient = null;
 let isMqttConnected = false;
 
+function isStreamerLoggedIn() {
+  const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
+  const isConn = (appConfig?.twitch?.connected || Boolean(localStorage.getItem('orbibot_twitch_auth'))) && Boolean(channel);
+  return isConn;
+}
+
 function initDashboardMqtt() {
   if (typeof Paho === 'undefined') return;
-  const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '') || 'general';
+  const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
+  const isConn = isStreamerLoggedIn();
+
+  if (!isConn || !channel) {
+    if (dashboardMqttClient) {
+      try { dashboardMqttClient.disconnect(); } catch(e) {}
+      dashboardMqttClient = null;
+    }
+    isMqttConnected = false;
+    return;
+  }
+
   const clientId = 'orbi_dash_' + Math.random().toString(36).substring(2, 9);
   try {
     if (dashboardMqttClient) {
@@ -102,7 +119,7 @@ function initDashboardMqtt() {
       keepAliveInterval: 30,
       onSuccess: () => {
         isMqttConnected = true;
-        console.log('OrbiBot Dashboard conectado a Cloud Relay MQTT (OBS Ready)');
+        console.log(`🟢 OrbiBot Dashboard conectado a Cloud Relay MQTT (#${channel})`);
       },
       onFailure: (err) => {
         isMqttConnected = false;
@@ -116,7 +133,16 @@ function initDashboardMqtt() {
 }
 
 function broadcastEvent(event, data) {
-  const payload = { event, data, timestamp: Date.now() };
+  const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
+  const isConn = isStreamerLoggedIn();
+
+  // Si no hay sesión iniciada, no enviar eventos a OBS
+  if (!isConn || !channel) {
+    console.warn('[Broadcast] Sesión cerrada o canal no configurado. Evento no transmitido.');
+    return;
+  }
+
+  const payload = { event, data, channel, timestamp: Date.now() };
 
   // 1. BroadcastChannel (para pestañas del mismo navegador)
   if (broadcastChannel) {
@@ -128,30 +154,23 @@ function broadcastEvent(event, data) {
     localStorage.setItem('orbibot_last_event', JSON.stringify(payload));
   } catch(e) {}
 
-  // 3. Cloud MQTT Relay (para fuentes de navegador OBS Studio)
+  // 3. Cloud MQTT Relay (para OBS Studio del streamer específico)
   if (dashboardMqttClient && isMqttConnected) {
     try {
-      const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '') || 'general';
       const token = getEffectiveWidgetToken();
       const msgStr = JSON.stringify(payload);
       
       // Publicar en tópico privado protegido con token secreto
-      if (channel !== 'general' && token) {
+      if (token) {
         const msgPriv = new Paho.MQTT.Message(msgStr);
         msgPriv.destinationName = `orbibot/${channel}_${token}/events`;
         dashboardMqttClient.send(msgPriv);
       }
 
-      // Publicar también en tópico estándar para compatibilidad
+      // Publicar en tópico del canal
       const msg1 = new Paho.MQTT.Message(msgStr);
       msg1.destinationName = `orbibot/${channel}/events`;
       dashboardMqttClient.send(msg1);
-
-      if (channel !== 'general') {
-        const msg2 = new Paho.MQTT.Message(msgStr);
-        msg2.destinationName = 'orbibot/general/events';
-        dashboardMqttClient.send(msg2);
-      }
     } catch(e) {
       console.warn('Error publishing to MQTT relay:', e);
     }
@@ -876,6 +895,10 @@ function escapeHtml(str) {
 }
 
 function triggerTestChat() {
+  if (!isStreamerLoggedIn()) {
+    showToast('⚠️ Debes iniciar sesión con tu cuenta de Twitch para probar el Chat en OBS.', 'warn');
+    return;
+  }
   const channel = (appConfig?.twitch?.channel || 'StreamerMaster').replace(/^#/, '');
   const sampleMessages = [
     {
@@ -1273,6 +1296,10 @@ window.toggleWidgetUrlVisibility = toggleWidgetUrlVisibility;
 
 // ================= EVENT TESTS =================
 async function triggerTestAlert(type) {
+  if (!isStreamerLoggedIn()) {
+    showToast('⚠️ Debes iniciar sesión con tu cuenta de Twitch para probar las alertas en OBS Studio.', 'warn');
+    return;
+  }
   const payload = {
     type,
     user: 'EspectadorPro',
@@ -1285,7 +1312,7 @@ async function triggerTestAlert(type) {
 
   // Immediate multi-channel broadcast (for OBS Studio & browser)
   broadcastEvent('alert', payload);
-  showToast(`¡Alerta de ${type.toUpperCase()} enviada a OBS!`, 'success');
+  showToast(`¡Alerta de ${type.toUpperCase()} enviada a OBS Studio!`, 'success');
 
   try {
     await fetch('/api/alert/test', {
@@ -1297,12 +1324,16 @@ async function triggerTestAlert(type) {
 }
 
 async function triggerTestTTS() {
+  if (!isStreamerLoggedIn()) {
+    showToast('⚠️ Debes iniciar sesión con tu cuenta de Twitch para probar TTS en OBS Studio.', 'warn');
+    return;
+  }
   const input = document.getElementById('testTtsInput');
-  const text = input.value.trim() || '¡Hola streamer! Este es un mensaje de prueba con Text to Speech en OBS.';
-  const voice = document.getElementById('cfgTtsVoice').value;
-  const volume = Number(document.getElementById('cfgTtsVolume').value) / 100;
-  const rate = Number(document.getElementById('cfgTtsRate').value);
-  const pitch = Number(document.getElementById('cfgTtsPitch').value);
+  const text = (input ? input.value.trim() : '') || '¡Hola streamer! Este es un mensaje de prueba con Text to Speech en OBS.';
+  const voice = document.getElementById('cfgTtsVoice')?.value || 'es_001';
+  const volume = Number(document.getElementById('cfgTtsVolume')?.value || 90) / 100;
+  const rate = Number(document.getElementById('cfgTtsRate')?.value || 1.0);
+  const pitch = Number(document.getElementById('cfgTtsPitch')?.value || 1.0);
 
   const ttsData = {
     user: 'StreamerTest',

@@ -346,7 +346,11 @@
         if (typeof Paho === 'undefined') return;
         if (mqttReconnectTimeout) clearTimeout(mqttReconnectTimeout);
 
-        const relayChannel = channel || 'general';
+        if (!channel) {
+          showStatusBadge('⚠️ Sin canal en OBS. Copia la URL con ?channel=TU_CANAL desde el panel', 8000);
+          return;
+        }
+
         const clientId = 'orbi_obs_' + Math.random().toString(36).substring(2, 9);
         try {
           mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
@@ -365,11 +369,11 @@
             timeout: 6,
             keepAliveInterval: 30,
             onSuccess: () => {
-              if (token && relayChannel !== 'general') {
-                mqttClient.subscribe(`orbibot/${relayChannel}_${token}/events`);
+              if (token) {
+                mqttClient.subscribe(`orbibot/${channel}_${token}/events`);
               }
-              mqttClient.subscribe(`orbibot/${relayChannel}/events`);
-              showStatusBadge(`🟢 OrbiBot Listo en OBS (#${relayChannel})`, 4000);
+              mqttClient.subscribe(`orbibot/${channel}/events`);
+              showStatusBadge(`🟢 OrbiBot Listo en OBS (#${channel})`, 4000);
             },
             onFailure: (e) => {
               console.warn('MQTT connect failed, retrying in 4s...', e);

@@ -353,7 +353,7 @@
         if (typeof Paho !== 'undefined') {
           if (mqttReconnectTimeout) clearTimeout(mqttReconnectTimeout);
 
-          const relayChannel = channel || 'general';
+          if (!channel) return;
           const clientId = 'orbi_audio_' + Math.random().toString(36).substring(2, 9);
           try {
             mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
@@ -372,10 +372,10 @@
               timeout: 6,
               keepAliveInterval: 30,
               onSuccess: () => {
-                if (token && relayChannel !== 'general') {
-                  mqttClient.subscribe(`orbibot/${relayChannel}_${token}/events`);
+                if (token) {
+                  mqttClient.subscribe(`orbibot/${channel}_${token}/events`);
                 }
-                mqttClient.subscribe(`orbibot/${relayChannel}/events`);
+                mqttClient.subscribe(`orbibot/${channel}/events`);
                 statusDot.style.background = 'var(--neon-green)';
                 statusText.innerText = 'Audio Player Conectado';
               },
