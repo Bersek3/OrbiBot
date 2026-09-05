@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupNavigation();
   setupRangeInputs();
   setupEventListeners();
+  setupAutoSaveListeners();
   populateWidgetUrls();
   await loadInitialData();
   populateWidgetUrls();
@@ -1695,37 +1696,130 @@ async function testReward(rewardId) {
   }
 }
 
+// ================= AUTO-SAVE SYSTEM =================
+let autoSaveTimer = null;
+let toastAutoSaveDebounce = null;
+
+function setAutoSaveStatus(status) {
+  const dot = document.getElementById('autoSaveDot');
+  const text = document.getElementById('autoSaveText');
+  const indicator = document.getElementById('autoSaveIndicator');
+  if (!dot || !text) return;
+
+  if (status === 'saving') {
+    dot.style.background = '#f59e0b';
+    dot.style.boxShadow = '0 0 10px rgba(245, 158, 11, 0.8)';
+    text.innerText = 'Guardando...';
+    if (indicator) indicator.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+  } else if (status === 'saved') {
+    dot.style.background = '#10b981';
+    dot.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.8)';
+    text.innerText = 'Cambios guardados';
+    if (indicator) indicator.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+
+    setTimeout(() => {
+      if (text && text.innerText === 'Cambios guardados') {
+        text.innerText = 'Autoguardado activo';
+        if (indicator) indicator.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+      }
+    }, 2500);
+  } else if (status === 'error') {
+    dot.style.background = '#ef4444';
+    dot.style.boxShadow = '0 0 10px rgba(239, 68, 68, 0.8)';
+    text.innerText = 'Error al guardar';
+    if (indicator) indicator.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+  }
+}
+
+function triggerAutoSave(delay = 500, notify = true) {
+  setAutoSaveStatus('saving');
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(async () => {
+    await saveAllConfig(notify);
+  }, delay);
+}
+
+function setupAutoSaveListeners() {
+  const configInputIds = [
+    'cfgTwitchChannel', 'cfgTwitchBotUser', 'cfgTwitchToken', 'cfgTwitchClientId',
+    'cfgSrPrefix', 'cfgSrUserLevel', 'cfgSrMaxDuration', 'cfgSrMaxPerUser', 'cfgSrEnabled',
+    'cfgTtsEnabled', 'cfgTtsVoice', 'cfgTtsVolume', 'cfgTtsRate', 'cfgTtsPitch',
+    'cfgTtsMaxLength', 'cfgTtsBannedWords', 'cfgTtsAllowCommand', 'cfgTtsCommand', 'cfgTtsMinBits'
+  ];
+
+  configInputIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.type === 'checkbox') {
+      el.addEventListener('change', () => triggerAutoSave(100, true));
+    } else if (el.tagName === 'SELECT') {
+      el.addEventListener('change', () => triggerAutoSave(100, true));
+    } else if (el.type === 'range') {
+      el.addEventListener('input', () => triggerAutoSave(400, true));
+      el.addEventListener('change', () => triggerAutoSave(100, true));
+    } else {
+      el.addEventListener('input', () => triggerAutoSave(600, true));
+      el.addEventListener('change', () => triggerAutoSave(100, true));
+    }
+  });
+
+  // Metas (Goals: Subs, Follows, Bits) auto-save on input and change
+  const goalConfigs = [
+    { type: 'subs', ids: ['cfgGoalSubTitle', 'cfgGoalSubCurrent', 'cfgGoalSubTarget'] },
+    { type: 'followers', ids: ['cfgGoalFollowTitle', 'cfgGoalFollowCurrent', 'cfgGoalFollowTarget'] },
+    { type: 'bits', ids: ['cfgGoalBitsTitle', 'cfgGoalBitsCurrent', 'cfgGoalBitsTarget'] }
+  ];
+
+  goalConfigs.forEach(g => {
+    let goalTimer = null;
+    g.ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const onGoalChange = (delay) => {
+        setAutoSaveStatus('saving');
+        if (goalTimer) clearTimeout(goalTimer);
+        goalTimer = setTimeout(() => {
+          saveGoalValues(g.type);
+          setAutoSaveStatus('saved');
+        }, delay);
+      };
+      el.addEventListener('input', () => onGoalChange(600));
+      el.addEventListener('change', () => onGoalChange(100));
+    });
+  });
+}
+
 // ================= SAVE CONFIG =================
-async function saveAllConfig() {
-  const bannedWords = document.getElementById('cfgTtsBannedWords').value
+async function saveAllConfig(showNotification = true) {
+  const bannedWords = (document.getElementById('cfgTtsBannedWords')?.value || '')
     .split(',')
     .map(w => w.trim())
     .filter(Boolean);
 
   const payload = {
     twitch: {
-      channel: document.getElementById('cfgTwitchChannel').value.trim(),
-      botUsername: document.getElementById('cfgTwitchBotUser').value.trim(),
-      oauthToken: document.getElementById('cfgTwitchToken').value.trim()
+      channel: document.getElementById('cfgTwitchChannel')?.value.trim() || '',
+      botUsername: document.getElementById('cfgTwitchBotUser')?.value.trim() || '',
+      oauthToken: document.getElementById('cfgTwitchToken')?.value.trim() || ''
     },
     songRequest: {
-      prefix: document.getElementById('cfgSrPrefix').value.trim() || '!sr',
-      userLevel: document.getElementById('cfgSrUserLevel').value,
-      maxDurationMinutes: Number(document.getElementById('cfgSrMaxDuration').value) || 8,
-      maxPerUser: Number(document.getElementById('cfgSrMaxPerUser').value) || 5,
-      enabled: document.getElementById('cfgSrEnabled').checked
+      prefix: document.getElementById('cfgSrPrefix')?.value.trim() || '!sr',
+      userLevel: document.getElementById('cfgSrUserLevel')?.value || 'all',
+      maxDurationMinutes: Number(document.getElementById('cfgSrMaxDuration')?.value) || 8,
+      maxPerUser: Number(document.getElementById('cfgSrMaxPerUser')?.value) || 5,
+      enabled: Boolean(document.getElementById('cfgSrEnabled')?.checked)
     },
     tts: {
-      enabled: document.getElementById('cfgTtsEnabled').checked,
-      voice: document.getElementById('cfgTtsVoice').value,
-      volume: Number(document.getElementById('cfgTtsVolume').value),
-      rate: Number(document.getElementById('cfgTtsRate').value),
-      pitch: Number(document.getElementById('cfgTtsPitch').value),
-      maxLength: Number(document.getElementById('cfgTtsMaxLength').value),
+      enabled: Boolean(document.getElementById('cfgTtsEnabled')?.checked),
+      voice: document.getElementById('cfgTtsVoice')?.value || 'es-ES-Standard-A',
+      volume: Number(document.getElementById('cfgTtsVolume')?.value ?? 80),
+      rate: Number(document.getElementById('cfgTtsRate')?.value ?? 1),
+      pitch: Number(document.getElementById('cfgTtsPitch')?.value ?? 0),
+      maxLength: Number(document.getElementById('cfgTtsMaxLength')?.value ?? 250),
       bannedWords,
-      allowChatCommand: document.getElementById('cfgTtsAllowCommand').checked,
-      chatCommand: document.getElementById('cfgTtsCommand').value.trim() || '!tts',
-      minBits: Number(document.getElementById('cfgTtsMinBits').value) || 50
+      allowChatCommand: Boolean(document.getElementById('cfgTtsAllowCommand')?.checked),
+      chatCommand: document.getElementById('cfgTtsCommand')?.value.trim() || '!tts',
+      minBits: Number(document.getElementById('cfgTtsMinBits')?.value ?? 50)
     }
   };
 
@@ -1754,27 +1848,46 @@ async function saveAllConfig() {
     const data = await res.json();
     if (data.success) {
       appConfig = data.config;
-      document.getElementById('statChannelName').innerText = payload.twitch.channel ? `#${payload.twitch.channel}` : 'Ninguno';
-      showToast('Configuración guardada correctamente.', 'success');
+      const statChan = document.getElementById('statChannelName');
+      if (statChan) statChan.innerText = payload.twitch.channel ? `#${payload.twitch.channel}` : 'Ninguno';
+      setAutoSaveStatus('saved');
+      if (showNotification) {
+        if (toastAutoSaveDebounce) clearTimeout(toastAutoSaveDebounce);
+        toastAutoSaveDebounce = setTimeout(() => {
+          showToast('✅ Cambios guardados automáticamente', 'success');
+        }, 300);
+      }
     }
   } catch (e) {
-    showToast('Configuración guardada localmente.', 'info');
+    setAutoSaveStatus('saved');
+    if (showNotification) {
+      if (toastAutoSaveDebounce) clearTimeout(toastAutoSaveDebounce);
+      toastAutoSaveDebounce = setTimeout(() => {
+        showToast('Configuración guardada localmente.', 'info');
+      }, 300);
+    }
   }
 }
 
 // ================= EVENT LISTENERS SETUP =================
 function setupEventListeners() {
-  // Save global button
-  document.getElementById('saveGlobalBtn').addEventListener('click', saveAllConfig);
+  // Save global button (si existe)
+  const saveBtn = document.getElementById('saveGlobalBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => saveAllConfig(true));
+  }
 
-  // Quick alert test button
-  document.getElementById('testAlertQuickBtn').addEventListener('click', () => {
-    triggerTestAlert('follower');
-  });
+  // Quick alert test button (si existe)
+  const quickAlertBtn = document.getElementById('testAlertQuickBtn');
+  if (quickAlertBtn) {
+    quickAlertBtn.addEventListener('click', () => {
+      triggerTestAlert('follower');
+    });
+  }
 
   // Connect / Disconnect Twitch
   document.getElementById('btnConnectTwitch').addEventListener('click', async () => {
-    await saveAllConfig();
+    await saveAllConfig(false);
     showToast('Iniciando conexión con Twitch...', 'info');
     try {
       const res = await fetch('/api/bot/connect', { method: 'POST' });
