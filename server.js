@@ -433,6 +433,17 @@ app.post('/api/alert/test', (req, res) => {
   res.json({ success: true, alert: alertData });
 });
 
+// Alerts API
+app.get('/api/alerts', (req, res) => {
+  res.json(storage.getAlerts());
+});
+
+app.post('/api/alerts', (req, res) => {
+  const alerts = storage.saveAlerts(req.body);
+  broadcast('alerts_updated', alerts);
+  res.json({ success: true, alerts });
+});
+
 // Widget Styles API (used by OBS overlays to load custom styles)
 app.get('/api/widget-styles', (req, res) => {
   const config = storage.getConfig();

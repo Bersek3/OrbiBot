@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Twitch StreamBot & Overlay Toolkit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bangers&family=Bebas+Neue&family=Chakra+Petch:wght@400;700&family=Cinzel:wght@700&family=Creepster&family=Fredoka:wght@500;700&family=Inter:wght@400;700&family=Luckiest+Guy&family=Montserrat:wght@500;700;900&family=Orbitron:wght@600;900&family=Outfit:wght@400;600;800&family=Permanent+Marker&family=Poppins:wght@400;600;800&family=Press+Start+2P&family=Righteous&family=Roboto:wght@400;700&family=Rubik:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./css/dashboard.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239146FF'><path d='M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z'/></svg>">
   <script>
@@ -1099,6 +1102,75 @@
 
               <!-- Alert Box Visual Controls -->
               <div class="wc-controls-group" id="wcControls-alerts">
+                <!-- Event selector pills -->
+                <div style="margin-bottom: 14px;">
+                  <label class="form-label" style="margin-bottom: 6px; display:block; font-size:12px; color:var(--text-secondary);">Seleccionar Evento a Personalizar:</label>
+                  <div class="wc-event-pills" id="wcAlertEventPills">
+                    <button type="button" class="wc-event-pill active" data-event="follower" onclick="selectAlertEvent('follower')">👤 Seguidor</button>
+                    <button type="button" class="wc-event-pill" data-event="sub" onclick="selectAlertEvent('sub')">⭐ Suscripción</button>
+                    <button type="button" class="wc-event-pill" data-event="bits" onclick="selectAlertEvent('bits')">💎 Bits</button>
+                    <button type="button" class="wc-event-pill" data-event="raid" onclick="selectAlertEvent('raid')">🚀 Raid</button>
+                    <button type="button" class="wc-event-pill" data-event="channel_points" onclick="selectAlertEvent('channel_points')">🎁 Puntos</button>
+                  </div>
+                </div>
+
+                <!-- Media / GIF Picker for active alert event -->
+                <div style="background: rgba(0,0,0,0.35); border: 1px solid rgba(145, 70, 255, 0.25); border-radius: var(--radius-md); padding: 14px; margin-bottom: 14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="font-size: 13px; font-weight: 700; color: #00f2fe;" id="wcAlertMediaTitle">🖼️ Imagen / GIF de Alerta (Seguidor)</span>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleGifGallery()" style="padding: 3px 10px; font-size: 11px;">
+                      ✨ Galería de GIFs
+                    </button>
+                  </div>
+
+                  <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+                    <input type="text" class="form-control" id="wc-alert-imageUrl" placeholder="Pega la URL de tu imagen o GIF..." style="font-size: 12px; flex:1;" oninput="handleAlertUrlInput(this.value)">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('wcAlertFileInput').click()" title="Subir imagen desde tu PC">
+                      📁 Subir
+                    </button>
+                    <input type="file" id="wcAlertFileInput" accept="image/*" style="display: none;" onchange="handleAlertFileUpload(this)">
+                  </div>
+
+                  <!-- GIF Gallery Drawer (Collapsible) -->
+                  <div id="wcGifGalleryDrawer" style="display: none; margin-bottom: 12px;">
+                    <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Haz clic en cualquier GIF para seleccionarlo:</div>
+                    <div class="wc-gif-gallery" id="wcGifGalleryGrid"></div>
+                  </div>
+
+                  <div class="wc-control-row" style="background: transparent; padding: 0; border: none;">
+                    <label class="form-label" style="font-size: 12px;">Tamaño de Imagen (Alto)</label>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <input type="range" class="range-input" id="wc-alerts-imageSize" min="50" max="250" value="120" data-prop="imageSize">
+                      <span class="range-value" id="wc-alerts-imageSize-val">120px</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Font Family Selector -->
+                <div class="wc-control-row">
+                  <label class="form-label">🔤 Tipo de Letra (Fuente)</label>
+                  <select class="wc-font-select" id="wc-alerts-fontFamily" data-prop="fontFamily">
+                    <option value="'Outfit', sans-serif" style="font-family:'Outfit'">Outfit (Moderno & Tech)</option>
+                    <option value="'Poppins', sans-serif" style="font-family:'Poppins'">Poppins (Limpio & Geométrico)</option>
+                    <option value="'Montserrat', sans-serif" style="font-family:'Montserrat'">Montserrat (Elegante & Negrita)</option>
+                    <option value="'Bebas Neue', cursive" style="font-family:'Bebas Neue'">Bebas Neue (Streamer & Títulos)</option>
+                    <option value="'Bangers', cursive" style="font-family:'Bangers'">Bangers (Cómic & Hype)</option>
+                    <option value="'Press Start 2P', monospace" style="font-family:'Press Start 2P'">Press Start 2P (Retro 8-Bit)</option>
+                    <option value="'Fredoka', sans-serif" style="font-family:'Fredoka'">Fredoka (Divertido & Redondo)</option>
+                    <option value="'Luckiest Guy', cursive" style="font-family:'Luckiest Guy'">Luckiest Guy (Caricatura)</option>
+                    <option value="'Orbitron', sans-serif" style="font-family:'Orbitron'">Orbitron (Cyberpunk & Sci-Fi)</option>
+                    <option value="'Chakra Petch', sans-serif" style="font-family:'Chakra Petch'">Chakra Petch (Gaming Esports)</option>
+                    <option value="'Permanent Marker', cursive" style="font-family:'Permanent Marker'">Permanent Marker (Graffiti)</option>
+                    <option value="'Righteous', cursive" style="font-family:'Righteous'">Righteous (Neón Synthwave)</option>
+                    <option value="'Cinzel', serif" style="font-family:'Cinzel'">Cinzel (Épico RPG Fantasía)</option>
+                    <option value="'Creepster', cursive" style="font-family:'Creepster'">Creepster (Terror / Spooky)</option>
+                    <option value="'Anton', sans-serif" style="font-family:'Anton'">Anton (Ultra Bold Impact)</option>
+                    <option value="'Rubik', sans-serif" style="font-family:'Rubik'">Rubik (Moderno Suave)</option>
+                    <option value="'Inter', sans-serif" style="font-family:'Inter'">Inter (Minimalista)</option>
+                    <option value="'Roboto', sans-serif" style="font-family:'Roboto'">Roboto (Clásico)</option>
+                  </select>
+                </div>
+
                 <div class="wc-control-row">
                   <label class="form-label">Color de Fondo</label>
                   <input type="color" class="wc-color-input" id="wc-alerts-bgColor" value="#0b0e14" data-prop="bgColor">
@@ -1115,7 +1187,11 @@
                   <input type="color" class="wc-color-input" id="wc-alerts-titleColor" value="#ffffff" data-prop="titleColor">
                 </div>
                 <div class="wc-control-row">
-                  <label class="form-label">Color de Acento</label>
+                  <label class="form-label">Color del Mensaje</label>
+                  <input type="color" class="wc-color-input" id="wc-alerts-messageColor" value="#cbd5e1" data-prop="messageColor">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Color de Acento y Borde</label>
                   <input type="color" class="wc-color-input" id="wc-alerts-accentColor" value="#9146ff" data-prop="accentColor">
                 </div>
                 <div class="wc-control-row">
@@ -1143,6 +1219,29 @@
 
               <!-- Now Playing Visual Controls -->
               <div class="wc-controls-group" id="wcControls-nowplaying" style="display:none;">
+                <div class="wc-control-row">
+                  <label class="form-label">🔤 Tipo de Letra (Fuente)</label>
+                  <select class="wc-font-select" id="wc-nowplaying-fontFamily" data-prop="fontFamily">
+                    <option value="'Outfit', sans-serif" style="font-family:'Outfit'">Outfit (Moderno & Tech)</option>
+                    <option value="'Poppins', sans-serif" style="font-family:'Poppins'">Poppins (Limpio & Geométrico)</option>
+                    <option value="'Montserrat', sans-serif" style="font-family:'Montserrat'">Montserrat (Elegante & Negrita)</option>
+                    <option value="'Bebas Neue', cursive" style="font-family:'Bebas Neue'">Bebas Neue (Streamer & Títulos)</option>
+                    <option value="'Bangers', cursive" style="font-family:'Bangers'">Bangers (Cómic & Hype)</option>
+                    <option value="'Press Start 2P', monospace" style="font-family:'Press Start 2P'">Press Start 2P (Retro 8-Bit)</option>
+                    <option value="'Fredoka', sans-serif" style="font-family:'Fredoka'">Fredoka (Divertido & Redondo)</option>
+                    <option value="'Luckiest Guy', cursive" style="font-family:'Luckiest Guy'">Luckiest Guy (Caricatura)</option>
+                    <option value="'Orbitron', sans-serif" style="font-family:'Orbitron'">Orbitron (Cyberpunk & Sci-Fi)</option>
+                    <option value="'Chakra Petch', sans-serif" style="font-family:'Chakra Petch'">Chakra Petch (Gaming Esports)</option>
+                    <option value="'Permanent Marker', cursive" style="font-family:'Permanent Marker'">Permanent Marker (Graffiti)</option>
+                    <option value="'Righteous', cursive" style="font-family:'Righteous'">Righteous (Neón Synthwave)</option>
+                    <option value="'Cinzel', serif" style="font-family:'Cinzel'">Cinzel (Épico RPG Fantasía)</option>
+                    <option value="'Creepster', cursive" style="font-family:'Creepster'">Creepster (Terror / Spooky)</option>
+                    <option value="'Anton', sans-serif" style="font-family:'Anton'">Anton (Ultra Bold Impact)</option>
+                    <option value="'Rubik', sans-serif" style="font-family:'Rubik'">Rubik (Moderno Suave)</option>
+                    <option value="'Inter', sans-serif" style="font-family:'Inter'">Inter (Minimalista)</option>
+                    <option value="'Roboto', sans-serif" style="font-family:'Roboto'">Roboto (Clásico)</option>
+                  </select>
+                </div>
                 <div class="wc-control-row">
                   <label class="form-label">Color de Fondo</label>
                   <input type="color" class="wc-color-input" id="wc-nowplaying-bgColor" value="#0f121a" data-prop="bgColor">
@@ -1188,6 +1287,29 @@
               <!-- Goal Bar Visual Controls -->
               <div class="wc-controls-group" id="wcControls-goals" style="display:none;">
                 <div class="wc-control-row">
+                  <label class="form-label">🔤 Tipo de Letra (Fuente)</label>
+                  <select class="wc-font-select" id="wc-goals-fontFamily" data-prop="fontFamily">
+                    <option value="'Outfit', sans-serif" style="font-family:'Outfit'">Outfit (Moderno & Tech)</option>
+                    <option value="'Poppins', sans-serif" style="font-family:'Poppins'">Poppins (Limpio & Geométrico)</option>
+                    <option value="'Montserrat', sans-serif" style="font-family:'Montserrat'">Montserrat (Elegante & Negrita)</option>
+                    <option value="'Bebas Neue', cursive" style="font-family:'Bebas Neue'">Bebas Neue (Streamer & Títulos)</option>
+                    <option value="'Bangers', cursive" style="font-family:'Bangers'">Bangers (Cómic & Hype)</option>
+                    <option value="'Press Start 2P', monospace" style="font-family:'Press Start 2P'">Press Start 2P (Retro 8-Bit)</option>
+                    <option value="'Fredoka', sans-serif" style="font-family:'Fredoka'">Fredoka (Divertido & Redondo)</option>
+                    <option value="'Luckiest Guy', cursive" style="font-family:'Luckiest Guy'">Luckiest Guy (Caricatura)</option>
+                    <option value="'Orbitron', sans-serif" style="font-family:'Orbitron'">Orbitron (Cyberpunk & Sci-Fi)</option>
+                    <option value="'Chakra Petch', sans-serif" style="font-family:'Chakra Petch'">Chakra Petch (Gaming Esports)</option>
+                    <option value="'Permanent Marker', cursive" style="font-family:'Permanent Marker'">Permanent Marker (Graffiti)</option>
+                    <option value="'Righteous', cursive" style="font-family:'Righteous'">Righteous (Neón Synthwave)</option>
+                    <option value="'Cinzel', serif" style="font-family:'Cinzel'">Cinzel (Épico RPG Fantasía)</option>
+                    <option value="'Creepster', cursive" style="font-family:'Creepster'">Creepster (Terror / Spooky)</option>
+                    <option value="'Anton', sans-serif" style="font-family:'Anton'">Anton (Ultra Bold Impact)</option>
+                    <option value="'Rubik', sans-serif" style="font-family:'Rubik'">Rubik (Moderno Suave)</option>
+                    <option value="'Inter', sans-serif" style="font-family:'Inter'">Inter (Minimalista)</option>
+                    <option value="'Roboto', sans-serif" style="font-family:'Roboto'">Roboto (Clásico)</option>
+                  </select>
+                </div>
+                <div class="wc-control-row">
                   <label class="form-label">Color de la Barra</label>
                   <input type="color" class="wc-color-input" id="wc-goals-barColor" value="#9146ff" data-prop="barColor">
                 </div>
@@ -1231,6 +1353,29 @@
 
               <!-- Chat Overlay Visual Controls -->
               <div class="wc-controls-group" id="wcControls-chat" style="display:none;">
+                <div class="wc-control-row">
+                  <label class="form-label">🔤 Tipo de Letra (Fuente)</label>
+                  <select class="wc-font-select" id="wc-chat-fontFamily" data-prop="fontFamily">
+                    <option value="'Outfit', sans-serif" style="font-family:'Outfit'">Outfit (Moderno & Tech)</option>
+                    <option value="'Poppins', sans-serif" style="font-family:'Poppins'">Poppins (Limpio & Geométrico)</option>
+                    <option value="'Montserrat', sans-serif" style="font-family:'Montserrat'">Montserrat (Elegante & Negrita)</option>
+                    <option value="'Bebas Neue', cursive" style="font-family:'Bebas Neue'">Bebas Neue (Streamer & Títulos)</option>
+                    <option value="'Bangers', cursive" style="font-family:'Bangers'">Bangers (Cómic & Hype)</option>
+                    <option value="'Press Start 2P', monospace" style="font-family:'Press Start 2P'">Press Start 2P (Retro 8-Bit)</option>
+                    <option value="'Fredoka', sans-serif" style="font-family:'Fredoka'">Fredoka (Divertido & Redondo)</option>
+                    <option value="'Luckiest Guy', cursive" style="font-family:'Luckiest Guy'">Luckiest Guy (Caricatura)</option>
+                    <option value="'Orbitron', sans-serif" style="font-family:'Orbitron'">Orbitron (Cyberpunk & Sci-Fi)</option>
+                    <option value="'Chakra Petch', sans-serif" style="font-family:'Chakra Petch'">Chakra Petch (Gaming Esports)</option>
+                    <option value="'Permanent Marker', cursive" style="font-family:'Permanent Marker'">Permanent Marker (Graffiti)</option>
+                    <option value="'Righteous', cursive" style="font-family:'Righteous'">Righteous (Neón Synthwave)</option>
+                    <option value="'Cinzel', serif" style="font-family:'Cinzel'">Cinzel (Épico RPG Fantasía)</option>
+                    <option value="'Creepster', cursive" style="font-family:'Creepster'">Creepster (Terror / Spooky)</option>
+                    <option value="'Anton', sans-serif" style="font-family:'Anton'">Anton (Ultra Bold Impact)</option>
+                    <option value="'Rubik', sans-serif" style="font-family:'Rubik'">Rubik (Moderno Suave)</option>
+                    <option value="'Inter', sans-serif" style="font-family:'Inter'">Inter (Minimalista)</option>
+                    <option value="'Roboto', sans-serif" style="font-family:'Roboto'">Roboto (Clásico)</option>
+                  </select>
+                </div>
                 <div class="wc-control-row">
                   <label class="form-label">Color de Fondo de Burbuja</label>
                   <input type="color" class="wc-color-input" id="wc-chat-bubbleBg" value="#0f141e" data-prop="bubbleBg">
@@ -1333,12 +1478,16 @@ console.log('Widget personalizado cargado');"></textarea>
             </div>
             <div id="wcPreviewContainer" class="wc-preview-container">
               <!-- Alert Box Preview -->
-              <div class="wc-preview-widget" id="wcPreview-alerts">
+              <div class="wc-preview-widget" id="wcPreview-alerts" style="flex-direction: column;">
                 <div class="wc-pv-alert-card" id="wcPvAlertCard">
-                  <div class="wc-pv-alert-badge">NUEVO SEGUIDOR</div>
-                  <div style="font-size:48px; margin: 10px 0;">🎉</div>
+                  <div class="wc-pv-alert-badge" id="wcPvAlertBadge">NUEVO SEGUIDOR</div>
+                  <img id="wcPvAlertImg" class="wc-pv-alert-media" src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif" alt="Alert GIF">
                   <div class="wc-pv-alert-title" id="wcPvAlertTitle">¡StreamerFan123!</div>
                   <div class="wc-pv-alert-message" id="wcPvAlertMsg">ahora sigue el canal</div>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 16px; width: 100%; max-width: 380px;">
+                  <button type="button" class="btn btn-secondary btn-sm" style="flex:1" onclick="previewAlertAnimation()">▶ Probar Animación</button>
+                  <button type="button" class="btn btn-accent btn-sm" style="flex:1" onclick="triggerActiveAlertTest()">🔔 Probar en OBS</button>
                 </div>
               </div>
 

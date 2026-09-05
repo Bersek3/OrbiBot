@@ -2318,7 +2318,15 @@ function setupEventListeners() {
 // ================= WIDGET CUSTOMIZATION SYSTEM =================
 let wcCurrentWidget = 'alerts';
 let wcCurrentMode = 'visual';
+let wcActiveAlertEvent = 'follower';
 let wcWidgetStyles = {};
+let wcAlertImages = {
+  follower: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif',
+  sub: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHF4bWpna2JpcXpiZWhqZXE1aXF3MHp4eGpoMXE1bmRhNDVvNXppZSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/IwAZ6dvvvaNN6/giphy.gif',
+  bits: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJ3eG5obHRwZjcxNHNlNW56dzd2dXB1NmJhcWlnM3c5enIydTFoYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LdOyjZ7io5MFUvcKs2/giphy.gif',
+  raid: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2Z0dTh1Z3E0cW51ZnRtdnExNmRwbTN4eWxnd2ZtN213MWg5bmk0eCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/blSTtZehjAZ8I/giphy.gif',
+  channel_points: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOW11aWRqZG56YWNka2R3N3N6M2cydDV0OW15bmw0NWJ1ZW51bnd4eiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif'
+};
 
 const WC_WIDGET_NAMES = {
   alerts: 'Alert Box',
@@ -2327,11 +2335,58 @@ const WC_WIDGET_NAMES = {
   chat: 'Chat Overlay'
 };
 
+const WC_EVENT_NAMES = {
+  follower: 'Seguidor',
+  sub: 'Suscripción',
+  bits: 'Donación de Bits',
+  raid: 'Raid Entrante',
+  channel_points: 'Puntos de Canal'
+};
+
+const WC_EVENT_PREVIEWS = {
+  follower: { badge: 'NUEVO SEGUIDOR', title: '¡StreamerFan123!', msg: 'ahora sigue el canal' },
+  sub: { badge: '¡NUEVA SUSCRIPCIÓN!', title: '¡SubVIP_Gamer!', msg: 'se suscribió al canal (Nivel 1)' },
+  bits: { badge: 'DONACIÓN DE BITS', title: '¡GamerPro99!', msg: 'envió 500 Bits "¡Gran stream!"' },
+  raid: { badge: 'RAID ENTRANTE', title: '¡CapitánRaid!', msg: 'llegó con 45 espectadores' },
+  channel_points: { badge: 'PUNTOS DE CANAL', title: '¡ViewerActivo!', msg: 'canjeó "Mensaje Destacado"' }
+};
+
 const WC_DEFAULT_VALUES = {
-  alerts: { bgColor:'#0b0e14', bgOpacity:88, titleColor:'#ffffff', accentColor:'#9146ff', titleSize:32, messageSize:20, borderRadius:24, customCSS:'', customJS:'' },
-  nowplaying: { bgColor:'#0f121a', bgOpacity:90, titleColor:'#ffffff', requesterColor:'#9146ff', titleSize:16, borderRadius:18, thumbSize:64, customCSS:'', customJS:'' },
-  goals: { barColor:'#9146ff', barColor2:'#00f2fe', bgColor:'#0e121c', bgOpacity:92, barHeight:18, fontSize:15, borderRadius:18, customCSS:'', customJS:'' },
-  chat: { bubbleBg:'#0f141e', bgOpacity:85, usernameColor:'#9146ff', textColor:'#f1f5f9', fontSize:14, borderRadius:14, borderLeftWidth:4, borderLeftColor:'#9146ff', customCSS:'', customJS:'' }
+  alerts: { fontFamily: "'Outfit', sans-serif", bgColor:'#0b0e14', bgOpacity:88, titleColor:'#ffffff', messageColor:'#cbd5e1', accentColor:'#9146ff', titleSize:32, messageSize:20, borderRadius:24, imageSize:120, customCSS:'', customJS:'' },
+  nowplaying: { fontFamily: "'Outfit', sans-serif", bgColor:'#0f121a', bgOpacity:90, titleColor:'#ffffff', requesterColor:'#9146ff', titleSize:16, borderRadius:18, thumbSize:64, customCSS:'', customJS:'' },
+  goals: { fontFamily: "'Outfit', sans-serif", barColor:'#9146ff', barColor2:'#00f2fe', bgColor:'#0e121c', bgOpacity:92, barHeight:18, fontSize:15, borderRadius:18, customCSS:'', customJS:'' },
+  chat: { fontFamily: "'Outfit', sans-serif", bubbleBg:'#0f141e', bgOpacity:85, usernameColor:'#9146ff', textColor:'#f1f5f9', fontSize:14, borderRadius:14, borderLeftWidth:4, borderLeftColor:'#9146ff', customCSS:'', customJS:'' }
+};
+
+const WC_PRESET_GIFS = {
+  follower: [
+    { name: "Pikachu Saludo", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif" },
+    { name: "Gatito Feliz", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMjRqa2p6N2Z2c2R0b2s5OXF1bXk4bHhqa3p2Z3BhMGYwb283ZDNyOCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/MDJ9IbxxvDUQM/giphy.gif" },
+    { name: "Kirby Baile", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2RtcW9hNnl6OXh0eGg5Z3pxMXdpdW9vODFwcm5tM3g1Y3l4OXVsayZlcD12MV9naWZzX3NlYXJjaCZjdD1n/5gUnOrltPvZzW/giphy.gif" },
+    { name: "Sonic Bienvenida", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmN0d2psNWtwZmRzMGJrdmszM2R2MXd2YWRnOTlvOWV5eHlzMndkayZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif" }
+  ],
+  sub: [
+    { name: "Fiesta Confetti", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHF4bWpna2JpcXpiZWhqZXE1aXF3MHp4eGpoMXE1bmRhNDVvNXppZSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/IwAZ6dvvvaNN6/giphy.gif" },
+    { name: "Minion Festejo", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExaGtpNjA5bTZodjVjdzV6c25lZmt1bGVpNWtseHNld2Qxd2c1NmF1NSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/3o7TKSjRrfIPjeiVyM/giphy.gif" },
+    { name: "Daft Punk Dance", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNWw4djNudDhtYmpxZ2c1M3dzbmJmbmd3eHlzb21mNzhsaXpvczJjOCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l3vRlT2k2L35Cnn5C/giphy.gif" },
+    { name: "Goku Super Saiyan", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmJpcnd4OGM4NXBxaHZqMnZ0aHlxbW50NHl3aXp6Y2NsdG56eTZzMyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/97HXn1oGkn37G/giphy.gif" }
+  ],
+  bits: [
+    { name: "Lluvia de Dinero", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJ3eG5obHRwZjcxNHNlNW56dzd2dXB1NmJhcWlnM3c5enIydTFoYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LdOyjZ7io5MFUvcKs2/giphy.gif" },
+    { name: "Cofre del Tesoro", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExaTJveXprZHdrZzB0MnlxbGtsMDkyaW5pYWt4eGJ5b3hzdG56bmpsdSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/26FPJGjhefSJuaRhu/giphy.gif" },
+    { name: "Diamantes Neón", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExazlraXBtdWdwZXp5M2VvdGphYndjZnphZ3l4eGR4cXd2ZThsYjVveSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l0ExhcMymLxqLRM08/giphy.gif" },
+    { name: "Mario Monedas", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXV0OXhjc3M4eG92aW55azc3NGhrcDJzcnRhYW5ub3oxbXFoaGg5ZiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/12PA1zBdFbKFaY/giphy.gif" }
+  ],
+  raid: [
+    { name: "Ejército Vikingo", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2Z0dTh1Z3E0cW51ZnRtdnExNmRwbTN4eWxnd2ZtN213MWg5bmk0eCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/blSTtZehjAZ8I/giphy.gif" },
+    { name: "Avengers Hype", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdDF1aWFidmtyaGJlMmpldWtpM2FjcW80a2xobzNxbXRucnBmdzNveiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l41lI4bYmcsPJX9Go/giphy.gif" },
+    { name: "Fuegos Artificiales", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNnd6aTh0dHVxOGdtaXAzbndubnhrbnhxY2Q2b3ZtdnZob2lhaWdhciZlcD12MV9naWZzX3NlYXJjaCZjdD1n/26tPplGWjN0xLybiU/giphy.gif" }
+  ],
+  channel_points: [
+    { name: "Estrella Mágica", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOW11aWRqZG56YWNka2R3N3N6M2cydDV0OW15bmw0NWJ1ZW51bnd4eiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif" },
+    { name: "PogChamp", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdnQ1d211YWFscTFjOXNxc3dxM3lyMTRldzZvbDVjMTd6d3lqN2o1dSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/SLFp6ucA5uZEC8Q7b9/giphy.gif" },
+    { name: "Gato Bailarín", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmZ1MmhyazBpdWExN3Zma3lna21idW51M3lseG1kNHJ3NDF1ZnJ5NiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/jpbnoe3UIa8TU8LM13/giphy.gif" }
+  ]
 };
 
 function selectCustomizeWidget(widgetKey) {
@@ -2350,7 +2405,7 @@ function selectCustomizeWidget(widgetKey) {
   // Show/hide previews
   document.querySelectorAll('.wc-preview-widget').forEach(el => el.style.display = 'none');
   const activePv = document.getElementById(`wcPreview-${widgetKey}`);
-  if (activePv) activePv.style.display = '';
+  if (activePv) activePv.style.display = (widgetKey === 'alerts') ? 'flex' : '';
 
   // Update titles
   const name = WC_WIDGET_NAMES[widgetKey] || widgetKey;
@@ -2386,16 +2441,129 @@ function switchCustomizeMode(mode) {
   }
 }
 
+function selectAlertEvent(eventKey) {
+  wcActiveAlertEvent = eventKey;
+
+  // Update event pill buttons
+  document.querySelectorAll('.wc-event-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.event === eventKey);
+  });
+
+  // Update media header title
+  const mediaTitle = document.getElementById('wcAlertMediaTitle');
+  if (mediaTitle) {
+    mediaTitle.innerText = `🖼️ Imagen / GIF de Alerta (${WC_EVENT_NAMES[eventKey] || eventKey})`;
+  }
+
+  // Load current image URL into input
+  const urlInput = document.getElementById('wc-alert-imageUrl');
+  const currentImg = wcAlertImages[eventKey] || WC_DEFAULT_ALERT_IMAGES[eventKey] || '';
+  if (urlInput) urlInput.value = currentImg;
+
+  // Populate GIF Gallery grid
+  renderGifGallery(eventKey);
+
+  // Update live preview card content
+  const pvInfo = WC_EVENT_PREVIEWS[eventKey] || { badge: eventKey.toUpperCase(), title: '¡Usuario!', msg: 'ha interactuado' };
+  const badgeEl = document.getElementById('wcPvAlertBadge');
+  const titleEl = document.getElementById('wcPvAlertTitle');
+  const msgEl = document.getElementById('wcPvAlertMsg');
+  const imgEl = document.getElementById('wcPvAlertImg');
+
+  if (badgeEl) badgeEl.innerText = pvInfo.badge;
+  if (titleEl) titleEl.innerText = pvInfo.title;
+  if (msgEl) msgEl.innerText = pvInfo.msg;
+  if (imgEl) imgEl.src = currentImg;
+}
+
+function renderGifGallery(eventKey) {
+  const grid = document.getElementById('wcGifGalleryGrid');
+  if (!grid) return;
+
+  const gifs = WC_PRESET_GIFS[eventKey] || WC_PRESET_GIFS.follower;
+  grid.innerHTML = gifs.map(g => `
+    <div class="wc-gif-card" onclick="selectGalleryGif('${g.url}', '${g.name}')" title="${g.name}">
+      <img src="${g.url}" alt="${g.name}" loading="lazy">
+      <div class="wc-gif-title">${g.name}</div>
+    </div>
+  `).join('');
+}
+
+function toggleGifGallery() {
+  const drawer = document.getElementById('wcGifGalleryDrawer');
+  if (!drawer) return;
+  const isShown = drawer.style.display !== 'none';
+  drawer.style.display = isShown ? 'none' : 'block';
+  if (!isShown) renderGifGallery(wcActiveAlertEvent);
+}
+
+function selectGalleryGif(url, name) {
+  wcAlertImages[wcActiveAlertEvent] = url;
+  const urlInput = document.getElementById('wc-alert-imageUrl');
+  if (urlInput) urlInput.value = url;
+
+  const imgEl = document.getElementById('wcPvAlertImg');
+  if (imgEl) imgEl.src = url;
+
+  showToast(`GIF "${name}" seleccionado para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'info');
+}
+
+function handleAlertUrlInput(url) {
+  const cleanUrl = url.trim();
+  wcAlertImages[wcActiveAlertEvent] = cleanUrl;
+  const imgEl = document.getElementById('wcPvAlertImg');
+  if (imgEl && cleanUrl) imgEl.src = cleanUrl;
+}
+
+function handleAlertFileUpload(input) {
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const dataUrl = e.target.result;
+      wcAlertImages[wcActiveAlertEvent] = dataUrl;
+      const urlInput = document.getElementById('wc-alert-imageUrl');
+      if (urlInput) urlInput.value = dataUrl;
+      const imgEl = document.getElementById('wcPvAlertImg');
+      if (imgEl) imgEl.src = dataUrl;
+      showToast(`Archivo "${file.name}" cargado para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'success');
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function previewAlertAnimation() {
+  const card = document.getElementById('wcPvAlertCard');
+  if (!card) return;
+
+  // Trigger bounce / pulse animation
+  card.style.transform = 'scale(0.85)';
+  card.style.opacity = '0';
+  setTimeout(() => {
+    card.style.transition = 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+    card.style.transform = 'scale(1.05)';
+    card.style.opacity = '1';
+    setTimeout(() => {
+      card.style.transform = 'scale(1)';
+    }, 400);
+  }, 100);
+}
+
+function triggerActiveAlertTest() {
+  const eventKey = wcActiveAlertEvent || 'follower';
+  triggerTestAlert(eventKey);
+}
+
 function loadWidgetControlValues(widgetKey) {
   const styles = wcWidgetStyles[widgetKey] || WC_DEFAULT_VALUES[widgetKey] || {};
   const defaults = WC_DEFAULT_VALUES[widgetKey] || {};
   const merged = { ...defaults, ...styles };
 
-  // For each input in the widget's control group, set value
+  // For each input and select in the widget's control group, set value
   const group = document.getElementById(`wcControls-${widgetKey}`);
   if (!group) return;
 
-  group.querySelectorAll('input').forEach(input => {
+  group.querySelectorAll('input, select').forEach(input => {
     const prop = input.dataset.prop;
     if (!prop) return;
     const val = merged[prop];
@@ -2412,6 +2580,11 @@ function loadWidgetControlValues(widgetKey) {
     }
   });
 
+  // If alerts, also select current alert event
+  if (widgetKey === 'alerts') {
+    selectAlertEvent(wcActiveAlertEvent || 'follower');
+  }
+
   // Apply to preview
   updateWidgetPreview(widgetKey, merged);
 }
@@ -2420,10 +2593,14 @@ function getWidgetValues(widgetKey) {
   const group = document.getElementById(`wcControls-${widgetKey}`);
   if (!group) return {};
   const values = {};
-  group.querySelectorAll('input').forEach(input => {
+  group.querySelectorAll('input, select').forEach(input => {
     const prop = input.dataset.prop;
     if (!prop) return;
-    values[prop] = input.type === 'color' ? input.value : Number(input.value);
+    if (input.type === 'color' || input.tagName === 'SELECT') {
+      values[prop] = input.value;
+    } else {
+      values[prop] = Number(input.value);
+    }
   });
   // Include code editor values
   values.customCSS = document.getElementById('wcCustomCSS')?.value || '';
@@ -2432,11 +2609,17 @@ function getWidgetValues(widgetKey) {
 }
 
 function updateWidgetPreview(widgetKey, vals) {
+  const font = vals.fontFamily || "'Outfit', sans-serif";
+
   if (widgetKey === 'alerts') {
     const card = document.getElementById('wcPvAlertCard');
+    const badge = document.getElementById('wcPvAlertBadge');
     const title = document.getElementById('wcPvAlertTitle');
     const msg = document.getElementById('wcPvAlertMsg');
+    const img = document.getElementById('wcPvAlertImg');
+
     if (card) {
+      card.style.fontFamily = font;
       const r = Math.round(parseInt(vals.bgColor?.slice(1,3)||'0b',16));
       const g = Math.round(parseInt(vals.bgColor?.slice(3,5)||'0e',16));
       const b = Math.round(parseInt(vals.bgColor?.slice(5,7)||'14',16));
@@ -2445,8 +2628,23 @@ function updateWidgetPreview(widgetKey, vals) {
       card.style.borderColor = vals.accentColor || '#9146ff';
       card.style.boxShadow = `0 10px 40px rgba(0,0,0,0.6), 0 0 35px ${vals.accentColor || '#9146ff'}50`;
     }
-    if (title) { title.style.color = vals.titleColor || '#fff'; title.style.fontSize = `${vals.titleSize || 32}px`; }
-    if (msg) { msg.style.fontSize = `${vals.messageSize || 20}px`; }
+    if (badge) {
+      badge.style.fontFamily = font;
+      badge.style.background = `linear-gradient(135deg, ${vals.accentColor||'#9146ff'}, #00f2fe)`;
+    }
+    if (title) {
+      title.style.fontFamily = font;
+      title.style.color = vals.titleColor || '#fff';
+      title.style.fontSize = `${vals.titleSize || 32}px`;
+    }
+    if (msg) {
+      msg.style.fontFamily = font;
+      msg.style.color = vals.messageColor || '#cbd5e1';
+      msg.style.fontSize = `${vals.messageSize || 20}px`;
+    }
+    if (img) {
+      img.style.maxHeight = `${vals.imageSize || 120}px`;
+    }
 
   } else if (widgetKey === 'nowplaying') {
     const card = document.getElementById('wcPvNpCard');
@@ -2454,15 +2652,27 @@ function updateWidgetPreview(widgetKey, vals) {
     const thumb = document.getElementById('wcPvNpThumb');
     const req = document.getElementById('wcPvNpRequester');
     if (card) {
+      card.style.fontFamily = font;
       const r = parseInt(vals.bgColor?.slice(1,3)||'0f',16);
       const g = parseInt(vals.bgColor?.slice(3,5)||'12',16);
       const b = parseInt(vals.bgColor?.slice(5,7)||'1a',16);
       card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity||90)/100})`;
       card.style.borderRadius = `${vals.borderRadius || 18}px`;
     }
-    if (title) { title.style.color = vals.titleColor || '#fff'; title.style.fontSize = `${vals.titleSize || 16}px`; }
-    if (thumb) { thumb.style.width = `${vals.thumbSize||64}px`; thumb.style.height = `${vals.thumbSize||64}px`; }
-    if (req) { const s = req.querySelector('strong'); if (s) s.style.color = vals.requesterColor || '#9146ff'; }
+    if (title) {
+      title.style.fontFamily = font;
+      title.style.color = vals.titleColor || '#fff';
+      title.style.fontSize = `${vals.titleSize || 16}px`;
+    }
+    if (thumb) {
+      thumb.style.width = `${vals.thumbSize||64}px`;
+      thumb.style.height = `${vals.thumbSize||64}px`;
+    }
+    if (req) {
+      req.style.fontFamily = font;
+      const s = req.querySelector('strong');
+      if (s) s.style.color = vals.requesterColor || '#9146ff';
+    }
 
   } else if (widgetKey === 'goals') {
     const card = document.getElementById('wcPvGoalCard');
@@ -2470,20 +2680,27 @@ function updateWidgetPreview(widgetKey, vals) {
     const barBg = card?.querySelector('.wc-pv-goal-bar-bg');
     const fill = document.getElementById('wcPvGoalFill');
     if (card) {
+      card.style.fontFamily = font;
       const r = parseInt(vals.bgColor?.slice(1,3)||'0e',16);
       const g = parseInt(vals.bgColor?.slice(3,5)||'12',16);
       const b = parseInt(vals.bgColor?.slice(5,7)||'1c',16);
       card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity||92)/100})`;
       card.style.borderRadius = `${vals.borderRadius || 18}px`;
     }
-    if (titleEl) titleEl.style.fontSize = `${vals.fontSize || 15}px`;
+    if (titleEl) {
+      titleEl.style.fontFamily = font;
+      titleEl.style.fontSize = `${vals.fontSize || 15}px`;
+    }
     if (barBg) barBg.style.height = `${vals.barHeight || 18}px`;
     if (fill) fill.style.background = `linear-gradient(90deg, ${vals.barColor || '#9146ff'}, ${vals.barColor2 || '#00f2fe'})`;
 
   } else if (widgetKey === 'chat') {
     const bubbles = document.querySelectorAll('.wc-pv-chat-bubble');
     const texts = document.querySelectorAll('.wc-pv-chat-text');
+    const users = document.querySelectorAll('.wc-pv-chat-user');
+
     bubbles.forEach(b => {
+      b.style.fontFamily = font;
       const r = parseInt(vals.bubbleBg?.slice(1,3)||'0f',16);
       const g = parseInt(vals.bubbleBg?.slice(3,5)||'14',16);
       const bb = parseInt(vals.bubbleBg?.slice(5,7)||'1e',16);
@@ -2492,7 +2709,12 @@ function updateWidgetPreview(widgetKey, vals) {
       b.style.borderLeftWidth = `${vals.borderLeftWidth || 4}px`;
       b.style.borderLeftColor = vals.borderLeftColor || '#9146ff';
     });
+    users.forEach(u => {
+      u.style.fontFamily = font;
+      u.style.color = vals.usernameColor || '#9146ff';
+    });
     texts.forEach(t => {
+      t.style.fontFamily = font;
       t.style.color = vals.textColor || '#f1f5f9';
       t.style.fontSize = `${vals.fontSize || 14}px`;
     });
@@ -2500,20 +2722,37 @@ function updateWidgetPreview(widgetKey, vals) {
 }
 
 function generateWidgetCSS(widgetKey, vals) {
+  const font = vals.fontFamily || "'Outfit', sans-serif";
+
   if (widgetKey === 'alerts') {
     const r = parseInt(vals.bgColor?.slice(1,3)||'0b',16);
     const g = parseInt(vals.bgColor?.slice(3,5)||'0e',16);
     const b = parseInt(vals.bgColor?.slice(5,7)||'14',16);
     return `/* OrbiBot Custom Styles - Alert Box */
 .alert-card {
+  font-family: ${font} !important;
   background: rgba(${r},${g},${b},${(vals.bgOpacity||88)/100}) !important;
   border-radius: ${vals.borderRadius||24}px !important;
   border-color: ${vals.accentColor||'#9146ff'} !important;
   box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px ${vals.accentColor||'#9146ff'}50 !important;
 }
-.alert-title { color: ${vals.titleColor||'#ffffff'} !important; font-size: ${vals.titleSize||32}px !important; }
-.alert-message { font-size: ${vals.messageSize||20}px !important; }
-.alert-badge { background: linear-gradient(135deg, ${vals.accentColor||'#9146ff'}, #00f2fe) !important; }
+.alert-title {
+  font-family: ${font} !important;
+  color: ${vals.titleColor||'#ffffff'} !important;
+  font-size: ${vals.titleSize||32}px !important;
+}
+.alert-message {
+  font-family: ${font} !important;
+  color: ${vals.messageColor||'#cbd5e1'} !important;
+  font-size: ${vals.messageSize||20}px !important;
+}
+.alert-badge {
+  font-family: ${font} !important;
+  background: linear-gradient(135deg, ${vals.accentColor||'#9146ff'}, #00f2fe) !important;
+}
+.alert-media {
+  max-height: ${vals.imageSize||120}px !important;
+}
 `;
   } else if (widgetKey === 'nowplaying') {
     const r = parseInt(vals.bgColor?.slice(1,3)||'0f',16);
@@ -2521,12 +2760,25 @@ function generateWidgetCSS(widgetKey, vals) {
     const b = parseInt(vals.bgColor?.slice(5,7)||'1a',16);
     return `/* OrbiBot Custom Styles - Now Playing */
 .np-card {
+  font-family: ${font} !important;
   background: rgba(${r},${g},${b},${(vals.bgOpacity||90)/100}) !important;
   border-radius: ${vals.borderRadius||18}px !important;
 }
-.np-title { color: ${vals.titleColor||'#ffffff'} !important; font-size: ${vals.titleSize||16}px !important; }
-.np-requester strong { color: ${vals.requesterColor||'#9146ff'} !important; }
-.np-thumb-wrapper { width: ${vals.thumbSize||64}px !important; height: ${vals.thumbSize||64}px !important; }
+.np-title {
+  font-family: ${font} !important;
+  color: ${vals.titleColor||'#ffffff'} !important;
+  font-size: ${vals.titleSize||16}px !important;
+}
+.np-requester {
+  font-family: ${font} !important;
+}
+.np-requester strong {
+  color: ${vals.requesterColor||'#9146ff'} !important;
+}
+.np-thumb-wrapper {
+  width: ${vals.thumbSize||64}px !important;
+  height: ${vals.thumbSize||64}px !important;
+}
 `;
   } else if (widgetKey === 'goals') {
     const r = parseInt(vals.bgColor?.slice(1,3)||'0e',16);
@@ -2534,12 +2786,20 @@ function generateWidgetCSS(widgetKey, vals) {
     const b = parseInt(vals.bgColor?.slice(5,7)||'1c',16);
     return `/* OrbiBot Custom Styles - Goal Bar */
 .goal-card {
+  font-family: ${font} !important;
   background: rgba(${r},${g},${b},${(vals.bgOpacity||92)/100}) !important;
   border-radius: ${vals.borderRadius||18}px !important;
 }
-.goal-title { font-size: ${vals.fontSize||15}px !important; }
-.goal-bar-bg { height: ${vals.barHeight||18}px !important; }
-.goal-bar-fill { background: linear-gradient(90deg, ${vals.barColor||'#9146ff'}, ${vals.barColor2||'#00f2fe'}) !important; }
+.goal-title {
+  font-family: ${font} !important;
+  font-size: ${vals.fontSize||15}px !important;
+}
+.goal-bar-bg {
+  height: ${vals.barHeight||18}px !important;
+}
+.goal-bar-fill {
+  background: linear-gradient(90deg, ${vals.barColor||'#9146ff'}, ${vals.barColor2||'#00f2fe'}) !important;
+}
 `;
   } else if (widgetKey === 'chat') {
     const r = parseInt(vals.bubbleBg?.slice(1,3)||'0f',16);
@@ -2547,12 +2807,21 @@ function generateWidgetCSS(widgetKey, vals) {
     const b = parseInt(vals.bubbleBg?.slice(5,7)||'1e',16);
     return `/* OrbiBot Custom Styles - Chat Overlay */
 .chat-bubble {
+  font-family: ${font} !important;
   background: rgba(${r},${g},${b},${(vals.bgOpacity||85)/100}) !important;
   border-radius: ${vals.borderRadius||14}px !important;
   border-left-width: ${vals.borderLeftWidth||4}px !important;
   border-left-color: ${vals.borderLeftColor||'#9146ff'} !important;
 }
-.chat-bubble .text { color: ${vals.textColor||'#f1f5f9'} !important; font-size: ${vals.fontSize||14}px !important; }
+.chat-bubble .username {
+  font-family: ${font} !important;
+  color: ${vals.usernameColor||'#9146ff'} !important;
+}
+.chat-bubble .text {
+  font-family: ${font} !important;
+  color: ${vals.textColor||'#f1f5f9'} !important;
+  font-size: ${vals.fontSize||14}px !important;
+}
 `;
   }
   return '';
@@ -2577,6 +2846,11 @@ async function saveWidgetStyles() {
     finalCSS: finalCSS
   };
 
+  // If alerts widget, also attach custom images
+  if (wcCurrentWidget === 'alerts') {
+    wcWidgetStyles.alerts.images = wcAlertImages;
+  }
+
   // Save to config
   const payload = { widgetStyles: wcWidgetStyles };
 
@@ -2586,7 +2860,7 @@ async function saveWidgetStyles() {
     cfg.widgetStyles = wcWidgetStyles;
     localStorage.setItem('orbibot_config', JSON.stringify(cfg));
 
-    // Save to backend
+    // Save to backend config
     const res = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2595,9 +2869,30 @@ async function saveWidgetStyles() {
     const data = await res.json();
     if (data.success) {
       appConfig = data.config;
-      setAutoSaveStatus('saved');
-      showToast(`✅ Estilos de "${WC_WIDGET_NAMES[wcCurrentWidget]}" guardados`, 'success');
     }
+
+    // Also update /api/alerts if alert images changed
+    if (wcCurrentWidget === 'alerts') {
+      try {
+        const currentAlertsRes = await fetch('/api/alerts');
+        const currentAlerts = await currentAlertsRes.json();
+        const updatedAlerts = { ...currentAlerts };
+
+        Object.keys(wcAlertImages).forEach(evKey => {
+          if (!updatedAlerts[evKey]) updatedAlerts[evKey] = {};
+          updatedAlerts[evKey].image = wcAlertImages[evKey];
+        });
+
+        await fetch('/api/alerts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedAlerts)
+        });
+      } catch(e) {}
+    }
+
+    setAutoSaveStatus('saved');
+    showToast(`✅ Estilos de "${WC_WIDGET_NAMES[wcCurrentWidget]}" guardados correctamente`, 'success');
   } catch (e) {
     setAutoSaveStatus('saved');
     showToast('Estilos guardados localmente', 'info');
@@ -2609,6 +2904,10 @@ function resetWidgetStyles() {
   if (!defaults) return;
 
   wcWidgetStyles[wcCurrentWidget] = { ...defaults };
+
+  if (wcCurrentWidget === 'alerts') {
+    wcAlertImages = { ...WC_DEFAULT_ALERT_IMAGES };
+  }
 
   // Reset code editor
   const cssEl = document.getElementById('wcCustomCSS');
@@ -2624,10 +2923,27 @@ function initWidgetCustomization() {
   // Load saved widget styles from appConfig
   if (appConfig && appConfig.widgetStyles) {
     wcWidgetStyles = appConfig.widgetStyles;
+    if (wcWidgetStyles.alerts && wcWidgetStyles.alerts.images) {
+      wcAlertImages = { ...wcAlertImages, ...wcWidgetStyles.alerts.images };
+    }
   }
 
+  // Also fetch saved alert images from /api/alerts
+  fetch('/api/alerts')
+    .then(r => r.json())
+    .then(data => {
+      if (data && typeof data === 'object') {
+        Object.keys(data).forEach(k => {
+          if (data[k] && data[k].image) {
+            wcAlertImages[k] = data[k].image;
+          }
+        });
+      }
+    })
+    .catch(() => {});
+
   // Setup visual controls event listeners for live preview
-  document.querySelectorAll('.wc-controls-group input').forEach(input => {
+  document.querySelectorAll('.wc-controls-group input, .wc-controls-group select').forEach(input => {
     const handler = () => {
       const vals = getWidgetValues(wcCurrentWidget);
       updateWidgetPreview(wcCurrentWidget, vals);
@@ -2656,3 +2972,4 @@ loadInitialData = async function() {
   await _origLoadInitialData();
   initWidgetCustomization();
 };
+
