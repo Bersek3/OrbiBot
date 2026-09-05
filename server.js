@@ -434,4 +434,22 @@ server.listen(PORT, () => {
   console.log(`🚀 Panel de Twitch Bot ejecutándose en:`);
   console.log(`👉 http://localhost:${PORT}`);
   console.log(`=========================================`);
+
+  // Keep-Alive / Anti-Sleep System (Render Free Tier duerme a los 15 min de inactividad)
+  const keepAliveUrl = process.env.RENDER_EXTERNAL_URL || process.env.APP_URL;
+  if (keepAliveUrl) {
+    const PING_INTERVAL_MS = 10 * 60 * 1000; // Cada 10 minutos
+    console.log(`⚡ [Keep-Alive] Anti-sleep activado para: ${keepAliveUrl} (Intervalo: 10m)`);
+    setInterval(async () => {
+      try {
+        const pingEndpoint = `${keepAliveUrl.replace(/\/$/, '')}/health`;
+        const res = await fetch(pingEndpoint);
+        if (res.ok) {
+          console.log(`⚡ [Keep-Alive] Ping exitoso a ${pingEndpoint} - [${new Date().toISOString()}]`);
+        }
+      } catch (err) {
+        console.warn(`⚠️ [Keep-Alive] Error en auto-ping:`, err.message);
+      }
+    }, PING_INTERVAL_MS);
+  }
 });
