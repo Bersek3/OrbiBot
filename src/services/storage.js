@@ -461,10 +461,14 @@ class StorageService {
     };
 
     // Actualizar streamer_id cache si cambió el canal de Twitch
-    if (newConfig.twitch && newConfig.twitch.channel) {
-      const newChannel = newConfig.twitch.channel.toLowerCase().replace(/^#/, '').trim();
-      if (newChannel && newChannel !== this._streamerId) {
-        this.setStreamerId(newChannel);
+    if (newConfig.twitch) {
+      if (newConfig.twitch.channel) {
+        const newChannel = newConfig.twitch.channel.toLowerCase().replace(/^#/, '').trim();
+        if (newChannel && newChannel !== this._streamerId) {
+          this.setStreamerId(newChannel);
+        }
+      } else if (newConfig.twitch.channel === '') {
+        this.setStreamerId('default');
       }
     }
 

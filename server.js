@@ -234,21 +234,22 @@ app.post(['/api/bot/disconnect', '/api/auth/logout'], async (req, res) => {
     if (twitchBot) {
       try { await twitchBot.disconnect(); } catch(e) {}
     }
-    const current = storage.getConfig();
+    storage.setStreamerId('default');
     const updated = storage.saveConfig({
       twitch: {
-        ...current.twitch,
-        connected: false,
         channel: '',
+        botUsername: '',
         oauthToken: '',
+        clientId: 'yw1vr664ichms8an2x5lhji58v7ozk',
+        connected: false,
         displayName: '',
         profileImage: '',
         userId: ''
       }
     });
-    storage.setStreamerId('default');
     broadcast('config_updated', updated);
-    return res.json({ success: true, message: 'Sesión cerrada exitosamente.' });
+    broadcast('bot_status', { status: 'disconnected', channel: '' });
+    return res.json({ success: true, message: 'Sesión cerrada exitosamente.', config: updated });
   } catch(err) {
     console.error('Error during disconnect:', err);
     return res.status(500).json({ success: false, message: err.message });

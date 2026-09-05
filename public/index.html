@@ -1573,6 +1573,47 @@ console.log('Widget personalizado cargado');"></textarea>
     </main>
   </div>
 
+  <!-- ================= MODAL CONFIRMACIÓN DE CIERRE DE SESIÓN ================= -->
+  <div id="logoutConfirmModal" class="modal-overlay" style="display: none;">
+    <div class="modal-backdrop" id="logoutModalBackdrop"></div>
+    <div class="modal-card logout-modal-card">
+      <div class="modal-icon-wrap">
+        <div class="logout-icon-glow">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </div>
+      </div>
+      <div class="modal-body-content">
+        <h3 class="modal-title">¿Cerrar Sesión de Twitch?</h3>
+        <p class="modal-desc">
+          Se desconectará el bot del canal <strong id="logoutModalUser" style="color: #00f2fe;">@streamer</strong>. Los widgets de OBS quedarán en espera y tu configuración actual está 100% guardada en Supabase.
+        </p>
+        <div id="logoutModalUserCard" class="logout-user-preview">
+          <img id="logoutModalAvatar" src="https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png" alt="Avatar" class="logout-avatar">
+          <div class="logout-user-details">
+            <span id="logoutModalDisplayName" class="logout-name">Streamer</span>
+            <span class="logout-badge">● Sesión Activa</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnCancelLogout" class="btn btn-secondary modal-btn-cancel">
+          Cancelar
+        </button>
+        <button id="btnConfirmLogout" class="btn btn-danger modal-btn-confirm">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+            <line x1="12" y1="2" x2="12" y2="12"></line>
+          </svg>
+          <span>Sí, Cerrar Sesión</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container"></div>
 

@@ -586,9 +586,10 @@ function updateBotStatusUI(botStatus) {
     } catch(e) {}
   }
 
-  let status = botStatus?.status || 'disconnected';
-  if ((status === 'disconnected' || !status) && currentChannel && (browserTmiClient || appConfig?.twitch?.connected || localStorage.getItem('orbibot_twitch_auth'))) {
-    status = 'connected';
+  const isConnected = Boolean(currentChannel && (appConfig?.twitch?.connected || browserTmiClient || localStorage.getItem('orbibot_twitch_auth')));
+  let status = botStatus?.status || (isConnected ? 'connected' : 'disconnected');
+  if (!isConnected) {
+    status = 'disconnected';
   }
 
   if (dot) dot.className = `status-dot ${status}`;
@@ -603,7 +604,10 @@ function updateBotStatusUI(botStatus) {
       statText.innerText = 'En Línea';
       statText.style.color = 'var(--green-success)';
     }
-    if (quickBtn) quickBtn.innerText = 'Desconectar';
+    if (quickBtn) {
+      quickBtn.innerText = 'Desconectar';
+      quickBtn.className = 'btn btn-danger btn-sm';
+    }
     if (statChan && currentChannel) statChan.innerText = `#${currentChannel}`;
   } else if (status === 'connecting') {
     if (badge) {
@@ -614,7 +618,11 @@ function updateBotStatusUI(botStatus) {
       statText.innerText = 'Conectando';
       statText.style.color = 'var(--yellow-warn)';
     }
-    if (quickBtn) quickBtn.innerText = 'Conectando...';
+    if (quickBtn) {
+      quickBtn.innerText = 'Conectando...';
+      quickBtn.className = 'btn btn-secondary btn-sm';
+    }
+    if (statChan) statChan.innerText = currentChannel ? `#${currentChannel}` : 'Ninguno';
   } else {
     if (badge) {
       badge.className = 'btn btn-sm btn-danger';
@@ -624,7 +632,11 @@ function updateBotStatusUI(botStatus) {
       statText.innerText = 'Inactivo';
       statText.style.color = 'var(--red-danger)';
     }
-    if (quickBtn) quickBtn.innerText = 'Conectar';
+    if (quickBtn) {
+      quickBtn.innerText = 'Iniciar Sesión';
+      quickBtn.className = 'btn btn-primary btn-sm';
+    }
+    if (statChan) statChan.innerText = 'Ninguno';
   }
 }
 
@@ -1970,14 +1982,8 @@ function setupEventListeners() {
     }
   });
 
-  document.getElementById('btnDisconnectTwitch').addEventListener('click', async () => {
-    try {
-      const res = await fetch('/api/bot/disconnect', { method: 'POST' });
-      const data = await res.json();
-      showToast(data.message);
-    } catch (e) {
-      showToast('Error al desconectar', 'error');
-    }
+  document.getElementById('btnDisconnectTwitch').addEventListener('click', () => {
+    openLogoutModal();
   });
 
   // Direct Twitch OAuth Authentication
@@ -2155,16 +2161,62 @@ function setupEventListeners() {
     }
   }
 
-  // Twitch Disconnect Account
-  async function disconnectTwitchAccount() {
-    if (!confirm('¿Deseas cerrar sesión de Twitch y desconectar el bot?')) return;
+  // ================= LOGOUT CONFIRMATION MODAL & EXECUTION =================
+  const logoutConfirmModal = document.getElementById('logoutConfirmModal');
+  const logoutModalBackdrop = document.getElementById('logoutModalBackdrop');
+  const btnCancelLogout = document.getElementById('btnCancelLogout');
+  const btnConfirmLogout = document.getElementById('btnConfirmLogout');
+  const logoutModalUser = document.getElementById('logoutModalUser');
+  const logoutModalAvatar = document.getElementById('logoutModalAvatar');
+  const logoutModalDisplayName = document.getElementById('logoutModalDisplayName');
+
+  function openLogoutModal() {
+    let currentChannel = (appConfig?.twitch?.channel || '').replace(/^#/, '');
+    let currentDisplayName = appConfig?.twitch?.displayName || currentChannel || 'Streamer';
+    let currentAvatar = appConfig?.twitch?.profileImage || 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
+
+    if (!currentChannel) {
+      try {
+        const local = localStorage.getItem('orbibot_twitch_auth');
+        if (local) {
+          const p = JSON.parse(local);
+          currentChannel = (p.channel || p.login || '').replace(/^#/, '');
+          currentDisplayName = p.displayName || currentChannel || 'Streamer';
+          currentAvatar = p.profileImage || currentAvatar;
+        }
+      } catch(e) {}
+    }
+
+    if (logoutModalUser) logoutModalUser.innerText = `@${currentChannel || currentDisplayName || 'streamer'}`;
+    if (logoutModalDisplayName) logoutModalDisplayName.innerText = currentDisplayName || 'Streamer';
+    if (logoutModalAvatar) logoutModalAvatar.src = currentAvatar;
+
+    if (logoutConfirmModal) {
+      logoutConfirmModal.style.display = 'flex';
+    }
+  }
+
+  function closeLogoutModal() {
+    if (logoutConfirmModal) {
+      logoutConfirmModal.style.display = 'none';
+    }
+  }
+
+  async function executeLogout() {
+    closeLogoutModal();
 
     try {
       await fetch('/api/bot/disconnect', { method: 'POST' });
     } catch (e) {}
 
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
+
+    // Clear ALL Twitch credentials & cached settings from localStorage
     localStorage.removeItem('orbibot_twitch_auth');
     localStorage.removeItem('orbibot_twitch_auth_event');
+    localStorage.removeItem('orbibot_twitch_auth_error');
     localStorage.removeItem('orbibot_config');
 
     if (browserTmiClient) {
@@ -2174,40 +2226,99 @@ function setupEventListeners() {
 
     // Explicitly reset in-memory config state
     appConfig = {
-      twitch: { connected: false, channel: '', oauthToken: '', displayName: '', profileImage: '' },
-      songRequest: { prefix: '!sr', enabled: true, volume: 75, autoplay: true },
-      tts: { enabled: true, volume: 90, rate: 1.0, voice: 'es_001' }
+      twitch: {
+        channel: '',
+        botUsername: '',
+        oauthToken: '',
+        clientId: 'yw1vr664ichms8an2x5lhji58v7ozk',
+        connected: false,
+        displayName: '',
+        profileImage: '',
+        userId: ''
+      },
+      songRequest: { prefix: '!sr', enabled: true, maxDurationMinutes: 8, maxPerUser: 5, userLevel: 'all', volume: 75, autoplay: true },
+      tts: { enabled: true, voice: 'es_001', volume: 90, rate: 1.0, pitch: 1.0, maxLength: 250, bannedWords: [], allowChatCommand: true, chatCommand: '!tts', minBits: 50 },
+      goals: {
+        subs: { title: 'Meta de Suscriptores', current: 0, target: 50, color: '#9146ff' },
+        followers: { title: 'Meta de Seguidores', current: 0, target: 300, color: '#00f2fe' },
+        bits: { title: 'Meta de Bits', current: 0, target: 5000, color: '#f5a623' }
+      }
     };
 
     // Reset Top Bar & Header Profile Display
     const topUserPill = document.getElementById('topUserPill');
     const topLoginBtn = document.getElementById('topTwitchLoginBtn');
-    const heroLoginBtn = document.getElementById('heroTwitchLoginBtn');
-    const heroLoggedBox = document.getElementById('heroLoggedBox');
+    const loginHero = document.getElementById('dashboardLoginHero');
+    const connectedHero = document.getElementById('dashboardConnectedHero');
+    const dashUserAvatar = document.getElementById('dashUserAvatar');
+    const dashUserName = document.getElementById('dashUserName');
+    const dashUserTag = document.getElementById('dashUserTag');
+    const topUserAvatar = document.getElementById('topUserAvatar');
+    const topUserName = document.getElementById('topUserName');
+
     const botStatusDot = document.getElementById('botStatusDot');
     const botStatusText = document.getElementById('botStatusText');
+    const twitchBadge = document.getElementById('twitchConnectionBadge');
+    const statBotStatus = document.getElementById('statBotStatus');
+    const statChannelName = document.getElementById('statChannelName');
     const quickConnectBtn = document.getElementById('quickConnectBtn');
 
     if (topUserPill) topUserPill.style.display = 'none';
-    if (topLoginBtn) topLoginBtn.style.display = 'flex';
-    if (heroLoginBtn) heroLoginBtn.style.display = 'inline-flex';
-    if (heroLoggedBox) heroLoggedBox.style.display = 'none';
-    if (botStatusDot) botStatusDot.className = 'status-dot';
+    if (topLoginBtn) topLoginBtn.style.display = 'inline-flex';
+    if (loginHero) loginHero.style.display = 'block';
+    if (connectedHero) connectedHero.style.display = 'none';
+
+    if (topUserAvatar) topUserAvatar.src = '';
+    if (topUserName) topUserName.innerText = '@streamer';
+    if (dashUserAvatar) dashUserAvatar.src = '';
+    if (dashUserName) dashUserName.innerText = 'Streamer';
+    if (dashUserTag) dashUserTag.innerText = '@streamer';
+
+    if (botStatusDot) botStatusDot.className = 'status-dot disconnected';
     if (botStatusText) botStatusText.innerText = 'Desconectado';
+    if (twitchBadge) {
+      twitchBadge.className = 'btn btn-sm btn-danger';
+      twitchBadge.innerText = '🔴 Desconectado';
+    }
+    if (statBotStatus) {
+      statBotStatus.innerText = 'Inactivo';
+      statBotStatus.style.color = 'var(--red-danger)';
+    }
+    if (statChannelName) statChannelName.innerText = 'Ninguno';
     if (quickConnectBtn) {
       quickConnectBtn.innerText = 'Iniciar Sesión';
       quickConnectBtn.className = 'btn btn-primary btn-sm';
     }
 
     const chanInput = document.getElementById('cfgTwitchChannel');
+    const botInput = document.getElementById('cfgTwitchBotUser');
+    const tokenInput = document.getElementById('cfgTwitchToken');
     if (chanInput) chanInput.value = '';
+    if (botInput) botInput.value = '';
+    if (tokenInput) tokenInput.value = '';
+
+    // Clear chat list
+    const chatList = document.getElementById('chatMessagesList');
+    if (chatList) {
+      chatList.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 40px 20px; font-size: 13px;">Conecta tu canal de Twitch para ver los mensajes del chat en tiempo real.</div>';
+    }
+
+    bindConfigToUI(appConfig);
+    populateWidgetUrls();
+    initDashboardMqtt();
 
     showToast('🔒 Has cerrado sesión de Twitch correctamente.', 'info');
     switchTab('tab-dashboard');
-    await loadInitialData();
-    populateWidgetUrls();
-    initDashboardMqtt();
   }
+
+  function disconnectTwitchAccount() {
+    openLogoutModal();
+  }
+
+  // Modal Buttons
+  if (btnCancelLogout) btnCancelLogout.addEventListener('click', closeLogoutModal);
+  if (logoutModalBackdrop) logoutModalBackdrop.addEventListener('click', closeLogoutModal);
+  if (btnConfirmLogout) btnConfirmLogout.addEventListener('click', executeLogout);
 
   // Twitch Login Buttons
   const topLoginBtn = document.getElementById('topTwitchLoginBtn');
@@ -2218,10 +2329,10 @@ function setupEventListeners() {
 
   // Twitch Logout Buttons
   const topLogoutBtn = document.getElementById('topLogoutBtn');
-  if (topLogoutBtn) topLogoutBtn.addEventListener('click', disconnectTwitchAccount);
+  if (topLogoutBtn) topLogoutBtn.addEventListener('click', openLogoutModal);
 
   const dashLogoutBtn = document.getElementById('dashLogoutBtn');
-  if (dashLogoutBtn) dashLogoutBtn.addEventListener('click', disconnectTwitchAccount);
+  if (dashLogoutBtn) dashLogoutBtn.addEventListener('click', openLogoutModal);
 
   // Dashboard quick actions
   const dashGotoObsBtn = document.getElementById('dashGotoObsBtn');
@@ -2244,9 +2355,9 @@ function setupEventListeners() {
   const quickConnectBtn = document.getElementById('quickConnectBtn');
   if (quickConnectBtn) {
     quickConnectBtn.addEventListener('click', async () => {
-      const isConnected = appConfig?.twitch?.connected && appConfig?.twitch?.channel;
+      const isConnected = (appConfig?.twitch?.connected || Boolean(localStorage.getItem('orbibot_twitch_auth'))) && (appConfig?.twitch?.channel || localStorage.getItem('orbibot_twitch_auth'));
       if (isConnected) {
-        disconnectTwitchAccount();
+        openLogoutModal();
       } else {
         triggerTwitchOAuthLogin();
       }
