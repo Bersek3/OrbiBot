@@ -1464,7 +1464,6 @@ function renderRewards(rewards) {
     tr.innerHTML = `
       <td><strong>${escapeHtml(r.rewardName)}</strong></td>
       <td>${actionBadge}</td>
-      <td>${r.cost || 0} pts</td>
       <td>
         <button class="btn btn-accent btn-sm" onclick="testReward('${r.id}')" title="Probar en vivo">⚡ Probar</button>
       </td>
@@ -1592,7 +1591,6 @@ async function saveRewardUI() {
   const name = document.getElementById('rewardNameInput').value.trim();
   const action = document.getElementById('rewardActionSelect').value;
   const soundUrl = document.getElementById('rewardSoundSelect')?.value || '/assets/sounds/airhorn.mp3';
-  const cost = Number(document.getElementById('rewardCostInput').value) || 100;
   const editId = document.getElementById('editRewardId').value;
 
   if (!name) {
@@ -1606,7 +1604,6 @@ async function saveRewardUI() {
     rewardName: name,
     action,
     soundUrl: action === 'sound' ? soundUrl : null,
-    cost,
     enabled: true
   };
 
@@ -1642,7 +1639,6 @@ async function editReward(rewardId) {
   if (r.soundUrl && document.getElementById('rewardSoundSelect')) {
     document.getElementById('rewardSoundSelect').value = r.soundUrl;
   }
-  document.getElementById('rewardCostInput').value = r.cost || 100;
   toggleRewardForm(true);
 }
 

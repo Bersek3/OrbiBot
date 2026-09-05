@@ -147,14 +147,12 @@ const DEFAULT_REWARDS = [
     id: 'reward-1',
     rewardName: 'Mensaje con Voz (TTS)',
     action: 'tts',
-    cost: 500,
     enabled: true
   },
   {
     id: 'reward-2',
     rewardName: 'Pedir Canción',
     action: 'song_request',
-    cost: 300,
     enabled: true
   },
   {
@@ -162,7 +160,6 @@ const DEFAULT_REWARDS = [
     rewardName: 'Sonido Corneta / Airhorn',
     action: 'sound',
     soundUrl: '/assets/sounds/airhorn.mp3',
-    cost: 150,
     enabled: true
   }
 ];
