@@ -9,6 +9,7 @@ let socket = null;
 
 // ================= INITIALIZATION =================
 document.addEventListener('DOMContentLoaded', async () => {
+  initLandingPage();
   setupNavigation();
   setupRangeInputs();
   setupEventListeners();
@@ -19,6 +20,71 @@ document.addEventListener('DOMContentLoaded', async () => {
   connectWebSocket();
   initDashboardMqtt();
 });
+
+// ================= VIEW SWITCHER (LANDING VS DASHBOARD) =================
+function showLandingView() {
+  const landingView = document.getElementById('landingView');
+  const dashboardView = document.getElementById('dashboardAppView');
+  if (landingView) landingView.style.display = 'flex';
+  if (dashboardView) dashboardView.style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showDashboardView(targetTab = 'tab-dashboard') {
+  const landingView = document.getElementById('landingView');
+  const dashboardView = document.getElementById('dashboardAppView');
+  if (landingView) landingView.style.display = 'none';
+  if (dashboardView) dashboardView.style.display = 'flex';
+  if (targetTab) {
+    switchTab(targetTab);
+  }
+}
+window.showLandingView = showLandingView;
+window.showDashboardView = showDashboardView;
+
+function initLandingPage() {
+  // Navigation & CTA buttons on Landing
+  const landingNavDashboardBtn = document.getElementById('landingNavDashboardBtn');
+  if (landingNavDashboardBtn) landingNavDashboardBtn.addEventListener('click', () => showDashboardView('tab-dashboard'));
+
+  const landingNavLoginBtn = document.getElementById('landingNavLoginBtn');
+  if (landingNavLoginBtn) landingNavLoginBtn.addEventListener('click', triggerTwitchOAuthLogin);
+
+  const landingHeroLoginBtn = document.getElementById('landingHeroLoginBtn');
+  if (landingHeroLoginBtn) landingHeroLoginBtn.addEventListener('click', triggerTwitchOAuthLogin);
+
+  const landingHeroDashboardBtn = document.getElementById('landingHeroDashboardBtn');
+  if (landingHeroDashboardBtn) landingHeroDashboardBtn.addEventListener('click', () => showDashboardView('tab-dashboard'));
+
+  const landingBottomLoginBtn = document.getElementById('landingBottomLoginBtn');
+  if (landingBottomLoginBtn) landingBottomLoginBtn.addEventListener('click', triggerTwitchOAuthLogin);
+
+  // Return to Home Buttons
+  const sidebarGoHomeBtn = document.getElementById('sidebarGoHomeBtn');
+  if (sidebarGoHomeBtn) sidebarGoHomeBtn.addEventListener('click', showLandingView);
+
+  const topGoHomeBtn = document.getElementById('topGoHomeBtn');
+  if (topGoHomeBtn) topGoHomeBtn.addEventListener('click', showLandingView);
+
+  // FAQ Accordion
+  document.querySelectorAll('.landing-faq-question').forEach(q => {
+    q.addEventListener('click', () => {
+      const item = q.parentElement;
+      const isActive = item.classList.contains('active');
+      document.querySelectorAll('.landing-faq-item').forEach(i => i.classList.remove('active'));
+      if (!isActive) item.classList.add('active');
+    });
+  });
+
+  // Check URL Hash on load
+  const hash = window.location.hash;
+  if (hash === '#dashboard' || hash.startsWith('#tab-')) {
+    const tabName = hash.startsWith('#tab-') ? hash.substring(1) : 'tab-dashboard';
+    showDashboardView(tabName);
+  } else {
+    showLandingView();
+  }
+}
 
 // ================= NAVIGATION =================
 function setupNavigation() {
@@ -2183,6 +2249,7 @@ function setupEventListeners() {
 
     await loadInitialData();
     bindConfigToUI(appConfig);
+    showDashboardView('tab-dashboard');
     populateWidgetUrls();
     initDashboardMqtt();
     if (typeof initWidgetCustomization === 'function') initWidgetCustomization();
