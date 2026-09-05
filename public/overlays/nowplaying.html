@@ -38,6 +38,27 @@
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
+    // Load custom widget styles from streamer config
+    (async function loadCustomStyles() {
+      try {
+        const res = await fetch('/api/widget-styles');
+        const data = await res.json();
+        if (data.nowplaying) {
+          if (data.nowplaying.finalCSS || data.nowplaying.generatedCSS) {
+            const style = document.createElement('style');
+            style.id = 'orbibot-custom-styles';
+            style.textContent = data.nowplaying.finalCSS || data.nowplaying.generatedCSS;
+            document.head.appendChild(style);
+          }
+          if (data.nowplaying.customJS) {
+            const script = document.createElement('script');
+            script.textContent = data.nowplaying.customJS;
+            document.body.appendChild(script);
+          }
+        }
+      } catch(e) { /* Overlay running without backend */ }
+    })();
+
     const npCard = document.getElementById('npCard');
     const npThumb = document.getElementById('npThumb');
     const npTitle = document.getElementById('npTitle');

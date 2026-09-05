@@ -2314,3 +2314,345 @@ function setupEventListeners() {
   // Load custom sounds on startup
   loadSounds();
 }
+
+// ================= WIDGET CUSTOMIZATION SYSTEM =================
+let wcCurrentWidget = 'alerts';
+let wcCurrentMode = 'visual';
+let wcWidgetStyles = {};
+
+const WC_WIDGET_NAMES = {
+  alerts: 'Alert Box',
+  nowplaying: 'Now Playing',
+  goals: 'Goal Bar',
+  chat: 'Chat Overlay'
+};
+
+const WC_DEFAULT_VALUES = {
+  alerts: { bgColor:'#0b0e14', bgOpacity:88, titleColor:'#ffffff', accentColor:'#9146ff', titleSize:32, messageSize:20, borderRadius:24, customCSS:'', customJS:'' },
+  nowplaying: { bgColor:'#0f121a', bgOpacity:90, titleColor:'#ffffff', requesterColor:'#9146ff', titleSize:16, borderRadius:18, thumbSize:64, customCSS:'', customJS:'' },
+  goals: { barColor:'#9146ff', barColor2:'#00f2fe', bgColor:'#0e121c', bgOpacity:92, barHeight:18, fontSize:15, borderRadius:18, customCSS:'', customJS:'' },
+  chat: { bubbleBg:'#0f141e', bgOpacity:85, usernameColor:'#9146ff', textColor:'#f1f5f9', fontSize:14, borderRadius:14, borderLeftWidth:4, borderLeftColor:'#9146ff', customCSS:'', customJS:'' }
+};
+
+function selectCustomizeWidget(widgetKey) {
+  wcCurrentWidget = widgetKey;
+
+  // Update selector cards
+  document.querySelectorAll('.wc-widget-selector').forEach(el => {
+    el.classList.toggle('active', el.dataset.widget === widgetKey);
+  });
+
+  // Show/hide control groups
+  document.querySelectorAll('.wc-controls-group').forEach(el => el.style.display = 'none');
+  const activeGroup = document.getElementById(`wcControls-${widgetKey}`);
+  if (activeGroup) activeGroup.style.display = '';
+
+  // Show/hide previews
+  document.querySelectorAll('.wc-preview-widget').forEach(el => el.style.display = 'none');
+  const activePv = document.getElementById(`wcPreview-${widgetKey}`);
+  if (activePv) activePv.style.display = '';
+
+  // Update titles
+  const name = WC_WIDGET_NAMES[widgetKey] || widgetKey;
+  const visualTitle = document.getElementById('wcVisualTitle');
+  const codeTitle = document.getElementById('wcCodeTitle');
+  if (visualTitle) visualTitle.innerText = `🎛️ Editor Visual — ${name}`;
+  if (codeTitle) codeTitle.innerText = `💻 Editor de Código — ${name}`;
+
+  // Load saved values into controls
+  loadWidgetControlValues(widgetKey);
+
+  // Load code editor content
+  const styles = wcWidgetStyles[widgetKey] || {};
+  const cssEl = document.getElementById('wcCustomCSS');
+  const jsEl = document.getElementById('wcCustomJS');
+  if (cssEl) cssEl.value = styles.customCSS || '';
+  if (jsEl) jsEl.value = styles.customJS || '';
+}
+
+function switchCustomizeMode(mode) {
+  wcCurrentMode = mode;
+  document.querySelectorAll('.wc-mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  const visual = document.getElementById('wcVisualEditor');
+  const code = document.getElementById('wcCodeEditor');
+  if (mode === 'visual') {
+    if (visual) visual.style.display = '';
+    if (code) code.style.display = 'none';
+  } else {
+    if (visual) visual.style.display = 'none';
+    if (code) code.style.display = '';
+  }
+}
+
+function loadWidgetControlValues(widgetKey) {
+  const styles = wcWidgetStyles[widgetKey] || WC_DEFAULT_VALUES[widgetKey] || {};
+  const defaults = WC_DEFAULT_VALUES[widgetKey] || {};
+  const merged = { ...defaults, ...styles };
+
+  // For each input in the widget's control group, set value
+  const group = document.getElementById(`wcControls-${widgetKey}`);
+  if (!group) return;
+
+  group.querySelectorAll('input').forEach(input => {
+    const prop = input.dataset.prop;
+    if (!prop) return;
+    const val = merged[prop];
+    if (val !== undefined) {
+      input.value = val;
+    }
+    // Update range display value
+    if (input.type === 'range') {
+      const valEl = document.getElementById(`${input.id}-val`);
+      if (valEl) {
+        const unit = prop.includes('Opacity') ? '%' : 'px';
+        valEl.innerText = `${input.value}${unit}`;
+      }
+    }
+  });
+
+  // Apply to preview
+  updateWidgetPreview(widgetKey, merged);
+}
+
+function getWidgetValues(widgetKey) {
+  const group = document.getElementById(`wcControls-${widgetKey}`);
+  if (!group) return {};
+  const values = {};
+  group.querySelectorAll('input').forEach(input => {
+    const prop = input.dataset.prop;
+    if (!prop) return;
+    values[prop] = input.type === 'color' ? input.value : Number(input.value);
+  });
+  // Include code editor values
+  values.customCSS = document.getElementById('wcCustomCSS')?.value || '';
+  values.customJS = document.getElementById('wcCustomJS')?.value || '';
+  return values;
+}
+
+function updateWidgetPreview(widgetKey, vals) {
+  if (widgetKey === 'alerts') {
+    const card = document.getElementById('wcPvAlertCard');
+    const title = document.getElementById('wcPvAlertTitle');
+    const msg = document.getElementById('wcPvAlertMsg');
+    if (card) {
+      const r = Math.round(parseInt(vals.bgColor?.slice(1,3)||'0b',16));
+      const g = Math.round(parseInt(vals.bgColor?.slice(3,5)||'0e',16));
+      const b = Math.round(parseInt(vals.bgColor?.slice(5,7)||'14',16));
+      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity||88)/100})`;
+      card.style.borderRadius = `${vals.borderRadius || 24}px`;
+      card.style.borderColor = vals.accentColor || '#9146ff';
+      card.style.boxShadow = `0 10px 40px rgba(0,0,0,0.6), 0 0 35px ${vals.accentColor || '#9146ff'}50`;
+    }
+    if (title) { title.style.color = vals.titleColor || '#fff'; title.style.fontSize = `${vals.titleSize || 32}px`; }
+    if (msg) { msg.style.fontSize = `${vals.messageSize || 20}px`; }
+
+  } else if (widgetKey === 'nowplaying') {
+    const card = document.getElementById('wcPvNpCard');
+    const title = document.getElementById('wcPvNpTitle');
+    const thumb = document.getElementById('wcPvNpThumb');
+    const req = document.getElementById('wcPvNpRequester');
+    if (card) {
+      const r = parseInt(vals.bgColor?.slice(1,3)||'0f',16);
+      const g = parseInt(vals.bgColor?.slice(3,5)||'12',16);
+      const b = parseInt(vals.bgColor?.slice(5,7)||'1a',16);
+      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity||90)/100})`;
+      card.style.borderRadius = `${vals.borderRadius || 18}px`;
+    }
+    if (title) { title.style.color = vals.titleColor || '#fff'; title.style.fontSize = `${vals.titleSize || 16}px`; }
+    if (thumb) { thumb.style.width = `${vals.thumbSize||64}px`; thumb.style.height = `${vals.thumbSize||64}px`; }
+    if (req) { const s = req.querySelector('strong'); if (s) s.style.color = vals.requesterColor || '#9146ff'; }
+
+  } else if (widgetKey === 'goals') {
+    const card = document.getElementById('wcPvGoalCard');
+    const titleEl = document.getElementById('wcPvGoalTitle');
+    const barBg = card?.querySelector('.wc-pv-goal-bar-bg');
+    const fill = document.getElementById('wcPvGoalFill');
+    if (card) {
+      const r = parseInt(vals.bgColor?.slice(1,3)||'0e',16);
+      const g = parseInt(vals.bgColor?.slice(3,5)||'12',16);
+      const b = parseInt(vals.bgColor?.slice(5,7)||'1c',16);
+      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity||92)/100})`;
+      card.style.borderRadius = `${vals.borderRadius || 18}px`;
+    }
+    if (titleEl) titleEl.style.fontSize = `${vals.fontSize || 15}px`;
+    if (barBg) barBg.style.height = `${vals.barHeight || 18}px`;
+    if (fill) fill.style.background = `linear-gradient(90deg, ${vals.barColor || '#9146ff'}, ${vals.barColor2 || '#00f2fe'})`;
+
+  } else if (widgetKey === 'chat') {
+    const bubbles = document.querySelectorAll('.wc-pv-chat-bubble');
+    const texts = document.querySelectorAll('.wc-pv-chat-text');
+    bubbles.forEach(b => {
+      const r = parseInt(vals.bubbleBg?.slice(1,3)||'0f',16);
+      const g = parseInt(vals.bubbleBg?.slice(3,5)||'14',16);
+      const bb = parseInt(vals.bubbleBg?.slice(5,7)||'1e',16);
+      b.style.background = `rgba(${r},${g},${bb},${(vals.bgOpacity||85)/100})`;
+      b.style.borderRadius = `${vals.borderRadius || 14}px`;
+      b.style.borderLeftWidth = `${vals.borderLeftWidth || 4}px`;
+      b.style.borderLeftColor = vals.borderLeftColor || '#9146ff';
+    });
+    texts.forEach(t => {
+      t.style.color = vals.textColor || '#f1f5f9';
+      t.style.fontSize = `${vals.fontSize || 14}px`;
+    });
+  }
+}
+
+function generateWidgetCSS(widgetKey, vals) {
+  if (widgetKey === 'alerts') {
+    const r = parseInt(vals.bgColor?.slice(1,3)||'0b',16);
+    const g = parseInt(vals.bgColor?.slice(3,5)||'0e',16);
+    const b = parseInt(vals.bgColor?.slice(5,7)||'14',16);
+    return `/* OrbiBot Custom Styles - Alert Box */
+.alert-card {
+  background: rgba(${r},${g},${b},${(vals.bgOpacity||88)/100}) !important;
+  border-radius: ${vals.borderRadius||24}px !important;
+  border-color: ${vals.accentColor||'#9146ff'} !important;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px ${vals.accentColor||'#9146ff'}50 !important;
+}
+.alert-title { color: ${vals.titleColor||'#ffffff'} !important; font-size: ${vals.titleSize||32}px !important; }
+.alert-message { font-size: ${vals.messageSize||20}px !important; }
+.alert-badge { background: linear-gradient(135deg, ${vals.accentColor||'#9146ff'}, #00f2fe) !important; }
+`;
+  } else if (widgetKey === 'nowplaying') {
+    const r = parseInt(vals.bgColor?.slice(1,3)||'0f',16);
+    const g = parseInt(vals.bgColor?.slice(3,5)||'12',16);
+    const b = parseInt(vals.bgColor?.slice(5,7)||'1a',16);
+    return `/* OrbiBot Custom Styles - Now Playing */
+.np-card {
+  background: rgba(${r},${g},${b},${(vals.bgOpacity||90)/100}) !important;
+  border-radius: ${vals.borderRadius||18}px !important;
+}
+.np-title { color: ${vals.titleColor||'#ffffff'} !important; font-size: ${vals.titleSize||16}px !important; }
+.np-requester strong { color: ${vals.requesterColor||'#9146ff'} !important; }
+.np-thumb-wrapper { width: ${vals.thumbSize||64}px !important; height: ${vals.thumbSize||64}px !important; }
+`;
+  } else if (widgetKey === 'goals') {
+    const r = parseInt(vals.bgColor?.slice(1,3)||'0e',16);
+    const g = parseInt(vals.bgColor?.slice(3,5)||'12',16);
+    const b = parseInt(vals.bgColor?.slice(5,7)||'1c',16);
+    return `/* OrbiBot Custom Styles - Goal Bar */
+.goal-card {
+  background: rgba(${r},${g},${b},${(vals.bgOpacity||92)/100}) !important;
+  border-radius: ${vals.borderRadius||18}px !important;
+}
+.goal-title { font-size: ${vals.fontSize||15}px !important; }
+.goal-bar-bg { height: ${vals.barHeight||18}px !important; }
+.goal-bar-fill { background: linear-gradient(90deg, ${vals.barColor||'#9146ff'}, ${vals.barColor2||'#00f2fe'}) !important; }
+`;
+  } else if (widgetKey === 'chat') {
+    const r = parseInt(vals.bubbleBg?.slice(1,3)||'0f',16);
+    const g = parseInt(vals.bubbleBg?.slice(3,5)||'14',16);
+    const b = parseInt(vals.bubbleBg?.slice(5,7)||'1e',16);
+    return `/* OrbiBot Custom Styles - Chat Overlay */
+.chat-bubble {
+  background: rgba(${r},${g},${b},${(vals.bgOpacity||85)/100}) !important;
+  border-radius: ${vals.borderRadius||14}px !important;
+  border-left-width: ${vals.borderLeftWidth||4}px !important;
+  border-left-color: ${vals.borderLeftColor||'#9146ff'} !important;
+}
+.chat-bubble .text { color: ${vals.textColor||'#f1f5f9'} !important; font-size: ${vals.fontSize||14}px !important; }
+`;
+  }
+  return '';
+}
+
+async function saveWidgetStyles() {
+  setAutoSaveStatus('saving');
+
+  // Collect current widget values
+  const vals = getWidgetValues(wcCurrentWidget);
+  // Generate CSS from visual controls
+  const generatedCSS = generateWidgetCSS(wcCurrentWidget, vals);
+
+  // Merge custom CSS from code editor with generated CSS
+  const userCSS = vals.customCSS || '';
+  const finalCSS = userCSS ? `${generatedCSS}\n/* --- CSS Personalizado del Usuario --- */\n${userCSS}` : generatedCSS;
+
+  // Save to widgetStyles
+  wcWidgetStyles[wcCurrentWidget] = {
+    ...vals,
+    generatedCSS: generatedCSS,
+    finalCSS: finalCSS
+  };
+
+  // Save to config
+  const payload = { widgetStyles: wcWidgetStyles };
+
+  try {
+    // Save to localStorage
+    let cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
+    cfg.widgetStyles = wcWidgetStyles;
+    localStorage.setItem('orbibot_config', JSON.stringify(cfg));
+
+    // Save to backend
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      appConfig = data.config;
+      setAutoSaveStatus('saved');
+      showToast(`✅ Estilos de "${WC_WIDGET_NAMES[wcCurrentWidget]}" guardados`, 'success');
+    }
+  } catch (e) {
+    setAutoSaveStatus('saved');
+    showToast('Estilos guardados localmente', 'info');
+  }
+}
+
+function resetWidgetStyles() {
+  const defaults = WC_DEFAULT_VALUES[wcCurrentWidget];
+  if (!defaults) return;
+
+  wcWidgetStyles[wcCurrentWidget] = { ...defaults };
+
+  // Reset code editor
+  const cssEl = document.getElementById('wcCustomCSS');
+  const jsEl = document.getElementById('wcCustomJS');
+  if (cssEl) cssEl.value = '';
+  if (jsEl) jsEl.value = '';
+
+  loadWidgetControlValues(wcCurrentWidget);
+  showToast(`🔄 Estilos de "${WC_WIDGET_NAMES[wcCurrentWidget]}" restablecidos`, 'info');
+}
+
+function initWidgetCustomization() {
+  // Load saved widget styles from appConfig
+  if (appConfig && appConfig.widgetStyles) {
+    wcWidgetStyles = appConfig.widgetStyles;
+  }
+
+  // Setup visual controls event listeners for live preview
+  document.querySelectorAll('.wc-controls-group input').forEach(input => {
+    const handler = () => {
+      const vals = getWidgetValues(wcCurrentWidget);
+      updateWidgetPreview(wcCurrentWidget, vals);
+
+      // Update range display value
+      if (input.type === 'range') {
+        const valEl = document.getElementById(`${input.id}-val`);
+        if (valEl) {
+          const prop = input.dataset.prop || '';
+          const unit = prop.includes('Opacity') ? '%' : 'px';
+          valEl.innerText = `${input.value}${unit}`;
+        }
+      }
+    };
+    input.addEventListener('input', handler);
+    input.addEventListener('change', handler);
+  });
+
+  // Load initial widget
+  selectCustomizeWidget('alerts');
+}
+
+// Initialize widget customization when initial data is loaded
+const _origLoadInitialData = loadInitialData;
+loadInitialData = async function() {
+  await _origLoadInitialData();
+  initWidgetCustomization();
+};

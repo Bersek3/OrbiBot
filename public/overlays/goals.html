@@ -28,6 +28,27 @@
   </div>
 
   <script>
+    // Load custom widget styles from streamer config
+    (async function loadCustomStyles() {
+      try {
+        const res = await fetch('/api/widget-styles');
+        const data = await res.json();
+        if (data.goals) {
+          if (data.goals.finalCSS || data.goals.generatedCSS) {
+            const style = document.createElement('style');
+            style.id = 'orbibot-custom-styles';
+            style.textContent = data.goals.finalCSS || data.goals.generatedCSS;
+            document.head.appendChild(style);
+          }
+          if (data.goals.customJS) {
+            const s = document.createElement('script');
+            s.textContent = data.goals.customJS;
+            document.body.appendChild(s);
+          }
+        }
+      } catch(e) { /* Overlay running without backend */ }
+    })();
+
     const urlParams = new URLSearchParams(window.location.search);
     const goalType = urlParams.get('type') || 'subs';
     const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');

@@ -456,6 +456,7 @@ class StorageService {
       songRequest: { ...current.songRequest, ...(newConfig.songRequest || {}) },
       tts: { ...current.tts, ...(newConfig.tts || {}) },
       goals: { ...current.goals, ...(newConfig.goals || {}) },
+      widgetStyles: { ...(current.widgetStyles || {}), ...(newConfig.widgetStyles || {}) },
       security: { ...current.security, ...(newConfig.security || {}) }
     };
 

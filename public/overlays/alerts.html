@@ -30,6 +30,27 @@
   </div>
 
   <script>
+    // Load custom widget styles from streamer config
+    (async function loadCustomStyles() {
+      try {
+        const res = await fetch('/api/widget-styles');
+        const data = await res.json();
+        if (data.alerts) {
+          if (data.alerts.finalCSS || data.alerts.generatedCSS) {
+            const style = document.createElement('style');
+            style.id = 'orbibot-custom-styles';
+            style.textContent = data.alerts.finalCSS || data.alerts.generatedCSS;
+            document.head.appendChild(style);
+          }
+          if (data.alerts.customJS) {
+            const script = document.createElement('script');
+            script.textContent = data.alerts.customJS;
+            document.body.appendChild(script);
+          }
+        }
+      } catch(e) { /* Overlay running without backend */ }
+    })();
+
     function showStatusBadge(text, duration = 4000) {
       const badge = document.getElementById('statusBadge');
       if (!badge) return;

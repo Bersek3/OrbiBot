@@ -125,6 +125,10 @@
         <span class="nav-icon">📺</span>
         <span>Widgets y Escenas OBS</span>
       </li>
+      <li class="nav-item" data-tab="tab-customize">
+        <span class="nav-icon">🎨</span>
+        <span>Personalizar Widgets</span>
+      </li>
       <li class="nav-item" data-tab="tab-points">
         <span class="nav-icon">⭐</span>
         <span>Puntos de Canal</span>
@@ -1040,6 +1044,350 @@
               <button id="btnCancelEditCmd" class="btn btn-secondary" style="display: none;" onclick="cancelEditCommand()">
                 Cancelar
               </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 8: PERSONALIZAR WIDGETS ================= -->
+      <section id="tab-customize" class="tab-pane">
+        <div style="margin-bottom: 24px;">
+          <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">🎨 Personalizar Apariencia de Widgets</h3>
+          <p style="font-size: 14px; color: var(--text-secondary);">
+            Modifica los colores, tamaños y estilos de tus widgets de OBS. Usa el <strong>Editor Visual</strong> para cambios rápidos o el <strong>Editor de Código</strong> para control total con CSS y JavaScript.
+          </p>
+        </div>
+
+        <!-- Widget Selector Cards -->
+        <div class="grid-4" style="margin-bottom: 24px;">
+          <div class="wc-widget-selector active" data-widget="alerts" onclick="selectCustomizeWidget('alerts')">
+            <span class="wc-sel-icon">🔔</span>
+            <span class="wc-sel-label">Alert Box</span>
+          </div>
+          <div class="wc-widget-selector" data-widget="nowplaying" onclick="selectCustomizeWidget('nowplaying')">
+            <span class="wc-sel-icon">🎵</span>
+            <span class="wc-sel-label">Now Playing</span>
+          </div>
+          <div class="wc-widget-selector" data-widget="goals" onclick="selectCustomizeWidget('goals')">
+            <span class="wc-sel-icon">🎯</span>
+            <span class="wc-sel-label">Goal Bar</span>
+          </div>
+          <div class="wc-widget-selector" data-widget="chat" onclick="selectCustomizeWidget('chat')">
+            <span class="wc-sel-icon">💬</span>
+            <span class="wc-sel-label">Chat Overlay</span>
+          </div>
+        </div>
+
+        <!-- Mode Toggle -->
+        <div class="wc-mode-toggle" style="margin-bottom: 20px;">
+          <button class="wc-mode-btn active" data-mode="visual" onclick="switchCustomizeMode('visual')">
+            🎛️ Editor Visual
+          </button>
+          <button class="wc-mode-btn" data-mode="code" onclick="switchCustomizeMode('code')">
+            💻 Editor de Código
+          </button>
+        </div>
+
+        <div class="grid-2">
+          <!-- Left: Controls -->
+          <div class="card" id="wcEditorPanel">
+            <!-- ======= VISUAL MODE ======= -->
+            <div id="wcVisualEditor">
+              <div class="card-header" style="margin-bottom: 16px;">
+                <span class="card-title" id="wcVisualTitle">🎛️ Editor Visual — Alert Box</span>
+              </div>
+
+              <!-- Alert Box Visual Controls -->
+              <div class="wc-controls-group" id="wcControls-alerts">
+                <div class="wc-control-row">
+                  <label class="form-label">Color de Fondo</label>
+                  <input type="color" class="wc-color-input" id="wc-alerts-bgColor" value="#0b0e14" data-prop="bgColor">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Opacidad del Fondo</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-alerts-bgOpacity" min="0" max="100" value="88" data-prop="bgOpacity">
+                    <span class="range-value" id="wc-alerts-bgOpacity-val">88%</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Color del Título</label>
+                  <input type="color" class="wc-color-input" id="wc-alerts-titleColor" value="#ffffff" data-prop="titleColor">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Color de Acento</label>
+                  <input type="color" class="wc-color-input" id="wc-alerts-accentColor" value="#9146ff" data-prop="accentColor">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Tamaño del Título</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-alerts-titleSize" min="16" max="60" value="32" data-prop="titleSize">
+                    <span class="range-value" id="wc-alerts-titleSize-val">32px</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Tamaño del Mensaje</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-alerts-messageSize" min="12" max="40" value="20" data-prop="messageSize">
+                    <span class="range-value" id="wc-alerts-messageSize-val">20px</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Redondeo de Bordes</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-alerts-borderRadius" min="0" max="50" value="24" data-prop="borderRadius">
+                    <span class="range-value" id="wc-alerts-borderRadius-val">24px</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Now Playing Visual Controls -->
+              <div class="wc-controls-group" id="wcControls-nowplaying" style="display:none;">
+                <div class="wc-control-row">
+                  <label class="form-label">Color de Fondo</label>
+                  <input type="color" class="wc-color-input" id="wc-nowplaying-bgColor" value="#0f121a" data-prop="bgColor">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Opacidad del Fondo</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-nowplaying-bgOpacity" min="0" max="100" value="90" data-prop="bgOpacity">
+                    <span class="range-value" id="wc-nowplaying-bgOpacity-val">90%</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Color del Título</label>
+                  <input type="color" class="wc-color-input" id="wc-nowplaying-titleColor" value="#ffffff" data-prop="titleColor">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Color de "Pedida por"</label>
+                  <input type="color" class="wc-color-input" id="wc-nowplaying-requesterColor" value="#9146ff" data-prop="requesterColor">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Tamaño del Título</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-nowplaying-titleSize" min="10" max="32" value="16" data-prop="titleSize">
+                    <span class="range-value" id="wc-nowplaying-titleSize-val">16px</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Redondeo de Bordes</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-nowplaying-borderRadius" min="0" max="40" value="18" data-prop="borderRadius">
+                    <span class="range-value" id="wc-nowplaying-borderRadius-val">18px</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Tamaño del Thumbnail</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-nowplaying-thumbSize" min="40" max="120" value="64" data-prop="thumbSize">
+                    <span class="range-value" id="wc-nowplaying-thumbSize-val">64px</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Goal Bar Visual Controls -->
+              <div class="wc-controls-group" id="wcControls-goals" style="display:none;">
+                <div class="wc-control-row">
+                  <label class="form-label">Color de la Barra</label>
+                  <input type="color" class="wc-color-input" id="wc-goals-barColor" value="#9146ff" data-prop="barColor">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Color Secundario (Gradiente)</label>
+                  <input type="color" class="wc-color-input" id="wc-goals-barColor2" value="#00f2fe" data-prop="barColor2">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Color de Fondo</label>
+                  <input type="color" class="wc-color-input" id="wc-goals-bgColor" value="#0e121c" data-prop="bgColor">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Opacidad del Fondo</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-goals-bgOpacity" min="0" max="100" value="92" data-prop="bgOpacity">
+                    <span class="range-value" id="wc-goals-bgOpacity-val">92%</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Altura de la Barra</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-goals-barHeight" min="8" max="40" value="18" data-prop="barHeight">
+                    <span class="range-value" id="wc-goals-barHeight-val">18px</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Tamaño de Fuente</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-goals-fontSize" min="10" max="28" value="15" data-prop="fontSize">
+                    <span class="range-value" id="wc-goals-fontSize-val">15px</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Redondeo de Bordes</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-goals-borderRadius" min="0" max="30" value="18" data-prop="borderRadius">
+                    <span class="range-value" id="wc-goals-borderRadius-val">18px</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Chat Overlay Visual Controls -->
+              <div class="wc-controls-group" id="wcControls-chat" style="display:none;">
+                <div class="wc-control-row">
+                  <label class="form-label">Color de Fondo de Burbuja</label>
+                  <input type="color" class="wc-color-input" id="wc-chat-bubbleBg" value="#0f141e" data-prop="bubbleBg">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Opacidad del Fondo</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-chat-bgOpacity" min="0" max="100" value="85" data-prop="bgOpacity">
+                    <span class="range-value" id="wc-chat-bgOpacity-val">85%</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Color del Nombre de Usuario</label>
+                  <input type="color" class="wc-color-input" id="wc-chat-usernameColor" value="#9146ff" data-prop="usernameColor">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Color del Mensaje</label>
+                  <input type="color" class="wc-color-input" id="wc-chat-textColor" value="#f1f5f9" data-prop="textColor">
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Tamaño de Fuente</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-chat-fontSize" min="10" max="28" value="14" data-prop="fontSize">
+                    <span class="range-value" id="wc-chat-fontSize-val">14px</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Redondeo de Bordes</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-chat-borderRadius" min="0" max="30" value="14" data-prop="borderRadius">
+                    <span class="range-value" id="wc-chat-borderRadius-val">14px</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Ancho de Borde Izquierdo</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="range" class="range-input" id="wc-chat-borderLeftWidth" min="0" max="10" value="4" data-prop="borderLeftWidth">
+                    <span class="range-value" id="wc-chat-borderLeftWidth-val">4px</span>
+                  </div>
+                </div>
+                <div class="wc-control-row">
+                  <label class="form-label">Color del Borde Izquierdo</label>
+                  <input type="color" class="wc-color-input" id="wc-chat-borderLeftColor" value="#9146ff" data-prop="borderLeftColor">
+                </div>
+              </div>
+            </div>
+
+            <!-- ======= CODE MODE ======= -->
+            <div id="wcCodeEditor" style="display:none;">
+              <div class="card-header" style="margin-bottom: 16px;">
+                <span class="card-title" id="wcCodeTitle">💻 Editor de Código — Alert Box</span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" style="display:flex; align-items:center; gap:8px;">
+                  <span style="background:linear-gradient(135deg,#264de4,#2965f1); padding:2px 8px; border-radius:6px; font-size:11px; font-weight:800; color:#fff;">CSS</span>
+                  CSS Personalizado
+                </label>
+                <textarea id="wcCustomCSS" class="form-control wc-code-textarea" rows="12" placeholder="/* Escribe tu CSS personalizado aquí */
+.alert-card {
+  background: rgba(20, 0, 50, 0.9);
+  border-color: #ff007f;
+}
+.alert-title {
+  color: #ff007f;
+  font-size: 28px;
+}"></textarea>
+              </div>
+
+              <div class="form-group" style="margin-top: 16px;">
+                <label class="form-label" style="display:flex; align-items:center; gap:8px;">
+                  <span style="background:linear-gradient(135deg,#f7df1e,#e8a900); padding:2px 8px; border-radius:6px; font-size:11px; font-weight:800; color:#000;">JS</span>
+                  JavaScript Personalizado
+                </label>
+                <textarea id="wcCustomJS" class="form-control wc-code-textarea" rows="8" placeholder="// Escribe tu JavaScript personalizado aquí
+// Ejemplo: Agregar efecto de partículas a las alertas
+console.log('Widget personalizado cargado');"></textarea>
+              </div>
+
+              <div style="margin-top: 12px; padding: 12px; background: rgba(245, 166, 35, 0.1); border: 1px solid rgba(245, 166, 35, 0.3); border-radius: 10px; font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
+                <strong style="color: #f5a623;">⚠️ Nota:</strong> El CSS y JavaScript se inyectarán directamente en el overlay de OBS. Usa las clases CSS existentes del widget para sobrescribir estilos. El JS se ejecuta después de que el widget carga.
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+              <button class="btn btn-primary" style="flex:1;" onclick="saveWidgetStyles()">
+                💾 Guardar Estilos
+              </button>
+              <button class="btn btn-secondary" onclick="resetWidgetStyles()">
+                🔄 Restablecer
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: Live Preview -->
+          <div class="card">
+            <div class="card-header" style="margin-bottom: 16px;">
+              <span class="card-title">👁️ Vista Previa en Vivo</span>
+            </div>
+            <div id="wcPreviewContainer" class="wc-preview-container">
+              <!-- Alert Box Preview -->
+              <div class="wc-preview-widget" id="wcPreview-alerts">
+                <div class="wc-pv-alert-card" id="wcPvAlertCard">
+                  <div class="wc-pv-alert-badge">NUEVO SEGUIDOR</div>
+                  <div style="font-size:48px; margin: 10px 0;">🎉</div>
+                  <div class="wc-pv-alert-title" id="wcPvAlertTitle">¡StreamerFan123!</div>
+                  <div class="wc-pv-alert-message" id="wcPvAlertMsg">ahora sigue el canal</div>
+                </div>
+              </div>
+
+              <!-- Now Playing Preview -->
+              <div class="wc-preview-widget" id="wcPreview-nowplaying" style="display:none;">
+                <div class="wc-pv-np-card" id="wcPvNpCard">
+                  <div class="wc-pv-np-thumb" id="wcPvNpThumb">🎵</div>
+                  <div class="wc-pv-np-info">
+                    <div style="font-size:10px; text-transform:uppercase; letter-spacing:1px; color:#00f2fe; font-weight:700;">▶ SONANDO AHORA</div>
+                    <div class="wc-pv-np-title" id="wcPvNpTitle">Daft Punk - One More Time</div>
+                    <div class="wc-pv-np-requester" id="wcPvNpRequester">Pedida por <strong>ViewerVIP</strong></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Goal Bar Preview -->
+              <div class="wc-preview-widget" id="wcPreview-goals" style="display:none;">
+                <div class="wc-pv-goal-card" id="wcPvGoalCard">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span class="wc-pv-goal-title" id="wcPvGoalTitle">Meta de Suscriptores</span>
+                    <span style="font-family:monospace; font-weight:700; color:#00f2fe;">24 / 50</span>
+                  </div>
+                  <div class="wc-pv-goal-bar-bg">
+                    <div class="wc-pv-goal-bar-fill" id="wcPvGoalFill" style="width:48%;"></div>
+                  </div>
+                  <div style="text-align:right; margin-top:4px; font-size:11px; color:#94a3b8;">48%</div>
+                </div>
+              </div>
+
+              <!-- Chat Preview -->
+              <div class="wc-preview-widget" id="wcPreview-chat" style="display:none;">
+                <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
+                  <div class="wc-pv-chat-bubble" id="wcPvChatBubble1">
+                    <span class="wc-pv-chat-user" id="wcPvChatUser1" style="color:#9146ff;">Mod_Gamer</span>
+                    <span class="wc-pv-chat-text" id="wcPvChatText1">¡Gran stream hoy! 🎮</span>
+                  </div>
+                  <div class="wc-pv-chat-bubble" id="wcPvChatBubble2">
+                    <span class="wc-pv-chat-user" id="wcPvChatUser2" style="color:#00f2fe;">ViewerPro</span>
+                    <span class="wc-pv-chat-text" id="wcPvChatText2">¿Cuándo es la siguiente partida?</span>
+                  </div>
+                  <div class="wc-pv-chat-bubble" id="wcPvChatBubble3">
+                    <span class="wc-pv-chat-user" id="wcPvChatUser3" style="color:#f5a623;">SubFan_99</span>
+                    <span class="wc-pv-chat-text" id="wcPvChatText3">!sr Daft Punk One More Time 🎵</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:12px; font-size:11px; color:var(--text-muted); text-align:center;">
+              Los cambios se reflejan aquí al instante. El overlay real en OBS se actualizará al guardar.
             </div>
           </div>
         </div>

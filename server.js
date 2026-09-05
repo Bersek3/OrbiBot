@@ -433,6 +433,12 @@ app.post('/api/alert/test', (req, res) => {
   res.json({ success: true, alert: alertData });
 });
 
+// Widget Styles API (used by OBS overlays to load custom styles)
+app.get('/api/widget-styles', (req, res) => {
+  const config = storage.getConfig();
+  res.json(config.widgetStyles || {});
+});
+
 // Goals API
 app.post('/api/goals/update', (req, res) => {
   const { type, current, target, title, color } = req.body;
