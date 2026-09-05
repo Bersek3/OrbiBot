@@ -1476,6 +1476,81 @@ function renderRewards(rewards) {
   });
 }
 
+async function syncTwitchRewardsUI() {
+  showToast('Obteniendo recompensas de tu canal de Twitch...', 'info');
+  try {
+    let twRewards = [];
+    const config = appConfig || JSON.parse(localStorage.getItem('orbibot_config') || '{}');
+    const twitchCfg = config.twitch || {};
+
+    // 1. Intentar obtener a través del backend
+    try {
+      const res = await fetch('/api/rewards/twitch');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.rewards) {
+          twRewards = data.rewards;
+        }
+      }
+    } catch(e) {}
+
+    // 2. Si no hubo backend o estamos en frontend puro, consultar Twitch Helix con el token
+    if (twRewards.length === 0 && twitchCfg.oauthToken && twitchCfg.userId) {
+      try {
+        const cleanToken = twitchCfg.oauthToken.replace(/^oauth:/i, '').trim();
+        const helixRes = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchCfg.userId}`, {
+          headers: {
+            'Client-Id': twitchCfg.clientId || 'yw1vr664ichms8an2x5lhji58v7ozk',
+            'Authorization': `Bearer ${cleanToken}`
+          }
+        });
+        if (helixRes.ok) {
+          const helixData = await helixRes.json();
+          twRewards = helixData.data || [];
+        }
+      } catch(e) {}
+    }
+
+    if (twRewards.length > 0) {
+      const datalist = document.getElementById('twitchRewardsDatalist');
+      if (datalist) {
+        datalist.innerHTML = '';
+        twRewards.forEach(tr => {
+          const opt = document.createElement('option');
+          opt.value = tr.title;
+          datalist.appendChild(opt);
+        });
+      }
+
+      // Sincronizar automáticamente IDs de las recompensas ya configuradas
+      const localRewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+      let updated = false;
+      localRewards.forEach(r => {
+        const match = twRewards.find(tr => tr.title.trim().toLowerCase() === r.rewardName.trim().toLowerCase());
+        if (match && r.rewardId !== match.id) {
+          r.rewardId = match.id;
+          updated = true;
+        }
+      });
+
+      if (updated) {
+        await fetch('/api/rewards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(localRewards)
+        });
+        renderRewards(localRewards);
+      }
+
+      showToast(`¡${twRewards.length} recompensas de Twitch vinculadas correctamente!`, 'success');
+    } else {
+      showToast('No se encontraron recompensas en Twitch o el bot no está autenticado.', 'warn');
+    }
+  } catch (err) {
+    showToast(`Error al sincronizar: ${err.message}`, 'error');
+  }
+}
+
 function toggleRewardForm(show) {
   const form = document.getElementById('rewardFormCard');
   if (!form) return;
@@ -1486,6 +1561,7 @@ function toggleRewardForm(show) {
   }
   if (form.style.display === 'block') {
     loadSounds();
+    syncTwitchRewardsUI();
   }
 }
 

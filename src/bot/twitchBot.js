@@ -79,6 +79,9 @@ class TwitchBot {
       this.statusMessage = `Conectado a #${channelName} ${token ? `como @${botUser}` : '(Modo lectura)'}`;
       this.broadcast('bot_status', { status: this.status, message: this.statusMessage, channel: channelName });
 
+      // Sincronizar automáticamente IDs de recompensas de Puntos de Canal con Twitch
+      this.syncTwitchRewards();
+
       return { success: true, message: this.statusMessage };
     } catch (err) {
       this.status = 'error';
@@ -86,6 +89,44 @@ class TwitchBot {
       this.broadcast('bot_status', { status: this.status, message: this.statusMessage });
       console.error('Twitch connection error:', err);
       return { success: false, message: this.statusMessage };
+    }
+  }
+
+  async syncTwitchRewards() {
+    const config = storage.getConfig();
+    const twitchCfg = config.twitch || {};
+    if (!twitchCfg.oauthToken || !twitchCfg.userId || !twitchCfg.clientId) return;
+
+    try {
+      const cleanToken = twitchCfg.oauthToken.replace(/^oauth:/i, '').trim();
+      const res = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchCfg.userId}`, {
+        headers: {
+          'Client-Id': twitchCfg.clientId,
+          'Authorization': `Bearer ${cleanToken}`
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const twitchRewards = data.data || [];
+        const localRewards = storage.getRewards() || [];
+        let updated = false;
+
+        localRewards.forEach(r => {
+          const match = twitchRewards.find(tr => tr.title.trim().toLowerCase() === r.rewardName.trim().toLowerCase());
+          if (match && r.rewardId !== match.id) {
+            r.rewardId = match.id;
+            updated = true;
+          }
+        });
+
+        if (updated) {
+          storage.saveRewards(localRewards);
+          console.log(`[TwitchBot] ✅ Recompensas de Puntos de Canal vinculadas con Twitch Helix.`);
+        }
+      }
+    } catch (e) {
+      console.warn('[TwitchBot] No se pudieron sincronizar recompensas desde Helix:', e.message);
     }
   }
 
@@ -138,7 +179,7 @@ class TwitchBot {
         roomId: tags['room-id'] || null
       });
 
-      // Check for Bits donation in chat message
+      // Bits alert
       if (tags.bits) {
         const bitCount = parseInt(tags.bits, 10);
         this.broadcast('alert', {
@@ -163,33 +204,48 @@ class TwitchBot {
       // Check for Twitch Channel Points Redemptions with user text input (tags['custom-reward-id'])
       const customRewardId = tags['custom-reward-id'];
       if (customRewardId) {
-        const rewards = storage.getRewards() || [];
-        // 1. Buscar coincidencia exacta por rewardId o id
+        let rewards = storage.getRewards() || [];
+
+        // 1. Buscar coincidencia exacta por rewardId (UUID de Twitch) o id
         let matchedReward = rewards.find(r => r.enabled && (
           (r.rewardId && r.rewardId.toLowerCase() === customRewardId.toLowerCase()) ||
           (r.id && r.id.toLowerCase() === customRewardId.toLowerCase())
         ));
 
-        // 2. Si no está vinculado por UUID aún, vincular al primer tipo compatible
+        // 2. Si no coincide por UUID aún, resolver el nombre en tiempo real desde Helix API
         if (!matchedReward) {
-          matchedReward = rewards.find(r => r.enabled);
+          const config = storage.getConfig();
+          const twitchCfg = config.twitch || {};
+          if (twitchCfg.oauthToken && twitchCfg.userId && twitchCfg.clientId) {
+            try {
+              const cleanToken = twitchCfg.oauthToken.replace(/^oauth:/i, '').trim();
+              const res = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchCfg.userId}&id=${customRewardId}`, {
+                headers: {
+                  'Client-Id': twitchCfg.clientId,
+                  'Authorization': `Bearer ${cleanToken}`
+                }
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.data && data.data.length > 0) {
+                  const twitchRewardTitle = data.data[0].title.trim().toLowerCase();
+                  matchedReward = rewards.find(r => r.enabled && r.rewardName.trim().toLowerCase() === twitchRewardTitle);
+                  if (matchedReward) {
+                    matchedReward.rewardId = customRewardId;
+                    storage.saveRewards(rewards);
+                    console.log(`[TwitchBot] ✅ Vinculado automáticamente "${matchedReward.rewardName}" con ID ${customRewardId}`);
+                  }
+                }
+              }
+            } catch(helixErr) {
+              console.warn('[TwitchBot] Error al resolver recompensa de Twitch:', helixErr.message);
+            }
+          }
         }
 
+        // 3. Si hubo coincidencia exacta, ejecutar la acción asignada
         if (matchedReward && matchedReward.enabled) {
-          if (matchedReward.action === 'tts') {
-            ttsService.processRequest({
-              user: username,
-              text: message,
-              source: 'channel_points'
-            });
-            this.broadcast('alert', {
-              type: 'channel_points',
-              user: username,
-              reward: matchedReward.rewardName || 'Voz TTS',
-              message
-            });
-            return;
-          } else if (matchedReward.action === 'song_request') {
+          if (matchedReward.action === 'song_request') {
             const result = await songRequest.addSong({
               query: message,
               requester: username,
@@ -205,6 +261,19 @@ class TwitchBot {
               message
             });
             return;
+          } else if (matchedReward.action === 'tts') {
+            ttsService.processRequest({
+              user: username,
+              text: message,
+              source: 'channel_points'
+            });
+            this.broadcast('alert', {
+              type: 'channel_points',
+              user: username,
+              reward: matchedReward.rewardName || 'Voz TTS',
+              message
+            });
+            return;
           } else if (matchedReward.action === 'sound') {
             this.broadcast('alert', {
               type: 'sound',
@@ -215,6 +284,15 @@ class TwitchBot {
             });
             return;
           }
+        } else {
+          // Si la recompensa no está vinculada a ninguna acción en OrbiBot, solo mostrar alerta genérica sin disparar TTS erróneo
+          this.broadcast('alert', {
+            type: 'channel_points',
+            user: username,
+            reward: 'Puntos de Canal',
+            message
+          });
+          return;
         }
       }
 

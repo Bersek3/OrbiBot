@@ -891,7 +891,10 @@
           <div class="card">
             <div class="card-header">
               <span class="card-title">⭐ Mapeo de Recompensas de Twitch</span>
-              <button id="btnAddRewardBtn" class="btn btn-primary btn-sm" onclick="toggleRewardForm()">+ Nueva Recompensa</button>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" onclick="syncTwitchRewardsUI()" title="Obtener recompensas de tu canal de Twitch">🔄 Sincronizar de Twitch</button>
+                <button id="btnAddRewardBtn" class="btn btn-primary btn-sm" onclick="toggleRewardForm()">+ Nueva Recompensa</button>
+              </div>
             </div>
 
             <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
@@ -905,7 +908,8 @@
               
               <div class="form-group">
                 <label class="form-label">Nombre exacto de la Recompensa en Twitch</label>
-                <input type="text" id="rewardNameInput" class="form-control" placeholder="ej: Mensaje con Voz (TTS) o Pedir Cancion">
+                <input type="text" id="rewardNameInput" list="twitchRewardsDatalist" class="form-control" placeholder="ej: CANCION, Mensaje con Voz (TTS)">
+                <datalist id="twitchRewardsDatalist"></datalist>
               </div>
 
               <div class="form-group">

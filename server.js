@@ -321,6 +321,32 @@ app.post('/api/rewards', (req, res) => {
   res.json({ success: true, rewards });
 });
 
+// Fetch Twitch Channel Points Custom Rewards from Twitch Helix
+app.get('/api/rewards/twitch', async (req, res) => {
+  try {
+    const config = storage.getConfig();
+    const twitchCfg = config.twitch || {};
+    if (!twitchCfg.oauthToken || !twitchCfg.userId || !twitchCfg.clientId) {
+      return res.status(400).json({ success: false, message: 'Twitch no está autenticado o falta User ID.' });
+    }
+    const cleanToken = twitchCfg.oauthToken.replace(/^oauth:/i, '').trim();
+    const helixRes = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchCfg.userId}`, {
+      headers: {
+        'Client-Id': twitchCfg.clientId,
+        'Authorization': `Bearer ${cleanToken}`
+      }
+    });
+    if (!helixRes.ok) {
+      const err = await helixRes.json().catch(() => ({}));
+      return res.status(helixRes.status).json({ success: false, message: err.message || 'Error al obtener recompensas de Twitch.' });
+    }
+    const data = await helixRes.json();
+    return res.json({ success: true, rewards: data.data || [] });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // Song Request API
 app.get('/api/sr/state', (req, res) => {
   res.json(songRequest.getState());
