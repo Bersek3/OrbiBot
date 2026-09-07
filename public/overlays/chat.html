@@ -17,29 +17,98 @@
   <div id="chatContainer" class="chat-container"></div>
 
   <script>
-    // Load custom widget styles from streamer config
-    (async function loadCustomStyles() {
+    const chatContainer = document.getElementById('chatContainer');
+    const MAX_MESSAGES = 15;
+
+    // Platform Configuration State
+    let chatPlatformsConfig = { twitch: true, kick: true };
+    let activeTwitchChannel = '';
+    let activeKickChannel = '';
+
+    // Load custom widget styles & platform settings from streamer config
+    (async function loadConfigAndStyles() {
       try {
-        const res = await fetch('/api/widget-styles');
-        const data = await res.json();
-        if (data.chat) {
-          if (data.chat.finalCSS || data.chat.generatedCSS) {
+        const [styleRes, cfgRes] = await Promise.all([
+          fetch('/api/widget-styles').then(r => r.json()).catch(() => ({})),
+          fetch('/api/config').then(r => r.json()).catch(() => ({}))
+        ]);
+
+        if (styleRes && styleRes.chat) {
+          if (styleRes.chat.finalCSS || styleRes.chat.generatedCSS) {
             const style = document.createElement('style');
             style.id = 'orbibot-custom-styles';
-            style.textContent = data.chat.finalCSS || data.chat.generatedCSS;
+            style.textContent = styleRes.chat.finalCSS || styleRes.chat.generatedCSS;
             document.head.appendChild(style);
           }
-          if (data.chat.customJS) {
+          if (styleRes.chat.customJS) {
             const s = document.createElement('script');
-            s.textContent = data.chat.customJS;
+            s.textContent = styleRes.chat.customJS;
             document.body.appendChild(s);
           }
         }
-      } catch(e) { /* Overlay running without backend */ }
+
+        if (cfgRes) {
+          updatePlatformsState(cfgRes);
+        }
+      } catch(e) { /* Overlay running standalone */ }
     })();
 
-    const chatContainer = document.getElementById('chatContainer');
-    const MAX_MESSAGES = 15;
+    function updatePlatformsState(cfg) {
+      if (!cfg) return;
+      if (cfg.chatPlatforms) {
+        chatPlatformsConfig = { ...chatPlatformsConfig, ...cfg.chatPlatforms };
+      }
+      if (cfg.twitch && cfg.twitch.channel) {
+        activeTwitchChannel = (cfg.twitch.channel || '').toLowerCase().replace(/^#/, '');
+      }
+      if (cfg.kick && (cfg.kick.channel || cfg.kick.username)) {
+        activeKickChannel = (cfg.kick.channel || cfg.kick.username || '').toLowerCase().replace(/^@/, '');
+      }
+    }
+
+    // Check if BOTH platforms are enabled simultaneously
+    function areBothPlatformsEnabled() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlTwitch = (urlParams.get('channel') || activeTwitchChannel).trim();
+      const urlKick = (urlParams.get('kick') || activeKickChannel).trim();
+
+      const twitchActive = (chatPlatformsConfig.twitch !== false) && Boolean(urlTwitch);
+      const kickActive = (chatPlatformsConfig.kick !== false) && Boolean(urlKick);
+      return Boolean(twitchActive && kickActive);
+    }
+
+    function isPlatformAllowed(platform) {
+      if (platform === 'kick') {
+        return chatPlatformsConfig.kick !== false;
+      }
+      return chatPlatformsConfig.twitch !== false;
+    }
+
+    // Platform Logo Badge (Shown ONLY if BOTH Twitch and Kick are enabled)
+    function getPlatformBadgeHtml(platform) {
+      if (!areBothPlatformsEnabled()) {
+        return ''; // Hide logo if only 1 platform is enabled
+      }
+
+      if (platform === 'kick') {
+        return `
+          <span class="platform-badge kick" title="Kick Chat" style="display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; background: #53fc18; border-radius: 4px; vertical-align: middle; margin-right: 5px; flex-shrink: 0; box-shadow: 0 0 6px rgba(83, 252, 24, 0.4);">
+            <svg viewBox="0 0 32 32" width="11" height="11" fill="#000000">
+              <path d="M4 2h8v8h3V6h3V2h10v10h-3v3h-3v2h3v3h3v10H18v-4h-3v-3h-3v-2H9v9H4V2z" />
+            </svg>
+          </span>
+        `;
+      }
+
+      // Twitch logo badge
+      return `
+        <span class="platform-badge twitch" title="Twitch Chat" style="display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; background: #9146ff; border-radius: 4px; vertical-align: middle; margin-right: 5px; flex-shrink: 0; box-shadow: 0 0 6px rgba(145, 70, 255, 0.4);">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="#ffffff">
+            <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+          </svg>
+        </span>
+      `;
+    }
 
     // ================= TWITCH BADGES & EMOTES =================
     const DEFAULT_TWITCH_BADGES = {
@@ -82,30 +151,6 @@
       'bot-badge': {
         title: 'Bot de Chat',
         url: 'https://static-cdn.jtvnw.net/badges/v1/3ffa9565-c35b-4cad-800b-041e60659cf2/1'
-      },
-      staff: {
-        title: 'Twitch Staff',
-        url: 'https://static-cdn.jtvnw.net/badges/v1/d97c37bd-a6f5-4c38-8f57-4e4bef88af34/1'
-      },
-      admin: {
-        title: 'Twitch Admin',
-        url: 'https://static-cdn.jtvnw.net/badges/v1/9ef7e029-4cdf-4d4d-a0d5-e2b3fb2583fe/1'
-      },
-      global_mod: {
-        title: 'Moderador Global',
-        url: 'https://static-cdn.jtvnw.net/badges/v1/9384c43e-4ce7-4e94-b2a1-b93656896eba/1'
-      },
-      'glhf-pledge': {
-        title: 'GLHF Pledge',
-        url: 'https://static-cdn.jtvnw.net/badges/v1/3158e758-3cb4-43c5-94b3-7639810451c5/1'
-      },
-      'sub-gifter': {
-        title: 'Regalador de Suscripciones',
-        url: 'https://static-cdn.jtvnw.net/badges/v1/a5ef6c17-2e5b-4d8f-9b80-2779fd722414/1'
-      },
-      no_video: {
-        title: 'Solo Audio',
-        url: 'https://static-cdn.jtvnw.net/badges/v1/aef2cd08-f292-42c6-917d-f4728562d49b/1'
       }
     };
 
@@ -160,13 +205,9 @@
       }
 
       let html = '';
-      const badgeOrder = [
-        'staff', 'admin', 'global_mod', 'broadcaster', 'moderator',
-        'vip', 'founder', 'subscriber', 'artist-badge', 'partner',
-        'premium', 'turbo', 'sub-gifter', 'bot-badge', 'glhf-pledge', 'no_video'
-      ];
-
+      const badgeOrder = ['broadcaster', 'moderator', 'vip', 'founder', 'subscriber', 'artist-badge', 'partner', 'premium', 'turbo', 'bot-badge'];
       const processed = new Set();
+
       for (const key of badgeOrder) {
         if (badges[key] !== undefined) {
           processed.add(key);
@@ -186,7 +227,6 @@
         }
       }
 
-      // Fallback if badges object is empty
       if (!html) {
         if (isMod) {
           const m = DEFAULT_TWITCH_BADGES.moderator;
@@ -197,6 +237,24 @@
         }
       }
 
+      return html;
+    }
+
+    function renderKickBadges(badges) {
+      if (!badges || !Array.isArray(badges) || badges.length === 0) return '';
+      let html = '';
+      badges.forEach(b => {
+        const type = b.type || '';
+        if (type === 'broadcaster') {
+          html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#53fc18; color:#000; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">HOST</span>`;
+        } else if (type === 'moderator') {
+          html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#10b981; color:#fff; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">MOD</span>`;
+        } else if (type === 'subscriber') {
+          html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#3b82f6; color:#fff; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">SUB</span>`;
+        } else if (type === 'vip') {
+          html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#ec4899; color:#fff; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">VIP</span>`;
+        }
+      });
       return html;
     }
 
@@ -242,24 +300,36 @@
 
     function addMessage(data) {
       if (!data || !data.message) return;
-      if (data.roomId) {
+      const platform = data.platform || 'twitch';
+
+      // Check if platform is enabled
+      if (!isPlatformAllowed(platform)) {
+        return;
+      }
+
+      if (data.roomId && platform === 'twitch') {
         loadChannelBadges(data.roomId);
       }
 
       const bubble = document.createElement('div');
-      bubble.className = 'chat-bubble';
+      bubble.className = `chat-bubble chat-platform-${platform}`;
 
-      if (data.isMod || (data.badges && data.badges.broadcaster)) {
+      if (platform === 'kick') {
+        bubble.style.borderLeftColor = '#53fc18';
+      } else if (data.isMod || (data.badges && data.badges.broadcaster)) {
         bubble.style.borderLeftColor = '#00f2fe';
       }
 
-      const badgeHtml = renderTwitchBadges(data.badges || data.badgesRaw, data.isMod, data.isSub);
-      const formattedText = formatTwitchEmotes(data.message, data.emotes);
+      const platformBadge = getPlatformBadgeHtml(platform);
+      const badgeHtml = platform === 'kick' ? renderKickBadges(data.badges) : renderTwitchBadges(data.badges || data.badgesRaw, data.isMod, data.isSub);
+      const formattedText = platform === 'twitch' ? formatTwitchEmotes(data.message, data.emotes) : escapeHtml(data.message);
+      const userColor = data.color || (platform === 'kick' ? '#53fc18' : '#9146ff');
 
       bubble.innerHTML = `
         <div>
+          ${platformBadge}
           <span class="chat-badges">${badgeHtml}</span>
-          <span class="username" style="color: ${data.color || '#9146ff'}">${escapeHtml(data.user)}:</span>
+          <span class="username" style="color: ${userColor}">${escapeHtml(data.user)}:</span>
           <span class="text">${formattedText}</span>
         </div>
       `;
@@ -289,19 +359,28 @@
       if (!msg) return;
       if (msg.event === 'chat_message') {
         addMessage(msg.data);
+      } else if (msg.event === 'config_updated' && msg.data) {
+        updatePlatformsState(msg.data);
+      } else if (msg.event === 'chat_platform_toggle' && msg.data) {
+        chatPlatformsConfig = { ...chatPlatformsConfig, ...msg.data };
       }
     }
 
     function connectChannels() {
       const urlParams = new URLSearchParams(window.location.search);
       const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
+      const kickChannel = (urlParams.get('kick') || '').toLowerCase().replace(/^@/, '');
       const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
 
       if (channel) {
+        activeTwitchChannel = channel;
         loadChannelBadges(channel);
       }
+      if (kickChannel) {
+        activeKickChannel = kickChannel;
+      }
 
-      // 1. Direct Twitch IRC (native in OBS without external server)
+      // 1. Direct Twitch IRC
       if (channel && window.tmi) {
         try {
           const tmiClient = new window.tmi.Client({
@@ -318,6 +397,8 @@
             const userColor = tags.color || '#9146ff';
 
             addMessage({
+              id: tags.id || Date.now().toString(),
+              platform: 'twitch',
               user: username,
               color: userColor,
               message,
@@ -332,7 +413,12 @@
         } catch(e) {}
       }
 
-      // 2. Local WebSocket con reconexión automática en segundo plano
+      // 2. Direct Kick Pusher WebSocket
+      if (kickChannel) {
+        connectKickChatDirect(kickChannel);
+      }
+
+      // 3. Local WebSocket Server Connection
       let wsInstance = null;
       let wsReconnectTimeout = null;
 
@@ -364,7 +450,7 @@
 
       connectLocalWs(wsUrl);
 
-      // 3. Cloud Real-time Relay (Paho MQTT) con reconexión automática
+      // 4. Cloud Real-time Relay (Paho MQTT)
       let mqttClient = null;
       let mqttReconnectTimeout = null;
 
@@ -372,12 +458,12 @@
         if (typeof Paho !== 'undefined') {
           if (mqttReconnectTimeout) clearTimeout(mqttReconnectTimeout);
 
-          if (!channel) return;
+          const targetChan = channel || kickChannel;
+          if (!targetChan) return;
           const clientId = 'orbi_chat_' + Math.random().toString(36).substring(2, 9);
           try {
             mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
             mqttClient.onConnectionLost = (responseObject) => {
-              console.warn('MQTT Connection lost, reconnecting in 3.5s...', responseObject);
               scheduleMqttReconnect();
             };
             mqttClient.onMessageArrived = (message) => {
@@ -392,12 +478,11 @@
               keepAliveInterval: 30,
               onSuccess: () => {
                 if (token) {
-                  mqttClient.subscribe(`orbibot/${channel}_${token}/events`);
+                  mqttClient.subscribe(`orbibot/${targetChan}_${token}/events`);
                 }
-                mqttClient.subscribe(`orbibot/${channel}/events`);
+                mqttClient.subscribe(`orbibot/${targetChan}/events`);
               },
-              onFailure: (e) => {
-                console.warn('MQTT connect failed, retrying in 4s...', e);
+              onFailure: () => {
                 scheduleMqttReconnect();
               }
             });
@@ -414,7 +499,7 @@
 
       connectMqtt();
 
-      // 4. BroadcastChannel & Storage for same-browser testing
+      // 5. BroadcastChannel & Storage for same-browser testing
       if (typeof BroadcastChannel !== 'undefined') {
         const bc = new BroadcastChannel('orbibot_stream_channel');
         bc.onmessage = (e) => handleIncomingMessage(e.data);
@@ -425,28 +510,63 @@
           try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
         }
       });
+    }
 
-      // 5. OBS Scene Activate & Visibility Health Watcher
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-          if (!wsInstance || wsInstance.readyState !== WebSocket.OPEN) {
-            connectLocalWs(wsUrl);
-          }
-          if (!mqttClient || !mqttClient.isConnected()) {
-            connectMqtt();
-          }
-        }
-      });
+    function connectKickChatDirect(kickChannel) {
+      const clean = kickChannel.toLowerCase().replace(/^@/, '').trim();
+      const pusherUrl = 'wss://ws-us2.pusher.com/app/eb1d5f283081ab659038?protocol=7&client=js&version=7.6.0&flash=false';
 
-      // 6. Chequeo periódico de salud en segundo plano cada 15s
-      setInterval(() => {
-        const wsOpen = wsInstance && wsInstance.readyState === WebSocket.OPEN;
-        const mqttOpen = mqttClient && mqttClient.isConnected();
-        if (!wsOpen && !mqttOpen) {
-          connectLocalWs(wsUrl);
-          connectMqtt();
-        }
-      }, 15000);
+      async function startKickWs() {
+        let chatroomId = null;
+        try {
+          const res = await fetch(`/api/kick/chatroom/${clean}`);
+          if (res.ok) {
+            const d = await res.json();
+            chatroomId = d.chatroomId;
+          }
+        } catch(e) {}
+
+        const targetRoom = chatroomId || clean;
+        try {
+          const kws = new WebSocket(pusherUrl);
+          kws.onopen = () => {
+            kws.send(JSON.stringify({
+              event: 'pusher:subscribe',
+              data: { auth: '', channel: `chatrooms.${targetRoom}.v2` }
+            }));
+            setInterval(() => {
+              if (kws.readyState === WebSocket.OPEN) {
+                kws.send(JSON.stringify({ event: 'pusher:ping', data: {} }));
+              }
+            }, 20000);
+          };
+          kws.onmessage = (ev) => {
+            try {
+              const pkt = JSON.parse(ev.data);
+              if (pkt.event === 'App\\Events\\ChatMessageEvent' || pkt.event === 'ChatMessageEvent') {
+                const msgData = typeof pkt.data === 'string' ? JSON.parse(pkt.data) : pkt.data;
+                const sender = msgData.sender || {};
+                const badges = sender.identity?.badges || [];
+                addMessage({
+                  id: msgData.id || `kick-${Date.now()}`,
+                  platform: 'kick',
+                  user: sender.username || sender.slug || 'KickUser',
+                  color: sender.identity?.color || '#53fc18',
+                  message: msgData.content || '',
+                  isMod: badges.some(b => b.type === 'moderator' || b.type === 'broadcaster'),
+                  isSub: badges.some(b => b.type === 'subscriber'),
+                  badges,
+                  emotes: null
+                });
+              }
+            } catch(e) {}
+          };
+          kws.onclose = () => {
+            setTimeout(startKickWs, 6000);
+          };
+        } catch(e) {}
+      }
+      startKickWs();
     }
 
     connectChannels();

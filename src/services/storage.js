@@ -34,6 +34,10 @@ const DEFAULT_CONFIG = {
     clientId: process.env.KICK_CLIENT_ID || '01M0VT0JC58YQEVGRHM8JFXQX3',
     connected: false
   },
+  chatPlatforms: {
+    twitch: true,
+    kick: true
+  },
   songRequest: {
     prefix: '!sr',
     enabled: true,

@@ -756,11 +756,16 @@
                   <span>🎮</span> <span>Vincular Canales de Transmisión</span>
                 </h3>
                 <p style="font-size: 13px; color: var(--text-secondary);">
-                  Conecta tus canales de Kick y Twitch para sincronizar el chat, alertas de pantalla, ruleta y widgets en OBS Studio.
+                  Conecta tus canales de Kick y Twitch para sincronizar el chat multi-plataforma, alertas de pantalla, ruleta y widgets en OBS Studio.
                 </p>
               </div>
-              <div id="userLoggedInBadge" style="display: flex; align-items: center; gap: 8px; background: rgba(0, 242, 254, 0.1); border: 1px solid rgba(0, 242, 254, 0.3); padding: 5px 12px; border-radius: 999px; font-size: 12px; color: #00f2fe; font-weight: 700;">
-                <span>👤</span> <span id="userLoggedInEmail">Sesión activa</span>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div id="multiChatIndicatorBadge" style="display: flex; align-items: center; gap: 6px; background: rgba(145, 70, 255, 0.15); border: 1px solid rgba(145, 70, 255, 0.4); padding: 5px 12px; border-radius: 999px; font-size: 12px; color: #e2e8f0; font-weight: 700;">
+                  <span id="multiChatIcon">✨</span> <span id="multiChatText">Multi-Chat OBS: Twitch + Kick</span>
+                </div>
+                <div id="userLoggedInBadge" style="display: flex; align-items: center; gap: 8px; background: rgba(0, 242, 254, 0.1); border: 1px solid rgba(0, 242, 254, 0.3); padding: 5px 12px; border-radius: 999px; font-size: 12px; color: #00f2fe; font-weight: 700;">
+                  <span>👤</span> <span id="userLoggedInEmail">Sesión activa</span>
+                </div>
               </div>
             </div>
 
@@ -801,6 +806,18 @@
                     Desvincular
                   </button>
                 </div>
+
+                <!-- Chat Multi-Platform Toggle Switch for Twitch -->
+                <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: #cbd5e1;">
+                  <span style="display: flex; align-items: center; gap: 6px;">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="#9146ff"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+                    <span>Activar en Chat OBS</span>
+                  </span>
+                  <label class="switch-label" style="margin: 0;">
+                    <input type="checkbox" id="toggleChatTwitch" class="switch-input" checked onchange="handleChatPlatformToggle('twitch', this.checked)">
+                    <span class="switch-slider" style="width: 38px; height: 20px;"></span>
+                  </label>
+                </div>
               </div>
 
               <!-- 2. Kick Platform Link Card -->
@@ -837,6 +854,18 @@
                   <button id="btnUnlinkKickBtn" class="btn btn-danger btn-sm" onclick="disconnectKickAccount()" style="padding: 6px 14px; font-size: 12px; border-radius: 8px;">
                     Desvincular
                   </button>
+                </div>
+
+                <!-- Chat Multi-Platform Toggle Switch for Kick -->
+                <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: #cbd5e1;">
+                  <span style="display: flex; align-items: center; gap: 6px;">
+                    <svg viewBox="0 0 32 32" width="13" height="13" fill="#53fc18"><path d="M4 2h8v8h3V6h3V2h10v10h-3v3h-3v2h3v3h3v10H18v-4h-3v-3h-3v-2H9v9H4V2z"/></svg>
+                    <span>Activar en Chat OBS</span>
+                  </span>
+                  <label class="switch-label" style="margin: 0;">
+                    <input type="checkbox" id="toggleChatKick" class="switch-input" checked onchange="handleChatPlatformToggle('kick', this.checked)">
+                    <span class="switch-slider" style="width: 38px; height: 20px;"></span>
+                  </label>
                 </div>
               </div>
             </div>

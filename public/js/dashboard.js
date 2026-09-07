@@ -553,6 +553,102 @@ function updatePlatformLinkingUI() {
     if (kickConnView) kickConnView.style.display = 'none';
     if (dashKickAvatar) dashKickAvatar.style.display = 'none';
   }
+
+  // 3. Multi-Chat Platform Toggles & Status
+  let chatPlatforms = appConfig?.chatPlatforms || (() => {
+    try { return JSON.parse(localStorage.getItem('orbibot_chat_platforms') || '{"twitch":true,"kick":true}'); } catch(e) { return { twitch: true, kick: true }; }
+  })();
+
+  const toggleTwitch = document.getElementById('toggleChatTwitch');
+  const toggleKick = document.getElementById('toggleChatKick');
+  if (toggleTwitch) toggleTwitch.checked = chatPlatforms.twitch !== false;
+  if (toggleKick) toggleKick.checked = chatPlatforms.kick !== false;
+
+  const twitchActive = isTwitchConn && (chatPlatforms.twitch !== false);
+  const kickActive = isKickConn && (chatPlatforms.kick !== false);
+
+  const multiChatBadge = document.getElementById('multiChatIndicatorBadge');
+  const multiChatIcon = document.getElementById('multiChatIcon');
+  const multiChatText = document.getElementById('multiChatText');
+
+  if (multiChatBadge && multiChatText) {
+    if (twitchActive && kickActive) {
+      multiChatBadge.style.display = 'inline-flex';
+      multiChatBadge.style.background = 'linear-gradient(90deg, rgba(145, 70, 255, 0.25), rgba(83, 252, 24, 0.25))';
+      multiChatBadge.style.border = '1px solid rgba(83, 252, 24, 0.5)';
+      multiChatBadge.style.color = '#fff';
+      if (multiChatIcon) multiChatIcon.textContent = '✨';
+      multiChatText.textContent = 'Multi-Chat Activo (Twitch + Kick - Logos en OBS)';
+    } else if (twitchActive) {
+      multiChatBadge.style.display = 'inline-flex';
+      multiChatBadge.style.background = 'rgba(145, 70, 255, 0.15)';
+      multiChatBadge.style.border = '1px solid rgba(145, 70, 255, 0.4)';
+      multiChatBadge.style.color = '#c4b5fd';
+      if (multiChatIcon) multiChatIcon.textContent = '🟣';
+      multiChatText.textContent = 'Chat OBS: Solo Twitch';
+    } else if (kickActive) {
+      multiChatBadge.style.display = 'inline-flex';
+      multiChatBadge.style.background = 'rgba(83, 252, 24, 0.15)';
+      multiChatBadge.style.border = '1px solid rgba(83, 252, 24, 0.4)';
+      multiChatBadge.style.color = '#53fc18';
+      if (multiChatIcon) multiChatIcon.textContent = '🟢';
+      multiChatText.textContent = 'Chat OBS: Solo Kick';
+    } else {
+      multiChatBadge.style.display = 'none';
+    }
+  }
+}
+
+// ================= MULTI-PLATFORM CHAT TOGGLES =================
+function handleChatPlatformToggle(platform, enabled) {
+  if (!appConfig) appConfig = {};
+  if (!appConfig.chatPlatforms) appConfig.chatPlatforms = { twitch: true, kick: true };
+  appConfig.chatPlatforms[platform] = enabled;
+
+  try {
+    localStorage.setItem('orbibot_chat_platforms', JSON.stringify(appConfig.chatPlatforms));
+  } catch(e) {}
+
+  fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatPlatforms: appConfig.chatPlatforms })
+  }).catch(() => {});
+
+  broadcastEvent('chat_platform_toggle', appConfig.chatPlatforms);
+
+  updatePlatformLinkingUI();
+  populateWidgetUrls();
+
+  const platName = platform === 'kick' ? 'Kick' : 'Twitch';
+  showToast(enabled ? `🟢 Chat de ${platName} activado en OBS` : `⚪ Chat de ${platName} pausado en OBS`, 'info');
+}
+
+// Helper: Check if both platforms are enabled
+function areBothPlatformsEnabledInDash() {
+  const twitchConn = Boolean(appConfig?.twitch?.connected || localStorage.getItem('orbibot_twitch_auth'));
+  const kickConn = Boolean(appConfig?.kick?.connected || localStorage.getItem('orbibot_kick_auth'));
+  const platforms = appConfig?.chatPlatforms || { twitch: true, kick: true };
+  return Boolean(twitchConn && kickConn && (platforms.twitch !== false) && (platforms.kick !== false));
+}
+
+// Helper: Render Kick Badges
+function renderKickBadges(badges) {
+  if (!badges || !Array.isArray(badges) || badges.length === 0) return '';
+  let html = '';
+  badges.forEach(b => {
+    const type = b.type || '';
+    if (type === 'broadcaster') {
+      html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#53fc18; color:#000; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">HOST</span>`;
+    } else if (type === 'moderator') {
+      html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#10b981; color:#fff; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">MOD</span>`;
+    } else if (type === 'subscriber') {
+      html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#3b82f6; color:#fff; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">SUB</span>`;
+    } else if (type === 'vip') {
+      html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#ec4899; color:#fff; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">VIP</span>`;
+    }
+  });
+  return html;
 }
 
 // ================= KICK OAUTH 2.0 FRONTEND LOGIC =================
@@ -647,10 +743,17 @@ async function handleKickAuthSuccess(payload) {
 
   showToast(`🟢 ¡Kick vinculado con éxito! Conectado como @${displayName || channel}`, 'success');
 
+  connectInBrowserKickBot(appConfig.kick);
   updatePlatformLinkingUI();
+  populateWidgetUrls();
 }
 
 async function disconnectKickAccount() {
+  if (browserKickWs) {
+    try { browserKickWs.close(); } catch(e) {}
+    browserKickWs = null;
+  }
+
   try {
     await fetch('/api/auth/kick/disconnect', { method: 'POST' });
   } catch (e) {}
@@ -674,6 +777,7 @@ async function disconnectKickAccount() {
 
   showToast('Canal de Kick desvinculado.', 'info');
   updatePlatformLinkingUI();
+  populateWidgetUrls();
 }
 
 // Export auth functions to window
@@ -688,6 +792,7 @@ window.handleAuthLoginSubmit = handleAuthLoginSubmit;
 window.handleAuthLogout = handleAuthLogout;
 window.getUserSession = getUserSession;
 window.updatePlatformLinkingUI = updatePlatformLinkingUI;
+window.handleChatPlatformToggle = handleChatPlatformToggle;
 window.triggerKickOAuthLogin = triggerKickOAuthLogin;
 window.handleKickAuthSuccess = handleKickAuthSuccess;
 window.disconnectKickAccount = disconnectKickAccount;
@@ -1208,6 +1313,74 @@ function connectInBrowserTwitchBot(twitchData) {
   });
 }
 
+// ================= IN-BROWSER KICK CHAT LISTENER =================
+let browserKickWs = null;
+
+function connectInBrowserKickBot(kickData) {
+  const channel = (kickData?.channel || kickData?.username || localStorage.getItem('orbibot_kick_channel') || '').toLowerCase().replace(/^@/, '').trim();
+  if (!channel) return;
+
+  if (browserKickWs) {
+    try { browserKickWs.close(); } catch(e) {}
+    browserKickWs = null;
+  }
+
+  const pusherUrl = 'wss://ws-us2.pusher.com/app/eb1d5f283081ab659038?protocol=7&client=js&version=7.6.0&flash=false';
+
+  async function startKickSocket() {
+    let chatroomId = null;
+    try {
+      const res = await fetch(`/api/kick/chatroom/${channel}`);
+      if (res.ok) {
+        const d = await res.json();
+        chatroomId = d.chatroomId;
+      }
+    } catch(e) {}
+
+    const targetRoom = chatroomId || channel;
+    try {
+      browserKickWs = new WebSocket(pusherUrl);
+      browserKickWs.onopen = () => {
+        browserKickWs.send(JSON.stringify({
+          event: 'pusher:subscribe',
+          data: { auth: '', channel: `chatrooms.${targetRoom}.v2` }
+        }));
+        console.log(`🟢 [Dashboard] Conectado al chat de Kick @${channel}`);
+      };
+      browserKickWs.onmessage = (ev) => {
+        try {
+          const pkt = JSON.parse(ev.data);
+          if (pkt.event === 'App\\Events\\ChatMessageEvent' || pkt.event === 'ChatMessageEvent') {
+            const msgData = typeof pkt.data === 'string' ? JSON.parse(pkt.data) : pkt.data;
+            const sender = msgData.sender || {};
+            const badges = sender.identity?.badges || [];
+            const chatData = {
+              id: msgData.id || `kick-${Date.now()}`,
+              platform: 'kick',
+              user: sender.username || sender.slug || 'KickUser',
+              color: sender.identity?.color || '#53fc18',
+              message: msgData.content || '',
+              isMod: badges.some(b => b.type === 'moderator' || b.type === 'broadcaster'),
+              isSub: badges.some(b => b.type === 'subscriber'),
+              badges,
+              emotes: null
+            };
+            appendChatMessage(chatData);
+            broadcastEvent('chat_message', chatData);
+          }
+        } catch(e) {}
+      };
+      browserKickWs.onclose = () => {
+        const isConn = (appConfig?.kick?.connected !== false) && Boolean(localStorage.getItem('orbibot_kick_auth') || localStorage.getItem('orbibot_kick_channel'));
+        if (isConn) {
+          setTimeout(startKickSocket, 6000);
+        }
+      };
+    } catch(e) {}
+  }
+  startKickSocket();
+}
+
 // ================= UI BINDING =================
 function bindConfigToUI(cfg) {
   if (!cfg) return;
@@ -1614,7 +1787,11 @@ function formatTwitchEmotes(message, emotes) {
 // ================= CHAT LIVE LOG =================
 function appendChatMessage(data) {
   const container = document.getElementById('liveChatMessages');
-  if (!container) return;
+  if (!container || !data || !data.message) return;
+
+  const platform = data.platform || 'twitch';
+  const platforms = appConfig?.chatPlatforms || { twitch: true, kick: true };
+  if (platforms[platform] === false) return;
 
   // Clear initial placeholder notice if present
   const placeholder = container.querySelector('em');
@@ -1622,19 +1799,40 @@ function appendChatMessage(data) {
     container.innerHTML = '';
   }
 
-  if (data.roomId) {
+  if (data.roomId && platform === 'twitch') {
     loadChannelBadges(data.roomId);
   }
 
   const row = document.createElement('div');
-  row.className = 'chat-msg-row';
+  row.className = `chat-msg-row chat-platform-${platform}`;
 
-  const badgeHtml = renderTwitchBadges(data.badges || data.badgesRaw, data.isMod, data.isSub);
-  const formattedText = formatTwitchEmotes(data.message, data.emotes);
+  // Check if both platforms are enabled and active
+  const bothActive = areBothPlatformsEnabledInDash();
+  let platformBadge = '';
+  if (bothActive) {
+    if (platform === 'kick') {
+      platformBadge = `
+        <span title="Kick" style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; background:#53fc18; border-radius:3px; margin-right:5px; vertical-align:middle; box-shadow: 0 0 5px rgba(83,252,24,0.4);">
+          <svg viewBox="0 0 32 32" width="10" height="10" fill="#000"><path d="M4 2h8v8h3V6h3V2h10v10h-3v3h-3v2h3v3h3v10H18v-4h-3v-3h-3v-2H9v9H4V2z"/></svg>
+        </span>
+      `;
+    } else {
+      platformBadge = `
+        <span title="Twitch" style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; background:#9146ff; border-radius:3px; margin-right:5px; vertical-align:middle; box-shadow: 0 0 5px rgba(145,70,255,0.4);">
+          <svg viewBox="0 0 24 24" width="10" height="10" fill="#fff"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+        </span>
+      `;
+    }
+  }
+
+  const badgeHtml = platform === 'kick' ? renderKickBadges(data.badges) : renderTwitchBadges(data.badges || data.badgesRaw, data.isMod, data.isSub);
+  const formattedText = platform === 'twitch' ? formatTwitchEmotes(data.message, data.emotes) : escapeHtml(data.message);
+  const userColor = data.color || (platform === 'kick' ? '#53fc18' : '#9146ff');
 
   row.innerHTML = `
+    ${platformBadge}
     <span class="chat-badges">${badgeHtml}</span>
-    <span class="chat-user" style="color: ${data.color || '#9146ff'}">${escapeHtml(data.user)}:</span>
+    <span class="chat-user" style="color: ${userColor}">${escapeHtml(data.user)}:</span>
     <span class="chat-text">${formattedText}</span>
   `;
 
@@ -1648,23 +1846,34 @@ function escapeHtml(str) {
 }
 
 function triggerTestChat() {
-  if (!isStreamerLoggedIn()) {
-    showToast('⚠️ Debes iniciar sesión con tu cuenta de Twitch para probar el Chat en OBS.', 'warn');
-    return;
-  }
-  const channel = (appConfig?.twitch?.channel || 'StreamerMaster').replace(/^#/, '');
+  const twitchChan = (appConfig?.twitch?.channel || 'StreamerMaster').replace(/^#/, '');
+  const kickChan = (appConfig?.kick?.channel || appConfig?.kick?.username || 'KickStreamer').replace(/^@/, '');
+  const bothActive = areBothPlatformsEnabledInDash();
+
   const sampleMessages = [
     {
-      user: channel,
+      platform: 'twitch',
+      user: twitchChan,
       color: '#ff007f',
-      message: '¡Hola a todos! Bienvenidos al directo Kappa Keepo',
+      message: '¡Hola a todos en Twitch! Bienvenidos al directo Kappa Keepo',
       badges: { broadcaster: '1', subscriber: '12' },
       isMod: true,
       isSub: true,
-      emotes: { '25': ['36-40'], '1902': ['42-46'] }
+      emotes: { '25': ['42-46'], '1902': ['48-52'] }
     },
     {
-      user: 'Moderador_Pro',
+      platform: 'kick',
+      user: kickChan,
+      color: '#53fc18',
+      message: '¡Y un saludo gigante a toda la comunidad de Kick activa en el chat!',
+      badges: [{ type: 'broadcaster' }, { type: 'subscriber' }],
+      isMod: true,
+      isSub: true,
+      emotes: null
+    },
+    {
+      platform: 'twitch',
+      user: 'Moderador_Twitch',
       color: '#00f2fe',
       message: 'Recuerden respetar las reglas del chat y pasarla bien PogChamp',
       badges: { moderator: '1', partner: '1' },
@@ -1673,22 +1882,14 @@ function triggerTestChat() {
       emotes: { '88': ['52-59'] }
     },
     {
-      user: 'SuperVIP_Fan',
-      color: '#ffd700',
-      message: '¡Aquí apoyando con suscripción de regalo! <3 LUL',
-      badges: { vip: '1', premium: '1', 'sub-gifter': '5' },
+      platform: 'kick',
+      user: 'KickViewerVIP',
+      color: '#38bdf8',
+      message: '¡Multi-chat funcionando perfecto en Kick y Twitch al mismo tiempo! 🔥',
+      badges: [{ type: 'vip' }, { type: 'subscriber' }],
       isMod: false,
       isSub: true,
-      emotes: { '425618': ['45-47'] }
-    },
-    {
-      user: 'FundadorTier3',
-      color: '#a855f7',
-      message: '¡Esa canción está brutal! VoHiYo',
-      badges: { founder: '0', turbo: '1', 'artist-badge': '1' },
-      isMod: false,
-      isSub: true,
-      emotes: { '81274': ['26-31'] }
+      emotes: null
     }
   ];
 
@@ -1698,7 +1899,7 @@ function triggerTestChat() {
       broadcastEvent('chat_message', msg);
     }, idx * 600);
   });
-  showToast('💬 Mensajes de prueba con emblemas originales enviados a OBS y Chat', 'success');
+  showToast(bothActive ? '💬 Mensajes de prueba con logos Multi-Chat (Twitch + Kick) enviados a OBS' : '💬 Mensajes de prueba enviados a OBS', 'success');
 }
 window.triggerTestChat = triggerTestChat;
 
@@ -1976,6 +2177,23 @@ function populateWidgetUrls() {
     }
   }
 
+  let kickChannel = '';
+  if (appConfig && appConfig.kick) {
+    kickChannel = (appConfig.kick.channel || appConfig.kick.username || '').trim().toLowerCase().replace(/^@/, '');
+  }
+  if (!kickChannel) {
+    try {
+      const localKick = localStorage.getItem('orbibot_kick_auth');
+      if (localKick) {
+        const parsed = JSON.parse(localKick);
+        if (parsed.channel || parsed.username) kickChannel = (parsed.channel || parsed.username).trim().toLowerCase().replace(/^@/, '');
+      }
+    } catch(e) {}
+  }
+  if (!kickChannel) {
+    kickChannel = (localStorage.getItem('orbibot_kick_channel') || '').trim().toLowerCase().replace(/^@/, '');
+  }
+
   const token = getEffectiveWidgetToken();
   const tokenDisplay = document.getElementById('cfgWidgetTokenDisplay');
   if (tokenDisplay) {
@@ -1983,6 +2201,7 @@ function populateWidgetUrls() {
   }
 
   const channelParam = channel ? `channel=${encodeURIComponent(channel)}` : '';
+  const kickParam = kickChannel ? `kick=${encodeURIComponent(kickChannel)}` : '';
   const tokenParam = token ? `token=${encodeURIComponent(token)}` : '';
 
   const params = [channelParam, tokenParam].filter(Boolean).join('&');
@@ -1990,12 +2209,15 @@ function populateWidgetUrls() {
   const goalParams = [channelParam, 'type=subs', tokenParam].filter(Boolean).join('&');
   const goalQs = goalParams ? `?${goalParams}` : '?type=subs';
 
+  const chatParams = [channelParam, kickParam, tokenParam].filter(Boolean).join('&');
+  const chatQs = chatParams ? `?${chatParams}` : '';
+
   const alertsUrl = `${baseUrl}/overlays/alerts.html${qs}`;
   const npUrl = `${baseUrl}/overlays/nowplaying.html${qs}`;
   const goalUrl = `${baseUrl}/overlays/goals.html${goalQs}`;
   const musicPlayerUrl = `${baseUrl}/overlays/music_player.html${qs}`;
   const ttsUrl = `${baseUrl}/overlays/tts.html${qs}`;
-  const chatUrl = `${baseUrl}/overlays/chat.html${qs}`;
+  const chatUrl = `${baseUrl}/overlays/chat.html${chatQs}`;
 
   if (document.getElementById('urlAlertsWidget')) document.getElementById('urlAlertsWidget').value = alertsUrl;
   if (document.getElementById('urlNowPlayingWidget')) document.getElementById('urlNowPlayingWidget').value = npUrl;
@@ -2009,6 +2231,8 @@ function populateWidgetUrls() {
   if (document.getElementById('btnPreviewNowPlaying')) document.getElementById('btnPreviewNowPlaying').href = npUrl;
   if (document.getElementById('btnPreviewGoal')) document.getElementById('btnPreviewGoal').href = goalUrl;
   if (document.getElementById('btnPreviewMusicPlayer')) document.getElementById('btnPreviewMusicPlayer').href = musicPlayerUrl;
+  if (document.getElementById('btnPreviewTts')) document.getElementById('btnPreviewTts').href = ttsUrl;
+  if (document.getElementById('btnPreviewChat')) document.getElementById('btnPreviewChat').href = chatUrl;
   if (document.getElementById('btnPreviewTts')) document.getElementById('btnPreviewTts').href = ttsUrl;
   if (document.getElementById('btnPreviewChat')) document.getElementById('btnPreviewChat').href = chatUrl;
 

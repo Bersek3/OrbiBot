@@ -9,6 +9,7 @@ const crypto = require('crypto');
 
 const storage = require('./src/services/storage');
 const twitchBot = require('./src/bot/twitchBot');
+const kickBot = require('./src/bot/kickBot');
 const songRequest = require('./src/services/songRequest');
 const ttsService = require('./src/services/ttsService');
 
@@ -74,6 +75,10 @@ twitchBot.onEvent((event, payload) => {
   broadcast(event, payload);
 });
 
+kickBot.onEvent((event, payload) => {
+  broadcast(event, payload);
+});
+
 songRequest.onUpdate((payload) => {
   broadcast('sr_update', payload);
 });
@@ -110,6 +115,13 @@ app.get('/api/config', (req, res) => {
 
 app.post('/api/config', (req, res) => {
   const updated = storage.saveConfig(req.body);
+  if (req.body.kick) {
+    if (req.body.kick.connected && req.body.kick.channel) {
+      kickBot.connect().catch(e => console.warn('KickBot connect warning:', e.message));
+    } else if (req.body.kick.connected === false) {
+      kickBot.disconnect();
+    }
+  }
   broadcast('config_updated', updated);
   res.json({ success: true, config: updated });
 });
@@ -418,6 +430,7 @@ app.get('/api/auth/kick/callback', async (req, res) => {
     };
 
     const updated = storage.saveConfig({ kick: kickConfig });
+    kickBot.connect().catch(e => console.warn('KickBot connect warning:', e.message));
     broadcast('config_updated', updated);
 
     // Render Success Popup
@@ -486,6 +499,7 @@ app.get('/api/auth/kick/callback', async (req, res) => {
 
 // 3. Disconnect Kick
 app.post('/api/auth/kick/disconnect', (req, res) => {
+  kickBot.disconnect();
   const updated = storage.saveConfig({
     kick: {
       channel: '',
@@ -500,6 +514,17 @@ app.post('/api/auth/kick/disconnect', (req, res) => {
   });
   broadcast('config_updated', updated);
   res.json({ success: true, message: 'Canal de Kick desvinculado.', config: updated });
+});
+
+// Kick Chatroom Resolver Endpoint
+app.get('/api/kick/chatroom/:channel', async (req, res) => {
+  try {
+    const channel = req.params.channel.toLowerCase().replace(/^@/, '').trim();
+    const chatroomId = await kickBot.getChatroomId(channel);
+    res.json({ success: true, channel, chatroomId });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 // Disconnect / Logout
@@ -775,6 +800,14 @@ if (initialConfig.twitch && initialConfig.twitch.channel && initialConfig.twitch
     console.log(`Bot reconectado automáticamente al canal #${initialConfig.twitch.channel}`);
   }).catch(e => {
     console.warn('No se pudo reconectar automáticamente el bot:', e.message);
+  });
+}
+
+if (initialConfig.kick && initialConfig.kick.channel && initialConfig.kick.connected) {
+  kickBot.connect().then(() => {
+    console.log(`KickBot reconectado automáticamente al canal @${initialConfig.kick.channel}`);
+  }).catch(e => {
+    console.warn('No se pudo reconectar automáticamente KickBot:', e.message);
   });
 }
 

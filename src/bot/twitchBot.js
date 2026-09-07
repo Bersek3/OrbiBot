@@ -168,6 +168,7 @@ class TwitchBot {
       // Forward chat message to dashboard & chat overlay
       this.broadcast('chat_message', {
         id: tags.id || Date.now().toString(),
+        platform: 'twitch',
         user: username,
         color: userColor,
         message,
