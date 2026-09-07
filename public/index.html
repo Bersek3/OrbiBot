@@ -11,6 +11,8 @@
     href="https://fonts.googleapis.com/css2?family=Anton&family=Bangers&family=Bebas+Neue&family=Chakra+Petch:wght@400;700&family=Cinzel:wght@700&family=Creepster&family=Fredoka:wght@500;700&family=Inter:wght@400;700&family=Luckiest+Guy&family=Montserrat:wght@500;700;900&family=Orbitron:wght@600;900&family=Outfit:wght@400;600;800&family=Permanent+Marker&family=Poppins:wght@400;600;800&family=Press+Start+2P&family=Righteous&family=Roboto:wght@400;700&family=Rubik:wght@500;700&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="./css/dashboard.css">
+  <!-- Supabase JS Client SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="icon"
     href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239146FF'><path d='M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z'/></svg>">
   <script>
@@ -159,25 +161,29 @@
         widgets personalizados y moderación inteligente. 100% gratis, configúralo en segundos.
       </p>
 
-      <!-- Platform Login Buttons (Solo Kick y Twitch) -->
+      <!-- Platform Login Buttons (Solo Google y Correo) -->
       <div class="landing-platform-buttons">
-        <!-- Kick Button (Official Logo) -->
-        <button class="btn-platform btn-platform-kick" onclick="triggerTwitchOAuthLogin()"
-          title="Iniciar sesión con Kick">
-          <svg class="platform-svg-icon" viewBox="0 0 32 32" width="18" height="18" fill="currentColor">
-            <path d="M4 2h8v8h3V6h3V2h10v10h-3v3h-3v2h3v3h3v10H18v-4h-3v-3h-3v-2H9v9H4V2z" />
+        <!-- Google Button -->
+        <button id="landingHeroGoogleBtn" class="btn-platform btn-platform-google" onclick="signInWithGoogle()"
+          title="Continuar con Google">
+          <svg class="platform-svg-icon" viewBox="0 0 48 48" width="20" height="20">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            <path fill="none" d="M0 0h48v48H0z"/>
           </svg>
-          <span>Entrar con Kick</span>
+          <span>Continuar con Google</span>
         </button>
 
-        <!-- Twitch Button (Official Logo) -->
-        <button id="landingHeroLoginBtn" class="btn-platform btn-platform-twitch" onclick="triggerTwitchOAuthLogin()"
-          title="Iniciar sesión con Twitch">
-          <svg class="platform-svg-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-            <path
-              d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+        <!-- Email Button -->
+        <button id="landingHeroEmailBtn" class="btn-platform btn-platform-email" onclick="openAuthModal('login')"
+          title="Iniciar o registrarse con correo">
+          <svg class="platform-svg-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
           </svg>
-          <span>Entrar con Twitch</span>
+          <span>Entrar con Correo</span>
         </button>
       </div>
     </section>
@@ -496,27 +502,23 @@
         </p>
       </div>
 
-      <!-- Direct Streaming OAuth Login Buttons (Kick & Twitch) -->
-      <div class="auth-social-row">
-        <button type="button" class="btn-auth-social btn-auth-kick" onclick="triggerTwitchOAuthLogin()"
-          title="Conectar con Kick">
-          <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor">
-            <path d="M4 2h8v8h3V6h3V2h10v10h-3v3h-3v2h3v3h3v10H18v-4h-3v-3h-3v-2H9v9H4V2z" />
+      <!-- Direct Google OAuth Button -->
+      <div class="auth-social-row" style="margin-bottom: 16px;">
+        <button type="button" class="btn-auth-google" onclick="signInWithGoogle()"
+          title="Continuar con Google">
+          <svg class="platform-svg-icon" viewBox="0 0 48 48" width="20" height="20">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            <path fill="none" d="M0 0h48v48H0z"/>
           </svg>
-          <span>Kick</span>
-        </button>
-        <button type="button" class="btn-auth-social btn-auth-twitch" onclick="triggerTwitchOAuthLogin()"
-          title="Conectar con Twitch">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-            <path
-              d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
-          </svg>
-          <span>Twitch</span>
+          <span>Continuar con Google</span>
         </button>
       </div>
 
       <div class="auth-divider">
-        <span>o accede con tu cuenta</span>
+        <span>o con correo electrónico</span>
       </div>
 
       <!-- Tab Switcher -->
@@ -734,88 +736,96 @@
         <!-- ================= TAB 1: DASHBOARD ================= -->
         <section id="tab-dashboard" class="tab-pane active">
 
-          <!-- HERO: NO CONECTADO (Botón Iniciar Sesión con Twitch) -->
-          <div id="dashboardLoginHero" class="card"
-            style="margin-bottom: 24px; padding: 28px 32px; background: radial-gradient(circle at 85% 20%, rgba(145, 70, 255, 0.22), rgba(15, 23, 42, 0.95) 75%); border: 1px solid rgba(145, 70, 255, 0.35); position: relative; overflow: hidden; border-radius: 16px;">
-            <div
-              style="position: absolute; top:0; left:0; right:0; height:3px; background: linear-gradient(90deg, #9146ff, #00f2fe);">
-            </div>
-            <div
-              style="display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap;">
-              <div style="max-width: 620px;">
-                <div
-                  style="display: inline-flex; align-items: center; gap: 8px; background: rgba(145, 70, 255, 0.15); border: 1px solid rgba(145, 70, 255, 0.3); padding: 4px 12px; border-radius: 999px; font-size: 12px; color: #c4b5fd; font-weight: 700; margin-bottom: 12px;">
-                  <span>✨</span> <span>Panel de Control Integral para Streamers</span>
-                </div>
-                <h2 style="font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 8px;">Conecta tu Twitch para
-                  activar Widgets y Bot</h2>
-                <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px;">
-                  Inicia sesión en un solo clic. Detectaremos tu canal automáticamente para habilitar tus fuentes de OBS
-                  Studio, Song Request con , Text to Speech (TTS) y comandos de chat en tiempo real.
-                </p>
-                <div style="display: flex; gap: 20px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
-                  <span style="display: flex; align-items: center; gap: 6px;"><span
-                      style="color: var(--green-success);">✓</span> 1 Clic seguro sin tokens complicados</span>
-                  <span style="display: flex; align-items: center; gap: 6px;"><span
-                      style="color: var(--cyan-accent);">✓</span> Escenas y Widgets listos para OBS</span>
-                  <span style="display: flex; align-items: center; gap: 6px;"><span
-                      style="color: var(--twitch-purple);">✓</span> Bot y alertas sincronizadas</span>
-                </div>
-              </div>
+          <!-- ================= VINCULACIÓN DE CUENTAS (KICK & TWITCH) ================= -->
+          <div class="card platform-linking-container" style="margin-bottom: 24px; padding: 24px 28px; background: rgba(14, 20, 34, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; position: relative; overflow: hidden;">
+            <div style="position: absolute; top:0; left:0; right:0; height:3px; background: linear-gradient(90deg, #53fc18, #9146ff, #00f2fe);"></div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
               <div>
-                <button id="heroTwitchLoginBtn" class="btn"
-                  style="background: #9146FF; color: #fff; font-size: 16px; font-weight: 800; padding: 15px 28px; border-radius: 12px; display: inline-flex; align-items: center; gap: 12px; box-shadow: 0 6px 25px rgba(145, 70, 255, 0.45); cursor: pointer; transition: all 0.2s;">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                    <path
-                      d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
-                  </svg>
-                  <span>Iniciar Sesión con Twitch</span>
-                </button>
+                <h3 style="font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+                  <span>🎮</span> <span>Vincular Canales de Transmisión</span>
+                </h3>
+                <p style="font-size: 13px; color: var(--text-secondary);">
+                  Conecta tus canales de Kick y Twitch para sincronizar el chat, alertas de pantalla, ruleta y widgets en OBS Studio.
+                </p>
+              </div>
+              <div id="userLoggedInBadge" style="display: flex; align-items: center; gap: 8px; background: rgba(0, 242, 254, 0.1); border: 1px solid rgba(0, 242, 254, 0.3); padding: 5px 12px; border-radius: 999px; font-size: 12px; color: #00f2fe; font-weight: 700;">
+                <span>👤</span> <span id="userLoggedInEmail">Sesión activa</span>
               </div>
             </div>
-          </div>
 
-          <!-- HERO: CONECTADO (Información del Canal y Acciones Rápidas) -->
-          <div id="dashboardConnectedHero" class="card"
-            style="display: none; margin-bottom: 24px; padding: 22px 28px; background: radial-gradient(circle at 90% 20%, rgba(16, 185, 129, 0.15), rgba(15, 23, 42, 0.95) 75%); border: 1px solid rgba(16, 185, 129, 0.35); position: relative; overflow: hidden; border-radius: 16px;">
-            <div
-              style="position: absolute; top:0; left:0; right:0; height:3px; background: linear-gradient(90deg, #10b981, #00f2fe);">
-            </div>
-            <div
-              style="display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap;">
-              <div style="display: flex; align-items: center; gap: 16px;">
-                <div style="position: relative;">
-                  <img id="dashUserAvatar" src=""
-                    style="width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--twitch-purple); box-shadow: 0 0 20px rgba(145, 70, 255, 0.4); object-fit: cover;"
-                    alt="Avatar">
-                  <div
-                    style="position: absolute; bottom: 0; right: 0; width: 14px; height: 14px; border-radius: 50%; background: var(--green-success); border: 2px solid #090c14;">
+            <!-- Platform Cards Grid (Twitch & Kick) -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+              <!-- 1. Twitch Platform Link Card -->
+              <div class="platform-link-card platform-twitch-card" style="background: rgba(145, 70, 255, 0.06); border: 1px solid rgba(145, 70, 255, 0.25); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 10px; background: #9146ff; display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 0 15px rgba(145, 70, 255, 0.4);">
+                      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                        <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 style="font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 2px;">Twitch</h4>
+                      <p id="dashTwitchStatusText" style="font-size: 12px; color: #94a3b8;">No conectado</p>
+                    </div>
                   </div>
+                  <span id="dashTwitchStatusBadge" class="badge" style="background: rgba(255,255,255,0.08); color: #94a3b8; font-size: 11px; padding: 4px 10px; border-radius: 999px; font-weight: 700;">● Desconectado</span>
                 </div>
-                <div>
-                  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
-                    <h3 id="dashUserName" style="font-size: 19px; font-weight: 800; color: #fff;">Streamer</h3>
-                    <span class="btn btn-sm btn-accent"
-                      style="padding: 2px 8px; font-size: 11px; pointer-events: none;">● Canal Conectado</span>
+
+                <div id="dashTwitchDisconnectedView" style="display: flex; gap: 10px;">
+                  <button id="heroTwitchLoginBtn" class="btn" onclick="triggerTwitchOAuthLogin()" style="background: #9146ff; color: #fff; font-weight: 700; font-size: 13px; padding: 10px 18px; border-radius: 10px; border: none; cursor: pointer; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(145, 70, 255, 0.35);">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                      <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+                    </svg>
+                    <span>Vincular Twitch</span>
+                  </button>
+                </div>
+
+                <div id="dashTwitchConnectedView" style="display: none; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <img id="dashUserAvatar" src="" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #9146ff; object-fit: cover;" alt="Twitch Avatar">
+                    <span id="dashUserName" style="font-weight: 700; color: #fff; font-size: 13.5px;">@streamer</span>
                   </div>
-                  <p id="dashUserTag" style="font-size: 13px; color: var(--cyan-accent); font-weight: 600;">@streamer
-                  </p>
+                  <button id="dashLogoutBtn" class="btn btn-danger btn-sm" onclick="showLogoutConfirmModal()" style="padding: 6px 14px; font-size: 12px; border-radius: 8px;">
+                    Desvincular
+                  </button>
                 </div>
               </div>
 
-              <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                <button id="dashGotoObsBtn" class="btn btn-primary btn-sm" style="gap: 6px;">
-                  <span>📺</span> <span>Widgets y Escenas OBS</span>
-                </button>
-                <button id="dashGotoSrBtn" class="btn btn-secondary btn-sm" style="gap: 6px;">
-                  <span>🎵</span> <span>Song Request</span>
-                </button>
-                <button id="dashGotoTtsBtn" class="btn btn-secondary btn-sm" style="gap: 6px;">
-                  <span>🗣️</span> <span>TTS</span>
-                </button>
-                <button id="dashLogoutBtn" class="btn btn-danger btn-sm" style="margin-left: 6px;">
-                  Desconectar
-                </button>
+              <!-- 2. Kick Platform Link Card -->
+              <div class="platform-link-card platform-kick-card" style="background: rgba(83, 252, 24, 0.06); border: 1px solid rgba(83, 252, 24, 0.25); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 10px; background: #53fc18; display: flex; align-items: center; justify-content: center; color: #000; box-shadow: 0 0 15px rgba(83, 252, 24, 0.35);">
+                      <svg viewBox="0 0 32 32" width="22" height="22" fill="currentColor">
+                        <path d="M4 2h8v8h3V6h3V2h10v10h-3v3h-3v2h3v3h3v10H18v-4h-3v-3h-3v-2H9v9H4V2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 style="font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 2px;">Kick</h4>
+                      <p id="dashKickStatusText" style="font-size: 12px; color: #94a3b8;">No conectado</p>
+                    </div>
+                  </div>
+                  <span id="dashKickStatusBadge" class="badge" style="background: rgba(255,255,255,0.08); color: #94a3b8; font-size: 11px; padding: 4px 10px; border-radius: 999px; font-weight: 700;">● Desconectado</span>
+                </div>
+
+                <div id="dashKickDisconnectedView" style="display: flex; gap: 8px;">
+                  <input type="text" id="dashKickChannelInput" class="form-control" placeholder="Usuario en Kick (ej. streamer)" style="font-size: 12.5px; padding: 8px 12px; flex: 1; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff;">
+                  <button id="btnLinkKickChannel" class="btn" onclick="handleLinkKickSubmit()" style="background: #53fc18; color: #000; font-weight: 800; font-size: 12.5px; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                    <span>Vincular</span>
+                  </button>
+                </div>
+
+                <div id="dashKickConnectedView" style="display: none; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 18px;">🟢</span>
+                    <span id="dashKickChannelName" style="font-weight: 700; color: #53fc18; font-size: 13.5px;">@canal</span>
+                  </div>
+                  <button id="btnUnlinkKickBtn" class="btn btn-danger btn-sm" onclick="handleUnlinkKick()" style="padding: 6px 14px; font-size: 12px; border-radius: 8px;">
+                    Desvincular
+                  </button>
+                </div>
               </div>
             </div>
           </div>

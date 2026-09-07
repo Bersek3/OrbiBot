@@ -9,6 +9,7 @@ let socket = null;
 
 // ================= INITIALIZATION =================
 document.addEventListener('DOMContentLoaded', async () => {
+  initSupabaseAuth();
   initLandingPage();
   setupNavigation();
   setupRangeInputs();
@@ -19,7 +20,60 @@ document.addEventListener('DOMContentLoaded', async () => {
   populateWidgetUrls();
   connectWebSocket();
   initDashboardMqtt();
+  updatePlatformLinkingUI();
 });
+
+// ================= SUPABASE AUTH & CONFIGURATION =================
+const SUPABASE_URL = 'https://pzrlfuzjkwkrnmqkoaue.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_L6kzW0ZtGyfl6mvKevDX0Q_6G0DCGDP';
+let supabaseClient = null;
+
+function initSupabaseAuth() {
+  if (typeof supabase !== 'undefined' && supabase.createClient) {
+    try {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      console.log('🟢 [Supabase Client] Inicializado en el frontend.');
+
+      // 1. Escuchar cambios de autenticación (ej: regreso exitoso de Google OAuth)
+      supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        console.log('🔐 [Supabase Auth Event]:', event, session?.user?.email);
+        if (session && session.user) {
+          const userObj = {
+            id: session.user.id,
+            email: session.user.email,
+            username: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email.split('@')[0],
+            avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || '',
+            provider: session.user.app_metadata?.provider || 'supabase',
+            loggedInAt: Date.now()
+          };
+          setUserSession(userObj);
+          closeAuthModal();
+          updatePlatformLinkingUI();
+        } else if (event === 'SIGNED_OUT') {
+          clearUserSession();
+        }
+      });
+
+      // 2. Verificar sesión actual al cargar
+      supabaseClient.auth.getSession().then(({ data: { session } }) => {
+        if (session && session.user) {
+          const userObj = {
+            id: session.user.id,
+            email: session.user.email,
+            username: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email.split('@')[0],
+            avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || '',
+            provider: session.user.app_metadata?.provider || 'supabase',
+            loggedInAt: Date.now()
+          };
+          setUserSession(userObj);
+          updatePlatformLinkingUI();
+        }
+      });
+    } catch (e) {
+      console.warn('⚠️ [Supabase Client] Error al inicializar:', e);
+    }
+  }
+}
 
 // ================= USER AUTHENTICATION & SESSION MANAGEMENT =================
 function getUserSession() {
@@ -109,7 +163,7 @@ function switchAuthTab(tab) {
     if (loginForm) loginForm.style.display = 'none';
     if (registerForm) registerForm.style.display = 'flex';
     if (mainTitle) mainTitle.textContent = 'Crear Cuenta';
-    if (subtitle) subtitle.textContent = 'Crea tu cuenta gratis en menos de 1 minuto para acceder al panel.';
+    if (subtitle) subtitle.textContent = 'Crea tu cuenta gratis en Supabase para acceder al panel.';
     const emailInput = document.getElementById('authRegEmail');
     if (emailInput) setTimeout(() => emailInput.focus(), 50);
   } else {
@@ -129,8 +183,40 @@ function showAuthAlert(type, message) {
   const alertBox = document.getElementById('authAlertBox');
   if (!alertBox) return;
   alertBox.className = `auth-alert-box ${type}`;
-  alertBox.innerHTML = (type === 'error' ? '⚠️ ' : '✅ ') + message;
+  alertBox.innerHTML = (type === 'error' ? '⚠️ ' : (type === 'info' ? 'ℹ️ ' : '✅ ')) + message;
   alertBox.style.display = 'block';
+}
+
+// Google Sign-In with Supabase
+async function signInWithGoogle() {
+  showAuthAlert('info', 'Redirigiendo a Google OAuth...');
+  if (!supabaseClient) {
+    initSupabaseAuth();
+  }
+  if (!supabaseClient) {
+    showAuthAlert('error', 'El cliente de Supabase no está listo. Verifica tu conexión.');
+    return;
+  }
+
+  try {
+    const cleanOrigin = window.location.origin;
+    const cleanPath = window.location.pathname.replace(/\/index\.html$/i, '').replace(/\/$/, '');
+    const redirectUrl = `${cleanOrigin}${cleanPath}/`;
+
+    const { data, error } = await supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl
+      }
+    });
+
+    if (error) {
+      throw error;
+    }
+  } catch (err) {
+    console.error('Error al conectar con Google:', err);
+    showAuthAlert('error', 'Error con Google OAuth: ' + (err.message || 'Verifica la configuración del proveedor Google en Supabase.'));
+  }
 }
 
 // Handler for when user clicks "Panel de Control"
@@ -145,7 +231,7 @@ function handleDashboardNavClick(targetTab = 'tab-dashboard') {
   }
 }
 
-// Handle Register Form Submission
+// Handle Register Form Submission with Supabase
 async function handleAuthRegisterSubmit(event) {
   event.preventDefault();
   const emailInput = document.getElementById('authRegEmail');
@@ -201,68 +287,57 @@ async function handleAuthRegisterSubmit(event) {
   }
 
   try {
-    // Attempt backend registration
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
+    if (supabaseClient) {
+      const { data, error } = await supabaseClient.auth.signUp({
+        email: email.toLowerCase(),
+        password: password
+      });
 
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || 'Error al registrar usuario.');
-    }
-
-    // Also store registered user locally as backup
-    try {
-      const localUsers = JSON.parse(localStorage.getItem('orbibot_local_users') || '[]');
-      if (!localUsers.some(u => u.email.toLowerCase() === email.toLowerCase())) {
-        localUsers.push({ email: email.toLowerCase(), password });
-        localStorage.setItem('orbibot_local_users', JSON.stringify(localUsers));
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('already') || msg.includes('exists') || msg.includes('registered') || msg.includes('identity')) {
+          throw new Error('Este correo ya está registrado (posiblemente iniciado con Google). Por favor inicia sesión con Google o usa tu contraseña.');
+        }
+        throw error;
       }
-    } catch (e) {}
 
-    // Reset register form
-    if (emailInput) emailInput.value = '';
-    if (emailConfirmInput) emailConfirmInput.value = '';
-    if (passwordInput) passwordInput.value = '';
-    if (passwordConfirmInput) passwordConfirmInput.value = '';
+      // Check if identities are empty (Supabase returns empty identities array when user already exists)
+      if (data?.user?.identities && data.user.identities.length === 0) {
+        throw new Error('Este correo ya se encuentra registrado (iniciado previamente con Google o contraseña). Por favor inicia sesión.');
+      }
 
-    // Switch to Login tab and show success message
-    switchAuthTab('login');
-    showAuthAlert('success', '¡Cuenta creada exitosamente! Por favor inicia sesión con tu correo y contraseña.');
+      // Reset register form
+      if (emailInput) emailInput.value = '';
+      if (emailConfirmInput) emailConfirmInput.value = '';
+      if (passwordInput) passwordInput.value = '';
+      if (passwordConfirmInput) passwordConfirmInput.value = '';
 
-    // Prefill login email
-    const loginEmailInput = document.getElementById('authLoginEmail');
-    if (loginEmailInput) {
-      loginEmailInput.value = email;
-      const loginPassInput = document.getElementById('authLoginPassword');
-      if (loginPassInput) setTimeout(() => loginPassInput.focus(), 100);
-    }
-  } catch (err) {
-    // Fallback: Local registration if backend had an issue
-    console.warn('Backend register failed, trying local storage registration:', err.message);
-    try {
-      const localUsers = JSON.parse(localStorage.getItem('orbibot_local_users') || '[]');
-      if (localUsers.some(u => u.email.toLowerCase() === email.toLowerCase())) {
-        showAuthAlert('error', 'Ya existe una cuenta registrada con este correo electrónico.');
-      } else {
-        localUsers.push({ email: email.toLowerCase(), password });
-        localStorage.setItem('orbibot_local_users', JSON.stringify(localUsers));
+      showAuthAlert('success', '¡Cuenta creada exitosamente en Supabase! Ya puedes iniciar sesión.');
 
-        // Switch to login
+      setTimeout(() => {
         switchAuthTab('login');
-        showAuthAlert('success', '¡Cuenta creada exitosamente! Ahora puedes iniciar sesión.');
         const loginEmailInput = document.getElementById('authLoginEmail');
         if (loginEmailInput) {
           loginEmailInput.value = email;
           const loginPassInput = document.getElementById('authLoginPassword');
           if (loginPassInput) setTimeout(() => loginPassInput.focus(), 100);
         }
-      }
-    } catch (localErr) {
-      showAuthAlert('error', err.message || 'Ocurrió un error al registrar.');
+      }, 1200);
+    } else {
+      // Backend fallback
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Error al registrar.');
+
+      showAuthAlert('success', '¡Cuenta creada exitosamente! Ya puedes iniciar sesión.');
+      setTimeout(() => switchAuthTab('login'), 1200);
     }
+  } catch (err) {
+    showAuthAlert('error', err.message || 'Ocurrió un error al registrar.');
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -272,7 +347,7 @@ async function handleAuthRegisterSubmit(event) {
   }
 }
 
-// Handle Login Form Submission
+// Handle Login Form Submission with Supabase
 async function handleAuthLoginSubmit(event) {
   event.preventDefault();
   const emailInput = document.getElementById('authLoginEmail');
@@ -295,50 +370,54 @@ async function handleAuthLoginSubmit(event) {
   }
 
   try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
+    if (supabaseClient) {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: email.toLowerCase(),
+        password: password
+      });
 
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || 'Credenciales inválidas.');
-    }
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('invalid') || msg.includes('credentials')) {
+          throw new Error('Credenciales inválidas. Si te registraste con Google, pulsa el botón "Continuar con Google".');
+        }
+        throw error;
+      }
 
-    // Success login via server
-    const sessionData = {
-      id: data.user.id,
-      email: data.user.email,
-      username: data.user.username || data.user.email.split('@')[0],
-      loggedInAt: Date.now()
-    };
-    setUserSession(sessionData);
+      const sessionData = {
+        id: data.user.id,
+        email: data.user.email,
+        username: data.user.user_metadata?.full_name || data.user.user_metadata?.name || data.user.email.split('@')[0],
+        avatar: data.user.user_metadata?.avatar_url || '',
+        provider: 'supabase',
+        loggedInAt: Date.now()
+      };
+      setUserSession(sessionData);
 
-    // Close modal and enter dashboard
-    closeAuthModal();
-    showDashboardView('tab-dashboard');
-  } catch (err) {
-    // Fallback: Check local storage registered users
-    console.warn('Backend login error, trying local users fallback:', err.message);
-    try {
-      const localUsers = JSON.parse(localStorage.getItem('orbibot_local_users') || '[]');
-      const localMatch = localUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-      
-      if (localMatch) {
-        const sessionData = {
-          email: localMatch.email,
-          username: localMatch.email.split('@')[0],
-          loggedInAt: Date.now()
-        };
-        setUserSession(sessionData);
+      showAuthAlert('success', `¡Bienvenido ${sessionData.username}!`);
+      setTimeout(() => {
         closeAuthModal();
         showDashboardView('tab-dashboard');
-        return;
-      }
-    } catch (localErr) {}
+      }, 500);
+    } else {
+      // Backend fallback
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Credenciales inválidas.');
 
-    showAuthAlert('error', err.message || 'Credenciales inválidas. Verifica tu correo y contraseña.');
+      setUserSession(data.user);
+      showAuthAlert('success', `¡Bienvenido!`);
+      setTimeout(() => {
+        closeAuthModal();
+        showDashboardView('tab-dashboard');
+      }, 500);
+    }
+  } catch (err) {
+    showAuthAlert('error', err.message || 'Error al iniciar sesión.');
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -349,12 +428,147 @@ async function handleAuthLoginSubmit(event) {
 }
 
 // Handle Logout
-function handleAuthLogout() {
+async function handleAuthLogout() {
+  if (supabaseClient) {
+    try {
+      await supabaseClient.auth.signOut();
+    } catch (e) {
+      console.warn('Error signing out of Supabase:', e);
+    }
+  }
   clearUserSession();
+  showToast('Has cerrado tu sesión de OrbiBot Cloud.', 'info');
   showLandingView();
 }
 
+// ================= PLATFORM LINKING (TWITCH & KICK IN DASHBOARD) =================
+function updatePlatformLinkingUI() {
+  const session = getUserSession();
+  const userLoggedInEmail = document.getElementById('userLoggedInEmail');
+  if (userLoggedInEmail && session) {
+    userLoggedInEmail.textContent = session.email || session.username || 'Sesión activa';
+  }
+
+  // 1. Twitch Status
+  const isTwitchConn = isStreamerLoggedIn();
+  const twitchChannel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
+  const twitchStatusText = document.getElementById('dashTwitchStatusText');
+  const twitchStatusBadge = document.getElementById('dashTwitchStatusBadge');
+  const twitchDiscView = document.getElementById('dashTwitchDisconnectedView');
+  const twitchConnView = document.getElementById('dashTwitchConnectedView');
+  const dashUserName = document.getElementById('dashUserName');
+  const dashUserAvatar = document.getElementById('dashUserAvatar');
+
+  if (isTwitchConn && twitchChannel) {
+    if (twitchStatusText) twitchStatusText.textContent = `@${twitchChannel} sincronizado`;
+    if (twitchStatusBadge) {
+      twitchStatusBadge.textContent = '● Conectado';
+      twitchStatusBadge.style.background = 'rgba(145, 70, 255, 0.2)';
+      twitchStatusBadge.style.color = '#c4b5fd';
+      twitchStatusBadge.style.border = '1px solid rgba(145, 70, 255, 0.4)';
+    }
+    if (twitchDiscView) twitchDiscView.style.display = 'none';
+    if (twitchConnView) twitchConnView.style.display = 'flex';
+    if (dashUserName) dashUserName.textContent = `@${twitchChannel}`;
+    
+    // Get stored avatar if available
+    const authData = localStorage.getItem('orbibot_twitch_auth');
+    if (authData && dashUserAvatar) {
+      try {
+        const parsed = JSON.parse(authData);
+        if (parsed.profile_image_url) dashUserAvatar.src = parsed.profile_image_url;
+      } catch(e) {}
+    }
+  } else {
+    if (twitchStatusText) twitchStatusText.textContent = 'No conectado';
+    if (twitchStatusBadge) {
+      twitchStatusBadge.textContent = '● Desconectado';
+      twitchStatusBadge.style.background = 'rgba(255,255,255,0.08)';
+      twitchStatusBadge.style.color = '#94a3b8';
+      twitchStatusBadge.style.border = 'none';
+    }
+    if (twitchDiscView) twitchDiscView.style.display = 'flex';
+    if (twitchConnView) twitchConnView.style.display = 'none';
+  }
+
+  // 2. Kick Status
+  const kickChannel = (appConfig?.kick?.channel || localStorage.getItem('orbibot_kick_channel') || '').toLowerCase().replace(/^@/, '').trim();
+  const isKickConn = Boolean(kickChannel && (appConfig?.kick?.connected !== false));
+  const kickStatusText = document.getElementById('dashKickStatusText');
+  const kickStatusBadge = document.getElementById('dashKickStatusBadge');
+  const kickDiscView = document.getElementById('dashKickDisconnectedView');
+  const kickConnView = document.getElementById('dashKickConnectedView');
+  const dashKickChannelName = document.getElementById('dashKickChannelName');
+
+  if (isKickConn && kickChannel) {
+    if (kickStatusText) kickStatusText.textContent = `@${kickChannel} sincronizado`;
+    if (kickStatusBadge) {
+      kickStatusBadge.textContent = '● Conectado';
+      kickStatusBadge.style.background = 'rgba(83, 252, 24, 0.2)';
+      kickStatusBadge.style.color = '#53fc18';
+      kickStatusBadge.style.border = '1px solid rgba(83, 252, 24, 0.4)';
+    }
+    if (kickDiscView) kickDiscView.style.display = 'none';
+    if (kickConnView) kickConnView.style.display = 'flex';
+    if (dashKickChannelName) dashKickChannelName.textContent = `@${kickChannel}`;
+  } else {
+    if (kickStatusText) kickStatusText.textContent = 'No conectado';
+    if (kickStatusBadge) {
+      kickStatusBadge.textContent = '● Desconectado';
+      kickStatusBadge.style.background = 'rgba(255,255,255,0.08)';
+      kickStatusBadge.style.color = '#94a3b8';
+      kickStatusBadge.style.border = 'none';
+    }
+    if (kickDiscView) kickDiscView.style.display = 'flex';
+    if (kickConnView) kickConnView.style.display = 'none';
+  }
+}
+
+async function handleLinkKickSubmit() {
+  const input = document.getElementById('dashKickChannelInput');
+  const channel = input ? input.value.trim().toLowerCase().replace(/^@/, '') : '';
+  if (!channel) {
+    showToast('Ingresa el nombre de tu canal en Kick.', 'warning');
+    if (input) input.focus();
+    return;
+  }
+
+  if (!appConfig) appConfig = {};
+  appConfig.kick = { channel, connected: true };
+  localStorage.setItem('orbibot_kick_channel', channel);
+
+  try {
+    await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kick: appConfig.kick })
+    });
+  } catch (e) {}
+
+  showToast(`Canal de Kick @${channel} vinculado exitosamente.`, 'success');
+  updatePlatformLinkingUI();
+}
+
+async function handleUnlinkKick() {
+  if (!appConfig) appConfig = {};
+  appConfig.kick = { channel: '', connected: false };
+  localStorage.removeItem('orbibot_kick_channel');
+
+  try {
+    await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kick: appConfig.kick })
+    });
+  } catch (e) {}
+
+  showToast('Canal de Kick desvinculado.', 'info');
+  updatePlatformLinkingUI();
+}
+
 // Export auth functions to window
+window.initSupabaseAuth = initSupabaseAuth;
+window.signInWithGoogle = signInWithGoogle;
 window.openAuthModal = openAuthModal;
 window.closeAuthModal = closeAuthModal;
 window.switchAuthTab = switchAuthTab;
@@ -363,6 +577,9 @@ window.handleAuthRegisterSubmit = handleAuthRegisterSubmit;
 window.handleAuthLoginSubmit = handleAuthLoginSubmit;
 window.handleAuthLogout = handleAuthLogout;
 window.getUserSession = getUserSession;
+window.updatePlatformLinkingUI = updatePlatformLinkingUI;
+window.handleLinkKickSubmit = handleLinkKickSubmit;
+window.handleUnlinkKick = handleUnlinkKick;
 
 // ================= VIEW SWITCHER (LANDING VS DASHBOARD) =================
 function showLandingView() {
@@ -2760,6 +2977,7 @@ function setupEventListeners() {
     bindConfigToUI(appConfig);
     populateWidgetUrls();
     initDashboardMqtt();
+    updatePlatformLinkingUI();
 
     showToast('🔒 Has cerrado sesión de Twitch correctamente.', 'info');
     switchTab('tab-dashboard');
