@@ -34,7 +34,7 @@ function initSupabaseAuth() {
       supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       console.log('🟢 [Supabase Client] Inicializado en el frontend.');
 
-      // 1. Escuchar cambios de autenticación (ej: regreso exitoso de Google OAuth)
+      // 1. Escuchar cambios de autenticación (ej: regreso exitoso de Google OAuth o Login)
       supabaseClient.auth.onAuthStateChange(async (event, session) => {
         console.log('🔐 [Supabase Auth Event]:', event, session?.user?.email);
         if (session && session.user) {
@@ -48,9 +48,20 @@ function initSupabaseAuth() {
           };
           setUserSession(userObj);
           closeAuthModal();
+          
+          // Redirigir automáticamente al dashboard
+          showDashboardView('tab-dashboard');
           updatePlatformLinkingUI();
+
+          // Limpiar hash de tokens de la URL si venimos de Google OAuth
+          if (window.location.hash && window.location.hash.includes('access_token')) {
+            try {
+              history.replaceState(null, document.title, window.location.pathname + window.location.search);
+            } catch (e) {}
+          }
         } else if (event === 'SIGNED_OUT') {
           clearUserSession();
+          showLandingView();
         }
       });
 
@@ -66,6 +77,7 @@ function initSupabaseAuth() {
             loggedInAt: Date.now()
           };
           setUserSession(userObj);
+          showDashboardView('tab-dashboard');
           updatePlatformLinkingUI();
         }
       });
@@ -648,11 +660,11 @@ function initLandingPage() {
     });
   });
 
-  // Check URL Hash on load
+  // Check session on load
   const hash = window.location.hash;
   const session = getUserSession();
-  if (session && (hash === '#dashboard' || hash.startsWith('#tab-'))) {
-    const tabName = hash.startsWith('#tab-') ? hash.substring(1) : 'tab-dashboard';
+  if (session && session.email) {
+    const tabName = (hash && hash.startsWith('#tab-')) ? hash.substring(1) : 'tab-dashboard';
     showDashboardView(tabName);
   } else {
     showLandingView();
