@@ -48,7 +48,7 @@ function initSupabaseAuth() {
           };
           setUserSession(userObj);
           closeAuthModal();
-          
+
           // Redirigir automáticamente al dashboard
           showDashboardView('tab-dashboard');
           updatePlatformLinkingUI();
@@ -57,7 +57,7 @@ function initSupabaseAuth() {
           if (window.location.hash && window.location.hash.includes('access_token')) {
             try {
               history.replaceState(null, document.title, window.location.pathname + window.location.search);
-            } catch (e) {}
+            } catch (e) { }
           }
         } else if (event === 'SIGNED_OUT') {
           clearUserSession();
@@ -129,7 +129,7 @@ function updateAuthUI() {
 function openAuthModal(initialTab = 'login') {
   const modal = document.getElementById('authModal');
   if (!modal) return;
-  
+
   // Clear any existing alert
   const alertBox = document.getElementById('authAlertBox');
   if (alertBox) {
@@ -139,9 +139,9 @@ function openAuthModal(initialTab = 'login') {
 
   modal.style.display = 'flex';
   switchAuthTab(initialTab);
-  
+
   // Close when clicking overlay backdrop
-  modal.onclick = function(e) {
+  modal.onclick = function (e) {
     if (e.target === modal) {
       closeAuthModal();
     }
@@ -485,14 +485,14 @@ function updatePlatformLinkingUI() {
     if (twitchDiscView) twitchDiscView.style.display = 'none';
     if (twitchConnView) twitchConnView.style.display = 'flex';
     if (dashUserName) dashUserName.textContent = `@${twitchChannel}`;
-    
+
     // Get stored avatar if available
     const authData = localStorage.getItem('orbibot_twitch_auth');
     if (authData && dashUserAvatar) {
       try {
         const parsed = JSON.parse(authData);
         if (parsed.profile_image_url) dashUserAvatar.src = parsed.profile_image_url;
-      } catch(e) {}
+      } catch (e) { }
     }
   } else {
     if (twitchStatusText) twitchStatusText.textContent = 'No conectado';
@@ -508,7 +508,7 @@ function updatePlatformLinkingUI() {
 
   // 2. Kick Status
   const kickConfig = appConfig?.kick || (() => {
-    try { return JSON.parse(localStorage.getItem('orbibot_kick_auth') || '{}'); } catch(e) { return {}; }
+    try { return JSON.parse(localStorage.getItem('orbibot_kick_auth') || '{}'); } catch (e) { return {}; }
   })();
   const kickChannel = (kickConfig.channel || kickConfig.username || localStorage.getItem('orbibot_kick_channel') || '').toLowerCase().replace(/^@/, '').trim();
   const isKickConn = Boolean(kickChannel && (kickConfig.connected !== false));
@@ -556,7 +556,7 @@ function updatePlatformLinkingUI() {
 
   // 3. Multi-Chat Platform Toggles & Status
   let chatPlatforms = appConfig?.chatPlatforms || (() => {
-    try { return JSON.parse(localStorage.getItem('orbibot_chat_platforms') || '{"twitch":true,"kick":true}'); } catch(e) { return { twitch: true, kick: true }; }
+    try { return JSON.parse(localStorage.getItem('orbibot_chat_platforms') || '{"twitch":true,"kick":true}'); } catch (e) { return { twitch: true, kick: true }; }
   })();
 
   const toggleTwitch = document.getElementById('toggleChatTwitch');
@@ -577,8 +577,6 @@ function updatePlatformLinkingUI() {
       multiChatBadge.style.background = 'linear-gradient(90deg, rgba(145, 70, 255, 0.25), rgba(83, 252, 24, 0.25))';
       multiChatBadge.style.border = '1px solid rgba(83, 252, 24, 0.5)';
       multiChatBadge.style.color = '#fff';
-      if (multiChatIcon) multiChatIcon.textContent = '✨';
-      multiChatText.textContent = 'Multi-Chat Activo (Twitch + Kick - Logos en OBS)';
     } else if (twitchActive) {
       multiChatBadge.style.display = 'inline-flex';
       multiChatBadge.style.background = 'rgba(145, 70, 255, 0.15)';
@@ -607,13 +605,13 @@ function handleChatPlatformToggle(platform, enabled) {
 
   try {
     localStorage.setItem('orbibot_chat_platforms', JSON.stringify(appConfig.chatPlatforms));
-  } catch(e) {}
+  } catch (e) { }
 
   fetch('/api/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chatPlatforms: appConfig.chatPlatforms })
-  }).catch(() => {});
+  }).catch(() => { });
 
   broadcastEvent('chat_platform_toggle', appConfig.chatPlatforms);
 
@@ -684,13 +682,13 @@ function triggerKickOAuthLogin() {
       localStorage.removeItem('orbibot_kick_auth_event');
       try {
         if (activeKickAuthPopup && !activeKickAuthPopup.closed) activeKickAuthPopup.close();
-      } catch(e) {}
+      } catch (e) { }
       activeKickAuthPopup = null;
 
       try {
         const payload = JSON.parse(rawEvent);
         await handleKickAuthSuccess(payload);
-      } catch(err) {
+      } catch (err) {
         console.error('Error handling Kick auth success payload:', err);
       }
       return;
@@ -704,7 +702,7 @@ function triggerKickOAuthLogin() {
       try {
         const errData = JSON.parse(rawError);
         showToast(`⚠️ Kick: ${errData.desc || errData.error}`, 'error');
-      } catch(e) {}
+      } catch (e) { }
       return;
     }
 
@@ -716,10 +714,10 @@ function triggerKickOAuthLogin() {
 
 async function handleKickAuthSuccess(payload) {
   if (activeKickAuthPopup) {
-    try { activeKickAuthPopup.close(); } catch(e) {}
+    try { activeKickAuthPopup.close(); } catch (e) { }
     activeKickAuthPopup = null;
   }
-  try { window.focus(); } catch(e) {}
+  try { window.focus(); } catch (e) { }
 
   const kick = payload.kick || payload;
   const channel = (kick.channel || kick.username || '').toLowerCase();
@@ -750,13 +748,13 @@ async function handleKickAuthSuccess(payload) {
 
 async function disconnectKickAccount() {
   if (browserKickWs) {
-    try { browserKickWs.close(); } catch(e) {}
+    try { browserKickWs.close(); } catch (e) { }
     browserKickWs = null;
   }
 
   try {
     await fetch('/api/auth/kick/disconnect', { method: 'POST' });
-  } catch (e) {}
+  } catch (e) { }
 
   localStorage.removeItem('orbibot_kick_auth');
   localStorage.removeItem('orbibot_kick_channel');
@@ -918,7 +916,7 @@ function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
   const toast = document.createElement('div');
   toast.className = 'toast';
-  
+
   let icon = 'ℹ️';
   if (type === 'success') icon = '✅';
   if (type === 'error') icon = '❌';
@@ -954,7 +952,7 @@ function initDashboardMqtt() {
 
   if (!isConn || !channel) {
     if (dashboardMqttClient) {
-      try { dashboardMqttClient.disconnect(); } catch(e) {}
+      try { dashboardMqttClient.disconnect(); } catch (e) { }
       dashboardMqttClient = null;
     }
     isMqttConnected = false;
@@ -964,7 +962,7 @@ function initDashboardMqtt() {
   const clientId = 'orbi_dash_' + Math.random().toString(36).substring(2, 9);
   try {
     if (dashboardMqttClient) {
-      try { dashboardMqttClient.disconnect(); } catch(e) {}
+      try { dashboardMqttClient.disconnect(); } catch (e) { }
     }
     dashboardMqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
     dashboardMqttClient.onConnectionLost = () => {
@@ -985,7 +983,7 @@ function initDashboardMqtt() {
         setTimeout(initDashboardMqtt, 6000);
       }
     });
-  } catch(e) {
+  } catch (e) {
     console.warn('Error creating MQTT client:', e);
   }
 }
@@ -1004,20 +1002,20 @@ function broadcastEvent(event, data) {
 
   // 1. BroadcastChannel (para pestañas del mismo navegador)
   if (broadcastChannel) {
-    try { broadcastChannel.postMessage(payload); } catch(e) {}
+    try { broadcastChannel.postMessage(payload); } catch (e) { }
   }
 
   // 2. Storage event
   try {
     localStorage.setItem('orbibot_last_event', JSON.stringify(payload));
-  } catch(e) {}
+  } catch (e) { }
 
   // 3. Cloud MQTT Relay (para OBS Studio del streamer específico)
   if (dashboardMqttClient && isMqttConnected) {
     try {
       const token = getEffectiveWidgetToken();
       const msgStr = JSON.stringify(payload);
-      
+
       // Publicar en tópico privado protegido con token secreto
       if (token) {
         const msgPriv = new Paho.MQTT.Message(msgStr);
@@ -1029,7 +1027,7 @@ function broadcastEvent(event, data) {
       const msg1 = new Paho.MQTT.Message(msgStr);
       msg1.destinationName = `orbibot/${channel}/events`;
       dashboardMqttClient.send(msg1);
-    } catch(e) {
+    } catch (e) {
       console.warn('Error publishing to MQTT relay:', e);
     }
   }
@@ -1038,7 +1036,7 @@ function broadcastEvent(event, data) {
   if (socket && socket.readyState === WebSocket.OPEN) {
     try {
       socket.send(JSON.stringify(payload));
-    } catch(e) {}
+    } catch (e) { }
   }
 }
 
@@ -1059,13 +1057,13 @@ function connectWebSocket() {
   // Storage event listener
   window.addEventListener('storage', (e) => {
     if (e.key === 'orbibot_last_event' && e.newValue) {
-      try { handleSocketMessage(JSON.parse(e.newValue)); } catch(err) {}
+      try { handleSocketMessage(JSON.parse(e.newValue)); } catch (err) { }
     }
     if (e.key === 'orbibot_twitch_auth_event' && e.newValue) {
       try {
         const payload = JSON.parse(e.newValue);
         handleAuthSuccess(payload);
-      } catch(err) {}
+      } catch (err) { }
     }
   });
 
@@ -1092,7 +1090,7 @@ function connectWebSocket() {
       socket.onclose = () => {
         setTimeout(connectWebSocket, 3000);
       };
-    } catch(e) {}
+    } catch (e) { }
   }
 }
 
@@ -1145,10 +1143,10 @@ async function loadInitialData() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ token: parsed.oauthToken, channel: chan })
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
-      } catch(e) {}
+      } catch (e) { }
     }
 
     appConfig = cfgRes;
@@ -1162,7 +1160,7 @@ async function loadInitialData() {
     }
   } catch (err) {
     console.warn('Backend API not reachable. Running in standalone / GitHub Pages mode:', err);
-    
+
     // Load from localStorage or defaults
     const localTwitch = localStorage.getItem('orbibot_twitch_auth');
     const localCfg = localStorage.getItem('orbibot_config');
@@ -1229,7 +1227,7 @@ function connectInBrowserTwitchBot(twitchData) {
   if (!channel) return;
 
   if (browserTmiClient) {
-    try { browserTmiClient.disconnect(); } catch(e) {}
+    try { browserTmiClient.disconnect(); } catch (e) { }
   }
 
   const opts = {
@@ -1307,7 +1305,7 @@ function connectInBrowserTwitchBot(twitchData) {
       browserTmiClient.connect().catch(err => {
         updateBotStatusUI({ status: 'connected', channel });
       });
-    } catch(err) {
+    } catch (err) {
       updateBotStatusUI({ status: 'connected', channel });
     }
   });
@@ -1321,7 +1319,7 @@ function connectInBrowserKickBot(kickData) {
   if (!channel) return;
 
   if (browserKickWs) {
-    try { browserKickWs.close(); } catch(e) {}
+    try { browserKickWs.close(); } catch (e) { }
     browserKickWs = null;
   }
 
@@ -1335,7 +1333,7 @@ function connectInBrowserKickBot(kickData) {
         const d = await res.json();
         chatroomId = d.chatroomId;
       }
-    } catch(e) {}
+    } catch (e) { }
 
     const targetRoom = chatroomId || channel;
     try {
@@ -1368,7 +1366,7 @@ function connectInBrowserKickBot(kickData) {
             appendChatMessage(chatData);
             broadcastEvent('chat_message', chatData);
           }
-        } catch(e) {}
+        } catch (e) { }
       };
       browserKickWs.onclose = () => {
         const isConn = (appConfig?.kick?.connected !== false) && Boolean(localStorage.getItem('orbibot_kick_auth') || localStorage.getItem('orbibot_kick_channel'));
@@ -1376,7 +1374,7 @@ function connectInBrowserKickBot(kickData) {
           setTimeout(startKickSocket, 6000);
         }
       };
-    } catch(e) {}
+    } catch (e) { }
   }
   startKickSocket();
 }
@@ -1388,7 +1386,7 @@ function bindConfigToUI(cfg) {
     try {
       const local = localStorage.getItem('orbibot_twitch_auth');
       if (local) cfg.twitch = JSON.parse(local);
-    } catch(e) {}
+    } catch (e) { }
   }
 
   // Twitch Profile & Connection
@@ -1398,7 +1396,7 @@ function bindConfigToUI(cfg) {
       cfg.twitch.channel = channel;
     }
     const isConn = (cfg.twitch.connected || Boolean(cfg.twitch.oauthToken) || Boolean(channel)) && Boolean(channel);
-    
+
     // Header elements
     const topTwitchLoginBtn = document.getElementById('topTwitchLoginBtn');
     const topUserPill = document.getElementById('topUserPill');
@@ -1528,7 +1526,7 @@ function updateBotStatusUI(botStatus) {
         const p = JSON.parse(local);
         currentChannel = (p.channel || p.login || (p.displayName ? p.displayName.toLowerCase() : '') || '').replace(/^#/, '');
       }
-    } catch(e) {}
+    } catch (e) { }
   }
 
   const isConnected = Boolean(currentChannel && (appConfig?.twitch?.connected || browserTmiClient || localStorage.getItem('orbibot_twitch_auth')));
@@ -1679,7 +1677,7 @@ async function loadChannelBadges(channelIdOrName) {
         });
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function getTwitchBadgeInfo(setId, version) {
@@ -1979,7 +1977,7 @@ function updateSongRequestUI(state) {
 }
 
 // YouTube Player Integration
-window.onYouTubeIframeAPIReady = function() {
+window.onYouTubeIframeAPIReady = function () {
   ytApiReady = true;
   ytPlayer = new YT.Player('youtubePlayerContainer', {
     height: '100%',
@@ -2131,7 +2129,7 @@ async function regenerateWidgetTokenUI() {
         appConfig.security.widgetToken = newToken;
       }
     }
-  } catch(e) {}
+  } catch (e) { }
 
   if (!newToken) {
     if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
@@ -2168,7 +2166,7 @@ function populateWidgetUrls() {
         const parsed = JSON.parse(localTwitch);
         if (parsed.channel) channel = parsed.channel.trim().toLowerCase().replace(/^#/, '');
       }
-    } catch(e) {}
+    } catch (e) { }
   }
   if (!channel) {
     const inputCh = document.getElementById('cfgTwitchChannel');
@@ -2188,7 +2186,7 @@ function populateWidgetUrls() {
         const parsed = JSON.parse(localKick);
         if (parsed.channel || parsed.username) kickChannel = (parsed.channel || parsed.username).trim().toLowerCase().replace(/^@/, '');
       }
-    } catch(e) {}
+    } catch (e) { }
   }
   if (!kickChannel) {
     kickChannel = (localStorage.getItem('orbibot_kick_channel') || '').trim().toLowerCase().replace(/^@/, '');
@@ -2297,7 +2295,7 @@ async function triggerTestAlert(type) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 async function triggerTestTTS() {
@@ -2335,7 +2333,7 @@ async function triggerTestTTS() {
       u.rate = rate;
       u.pitch = pitch;
       window.speechSynthesis.speak(u);
-    } catch(e) {}
+    } catch (e) { }
   }
 
   try {
@@ -2344,7 +2342,7 @@ async function triggerTestTTS() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, user: 'StreamerTest', voice })
     });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // ================= GOALS UPDATE =================
@@ -2374,7 +2372,7 @@ async function saveGoalValues(type) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, title, current, target })
     });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // ================= COMMANDS =================
@@ -2387,7 +2385,7 @@ function renderCommands(commands) {
   commands.forEach(cmd => {
     const tr = document.createElement('tr');
     const isZero = cmd.cooldown === 0 || cmd.cooldown === '0';
-    const cooldownBadge = isZero 
+    const cooldownBadge = isZero
       ? `<span class="btn btn-sm" style="font-size:11px; background: rgba(0, 242, 254, 0.2); color: var(--cyan-accent); border: 1px solid var(--cyan-accent);">Sin Cooldown (0s)</span>`
       : `<span class="btn btn-secondary btn-sm" style="font-size:11px;">${cmd.cooldown !== undefined ? cmd.cooldown : 10}s</span>`;
 
@@ -2438,7 +2436,7 @@ async function editCommand(cmdId) {
 
     document.getElementById('newCmdName').focus();
     showToast(`Editando comando ${cmd.name}`, 'info');
-  } catch(e) {}
+  } catch (e) { }
 }
 
 function cancelEditCommand() {
@@ -2512,7 +2510,7 @@ async function syncTwitchRewardsUI() {
           twRewards = data.rewards;
         }
       }
-    } catch(e) {}
+    } catch (e) { }
 
     // 2. Si no hubo backend o estamos en frontend puro, consultar Twitch Helix con el token
     if (twRewards.length === 0 && twitchCfg.oauthToken && twitchCfg.userId) {
@@ -2528,7 +2526,7 @@ async function syncTwitchRewardsUI() {
           const helixData = await helixRes.json();
           twRewards = helixData.data || [];
         }
-      } catch(e) {}
+      } catch (e) { }
     }
 
     if (twRewards.length > 0) {
@@ -2642,7 +2640,7 @@ function previewSound(url) {
   try {
     const a = new Audio(url);
     a.play().catch(e => showToast('Error al reproducir audio: ' + e.message, 'error'));
-  } catch(e) {}
+  } catch (e) { }
 }
 
 async function handleSoundFileUpload(input) {
@@ -2675,7 +2673,7 @@ async function handleSoundFileUpload(input) {
       } else {
         showToast(`Error: ${data.message || 'No se pudo subir'}`, 'error');
       }
-    } catch(err) {
+    } catch (err) {
       showToast(`Error al subir sonido: ${err.message}`, 'error');
     }
   };
@@ -2775,7 +2773,7 @@ async function testReward(rewardId) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: 'Daft Punk One More Time', requester: 'VisorVIP' })
-    }).catch(() => {});
+    }).catch(() => { });
     showToast('Canción añadida con prioridad VIP a la cola', 'success');
   } else if (r.action === 'sound') {
     broadcastEvent('alert', {
@@ -2926,7 +2924,7 @@ async function saveAllConfig(showNotification = true) {
       twAuth.oauthToken = payload.twitch.oauthToken;
       localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twAuth));
     }
-  } catch(e) {}
+  } catch (e) { }
 
   populateWidgetUrls();
   initDashboardMqtt();
@@ -3039,13 +3037,13 @@ function setupEventListeners() {
         localStorage.removeItem('orbibot_twitch_auth_event');
         try {
           if (activeAuthPopup && !activeAuthPopup.closed) activeAuthPopup.close();
-        } catch(e) {}
+        } catch (e) { }
         activeAuthPopup = null;
 
         try {
           const payload = JSON.parse(rawEvent);
           await handleAuthSuccess(payload);
-        } catch(err) {
+        } catch (err) {
           console.error('Error handling auth success payload:', err);
         }
         return;
@@ -3059,7 +3057,7 @@ function setupEventListeners() {
         try {
           const errData = JSON.parse(rawError);
           showToast(`⚠️ Twitch: ${errData.desc || errData.error}`, 'error');
-        } catch(e) {}
+        } catch (e) { }
         return;
       }
 
@@ -3072,10 +3070,10 @@ function setupEventListeners() {
   // Handle successful OAuth event
   async function handleAuthSuccess(payload) {
     if (activeAuthPopup) {
-      try { activeAuthPopup.close(); } catch(e) {}
+      try { activeAuthPopup.close(); } catch (e) { }
       activeAuthPopup = null;
     }
-    try { window.focus(); } catch(e) {}
+    try { window.focus(); } catch (e) { }
 
     let user = payload.user || payload.data?.user || {};
     const token = (payload.token || payload.oauthToken || '').replace(/^oauth:/i, '').trim();
@@ -3105,10 +3103,10 @@ function setupEventListeners() {
                   avatarUrl = uData.data[0].profile_image_url || avatarUrl;
                 }
               }
-            } catch(e) {}
+            } catch (e) { }
           }
         }
-      } catch(e) {}
+      } catch (e) { }
     }
 
     if (!channelName && displayName) {
@@ -3131,7 +3129,7 @@ function setupEventListeners() {
       let cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
       cfg.twitch = { ...(cfg.twitch || {}), ...twitchCfg };
       localStorage.setItem('orbibot_config', JSON.stringify(cfg));
-    } catch(e) {}
+    } catch (e) { }
 
     if (appConfig) {
       appConfig.twitch = { ...(appConfig.twitch || {}), ...twitchCfg };
@@ -3155,7 +3153,7 @@ function setupEventListeners() {
             appConfig = authData.config;
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     await loadInitialData();
@@ -3193,7 +3191,7 @@ function setupEventListeners() {
           currentDisplayName = p.displayName || currentChannel || 'Streamer';
           currentAvatar = p.profileImage || currentAvatar;
         }
-      } catch(e) {}
+      } catch (e) { }
     }
 
     if (logoutModalUser) logoutModalUser.innerText = `@${currentChannel || currentDisplayName || 'streamer'}`;
@@ -3216,11 +3214,11 @@ function setupEventListeners() {
 
     try {
       await fetch('/api/bot/disconnect', { method: 'POST' });
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-    } catch (e) {}
+    } catch (e) { }
 
     // Clear ALL Twitch credentials & cached settings from localStorage
     localStorage.removeItem('orbibot_twitch_auth');
@@ -3229,7 +3227,7 @@ function setupEventListeners() {
     localStorage.removeItem('orbibot_config');
 
     if (browserTmiClient) {
-      try { browserTmiClient.disconnect(); } catch(e) {}
+      try { browserTmiClient.disconnect(); } catch (e) { }
       browserTmiClient = null;
     }
 
@@ -3379,7 +3377,7 @@ function setupEventListeners() {
 
   // Song Request Controls
   document.getElementById('btnSrSkip').addEventListener('click', skipCurrentSong);
-  
+
   document.getElementById('btnSrClear').addEventListener('click', async () => {
     if (confirm('¿Seguro que deseas vaciar toda la cola de canciones?')) {
       const res = await fetch('/api/sr/clear', { method: 'POST' });
@@ -3433,7 +3431,7 @@ function setupEventListeners() {
     const formattedName = name.startsWith('!') ? name : `!${name}`;
     const commands = await fetch('/api/commands').then(r => r.json());
 
-    const targetIdx = editId 
+    const targetIdx = editId
       ? commands.findIndex(c => c.id === editId)
       : commands.findIndex(c => c.name.toLowerCase() === formattedName.toLowerCase());
 
@@ -3512,10 +3510,10 @@ const WC_EVENT_PREVIEWS = {
 };
 
 const WC_DEFAULT_VALUES = {
-  alerts: { fontFamily: "'Outfit', sans-serif", bgColor:'#0b0e14', bgOpacity:88, titleColor:'#ffffff', messageColor:'#cbd5e1', accentColor:'#9146ff', titleSize:32, messageSize:20, borderRadius:24, imageSize:120, customCSS:'', customJS:'' },
-  nowplaying: { fontFamily: "'Outfit', sans-serif", bgColor:'#0f121a', bgOpacity:90, titleColor:'#ffffff', requesterColor:'#9146ff', titleSize:16, borderRadius:18, thumbSize:64, customCSS:'', customJS:'' },
-  goals: { fontFamily: "'Outfit', sans-serif", barColor:'#9146ff', barColor2:'#00f2fe', bgColor:'#0e121c', bgOpacity:92, barHeight:18, fontSize:15, borderRadius:18, customCSS:'', customJS:'' },
-  chat: { fontFamily: "'Outfit', sans-serif", bubbleBg:'#0f141e', bgOpacity:85, usernameColor:'#9146ff', textColor:'#f1f5f9', fontSize:14, borderRadius:14, borderLeftWidth:4, borderLeftColor:'#9146ff', customCSS:'', customJS:'' }
+  alerts: { fontFamily: "'Outfit', sans-serif", bgColor: '#0b0e14', bgOpacity: 88, titleColor: '#ffffff', messageColor: '#cbd5e1', accentColor: '#9146ff', titleSize: 32, messageSize: 20, borderRadius: 24, imageSize: 120, customCSS: '', customJS: '' },
+  nowplaying: { fontFamily: "'Outfit', sans-serif", bgColor: '#0f121a', bgOpacity: 90, titleColor: '#ffffff', requesterColor: '#9146ff', titleSize: 16, borderRadius: 18, thumbSize: 64, customCSS: '', customJS: '' },
+  goals: { fontFamily: "'Outfit', sans-serif", barColor: '#9146ff', barColor2: '#00f2fe', bgColor: '#0e121c', bgOpacity: 92, barHeight: 18, fontSize: 15, borderRadius: 18, customCSS: '', customJS: '' },
+  chat: { fontFamily: "'Outfit', sans-serif", bubbleBg: '#0f141e', bgOpacity: 85, usernameColor: '#9146ff', textColor: '#f1f5f9', fontSize: 14, borderRadius: 14, borderLeftWidth: 4, borderLeftColor: '#9146ff', customCSS: '', customJS: '' }
 };
 
 const WC_PRESET_GIFS = {
@@ -3702,7 +3700,7 @@ function handleAlertFileUpload(input) {
   if (input.files && input.files[0]) {
     const file = input.files[0];
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
       const dataUrl = e.target.result;
       wcAlertImages[wcActiveAlertEvent] = dataUrl;
       const urlInput = document.getElementById('wc-alert-imageUrl');
@@ -3735,9 +3733,9 @@ function handleAlertSoundUpload(input) {
   if (input.files && input.files[0]) {
     const file = input.files[0];
     const reader = new FileReader();
-    reader.onload = async function(e) {
+    reader.onload = async function (e) {
       const dataUrl = e.target.result;
-      
+
       // Try uploading to backend /api/sounds/upload
       try {
         const res = await fetch('/api/sounds/upload', {
@@ -3753,7 +3751,7 @@ function handleAlertSoundUpload(input) {
           playActiveAlertSound();
           return;
         }
-      } catch(err) {}
+      } catch (err) { }
 
       // Fallback: use dataUrl directly
       wcAlertSounds[wcActiveAlertEvent] = dataUrl;
@@ -3784,7 +3782,7 @@ function playActiveAlertSound() {
   try {
     const audio = new Audio(sound);
     audio.play().catch(() => playSynthesizedAlertChime(wcActiveAlertEvent));
-  } catch(e) {
+  } catch (e) {
     playSynthesizedAlertChime(wcActiveAlertEvent);
   }
 }
@@ -3810,7 +3808,7 @@ function playSynthesizedAlertChime(type) {
     gain.connect(audioCtx.destination);
     osc.start(now);
     osc.stop(now + 0.6);
-  } catch(e) {}
+  } catch (e) { }
 }
 
 function previewAlertAnimation() {
@@ -3903,17 +3901,17 @@ function updateWidgetPreview(widgetKey, vals) {
 
     if (card) {
       card.style.fontFamily = font;
-      const r = Math.round(parseInt(vals.bgColor?.slice(1,3)||'0b',16));
-      const g = Math.round(parseInt(vals.bgColor?.slice(3,5)||'0e',16));
-      const b = Math.round(parseInt(vals.bgColor?.slice(5,7)||'14',16));
-      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity||88)/100})`;
+      const r = Math.round(parseInt(vals.bgColor?.slice(1, 3) || '0b', 16));
+      const g = Math.round(parseInt(vals.bgColor?.slice(3, 5) || '0e', 16));
+      const b = Math.round(parseInt(vals.bgColor?.slice(5, 7) || '14', 16));
+      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity || 88) / 100})`;
       card.style.borderRadius = `${vals.borderRadius || 24}px`;
       card.style.borderColor = vals.accentColor || '#9146ff';
       card.style.boxShadow = `0 10px 40px rgba(0,0,0,0.6), 0 0 35px ${vals.accentColor || '#9146ff'}50`;
     }
     if (badge) {
       badge.style.fontFamily = font;
-      badge.style.background = `linear-gradient(135deg, ${vals.accentColor||'#9146ff'}, #00f2fe)`;
+      badge.style.background = `linear-gradient(135deg, ${vals.accentColor || '#9146ff'}, #00f2fe)`;
     }
     if (title) {
       title.style.fontFamily = font;
@@ -3936,10 +3934,10 @@ function updateWidgetPreview(widgetKey, vals) {
     const req = document.getElementById('wcPvNpRequester');
     if (card) {
       card.style.fontFamily = font;
-      const r = parseInt(vals.bgColor?.slice(1,3)||'0f',16);
-      const g = parseInt(vals.bgColor?.slice(3,5)||'12',16);
-      const b = parseInt(vals.bgColor?.slice(5,7)||'1a',16);
-      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity||90)/100})`;
+      const r = parseInt(vals.bgColor?.slice(1, 3) || '0f', 16);
+      const g = parseInt(vals.bgColor?.slice(3, 5) || '12', 16);
+      const b = parseInt(vals.bgColor?.slice(5, 7) || '1a', 16);
+      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity || 90) / 100})`;
       card.style.borderRadius = `${vals.borderRadius || 18}px`;
     }
     if (title) {
@@ -3948,8 +3946,8 @@ function updateWidgetPreview(widgetKey, vals) {
       title.style.fontSize = `${vals.titleSize || 16}px`;
     }
     if (thumb) {
-      thumb.style.width = `${vals.thumbSize||64}px`;
-      thumb.style.height = `${vals.thumbSize||64}px`;
+      thumb.style.width = `${vals.thumbSize || 64}px`;
+      thumb.style.height = `${vals.thumbSize || 64}px`;
     }
     if (req) {
       req.style.fontFamily = font;
@@ -3964,10 +3962,10 @@ function updateWidgetPreview(widgetKey, vals) {
     const fill = document.getElementById('wcPvGoalFill');
     if (card) {
       card.style.fontFamily = font;
-      const r = parseInt(vals.bgColor?.slice(1,3)||'0e',16);
-      const g = parseInt(vals.bgColor?.slice(3,5)||'12',16);
-      const b = parseInt(vals.bgColor?.slice(5,7)||'1c',16);
-      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity||92)/100})`;
+      const r = parseInt(vals.bgColor?.slice(1, 3) || '0e', 16);
+      const g = parseInt(vals.bgColor?.slice(3, 5) || '12', 16);
+      const b = parseInt(vals.bgColor?.slice(5, 7) || '1c', 16);
+      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity || 92) / 100})`;
       card.style.borderRadius = `${vals.borderRadius || 18}px`;
     }
     if (titleEl) {
@@ -3984,10 +3982,10 @@ function updateWidgetPreview(widgetKey, vals) {
 
     bubbles.forEach(b => {
       b.style.fontFamily = font;
-      const r = parseInt(vals.bubbleBg?.slice(1,3)||'0f',16);
-      const g = parseInt(vals.bubbleBg?.slice(3,5)||'14',16);
-      const bb = parseInt(vals.bubbleBg?.slice(5,7)||'1e',16);
-      b.style.background = `rgba(${r},${g},${bb},${(vals.bgOpacity||85)/100})`;
+      const r = parseInt(vals.bubbleBg?.slice(1, 3) || '0f', 16);
+      const g = parseInt(vals.bubbleBg?.slice(3, 5) || '14', 16);
+      const bb = parseInt(vals.bubbleBg?.slice(5, 7) || '1e', 16);
+      b.style.background = `rgba(${r},${g},${bb},${(vals.bgOpacity || 85) / 100})`;
       b.style.borderRadius = `${vals.borderRadius || 14}px`;
       b.style.borderLeftWidth = `${vals.borderLeftWidth || 4}px`;
       b.style.borderLeftColor = vals.borderLeftColor || '#9146ff';
@@ -4008,102 +4006,102 @@ function generateWidgetCSS(widgetKey, vals) {
   const font = vals.fontFamily || "'Outfit', sans-serif";
 
   if (widgetKey === 'alerts') {
-    const r = parseInt(vals.bgColor?.slice(1,3)||'0b',16);
-    const g = parseInt(vals.bgColor?.slice(3,5)||'0e',16);
-    const b = parseInt(vals.bgColor?.slice(5,7)||'14',16);
+    const r = parseInt(vals.bgColor?.slice(1, 3) || '0b', 16);
+    const g = parseInt(vals.bgColor?.slice(3, 5) || '0e', 16);
+    const b = parseInt(vals.bgColor?.slice(5, 7) || '14', 16);
     return `/* OrbiBot Custom Styles - Alert Box */
 .alert-card {
   font-family: ${font} !important;
-  background: rgba(${r},${g},${b},${(vals.bgOpacity||88)/100}) !important;
-  border-radius: ${vals.borderRadius||24}px !important;
-  border-color: ${vals.accentColor||'#9146ff'} !important;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px ${vals.accentColor||'#9146ff'}50 !important;
+  background: rgba(${r},${g},${b},${(vals.bgOpacity || 88) / 100}) !important;
+  border-radius: ${vals.borderRadius || 24}px !important;
+  border-color: ${vals.accentColor || '#9146ff'} !important;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px ${vals.accentColor || '#9146ff'}50 !important;
 }
 .alert-title {
   font-family: ${font} !important;
-  color: ${vals.titleColor||'#ffffff'} !important;
-  font-size: ${vals.titleSize||32}px !important;
+  color: ${vals.titleColor || '#ffffff'} !important;
+  font-size: ${vals.titleSize || 32}px !important;
 }
 .alert-message {
   font-family: ${font} !important;
-  color: ${vals.messageColor||'#cbd5e1'} !important;
-  font-size: ${vals.messageSize||20}px !important;
+  color: ${vals.messageColor || '#cbd5e1'} !important;
+  font-size: ${vals.messageSize || 20}px !important;
 }
 .alert-badge {
   font-family: ${font} !important;
-  background: linear-gradient(135deg, ${vals.accentColor||'#9146ff'}, #00f2fe) !important;
+  background: linear-gradient(135deg, ${vals.accentColor || '#9146ff'}, #00f2fe) !important;
 }
 .alert-media {
-  max-height: ${vals.imageSize||120}px !important;
+  max-height: ${vals.imageSize || 120}px !important;
 }
 `;
   } else if (widgetKey === 'nowplaying') {
-    const r = parseInt(vals.bgColor?.slice(1,3)||'0f',16);
-    const g = parseInt(vals.bgColor?.slice(3,5)||'12',16);
-    const b = parseInt(vals.bgColor?.slice(5,7)||'1a',16);
+    const r = parseInt(vals.bgColor?.slice(1, 3) || '0f', 16);
+    const g = parseInt(vals.bgColor?.slice(3, 5) || '12', 16);
+    const b = parseInt(vals.bgColor?.slice(5, 7) || '1a', 16);
     return `/* OrbiBot Custom Styles - Now Playing */
 .np-card {
   font-family: ${font} !important;
-  background: rgba(${r},${g},${b},${(vals.bgOpacity||90)/100}) !important;
-  border-radius: ${vals.borderRadius||18}px !important;
+  background: rgba(${r},${g},${b},${(vals.bgOpacity || 90) / 100}) !important;
+  border-radius: ${vals.borderRadius || 18}px !important;
 }
 .np-title {
   font-family: ${font} !important;
-  color: ${vals.titleColor||'#ffffff'} !important;
-  font-size: ${vals.titleSize||16}px !important;
+  color: ${vals.titleColor || '#ffffff'} !important;
+  font-size: ${vals.titleSize || 16}px !important;
 }
 .np-requester {
   font-family: ${font} !important;
 }
 .np-requester strong {
-  color: ${vals.requesterColor||'#9146ff'} !important;
+  color: ${vals.requesterColor || '#9146ff'} !important;
 }
 .np-thumb-wrapper {
-  width: ${vals.thumbSize||64}px !important;
-  height: ${vals.thumbSize||64}px !important;
+  width: ${vals.thumbSize || 64}px !important;
+  height: ${vals.thumbSize || 64}px !important;
 }
 `;
   } else if (widgetKey === 'goals') {
-    const r = parseInt(vals.bgColor?.slice(1,3)||'0e',16);
-    const g = parseInt(vals.bgColor?.slice(3,5)||'12',16);
-    const b = parseInt(vals.bgColor?.slice(5,7)||'1c',16);
+    const r = parseInt(vals.bgColor?.slice(1, 3) || '0e', 16);
+    const g = parseInt(vals.bgColor?.slice(3, 5) || '12', 16);
+    const b = parseInt(vals.bgColor?.slice(5, 7) || '1c', 16);
     return `/* OrbiBot Custom Styles - Goal Bar */
 .goal-card {
   font-family: ${font} !important;
-  background: rgba(${r},${g},${b},${(vals.bgOpacity||92)/100}) !important;
-  border-radius: ${vals.borderRadius||18}px !important;
+  background: rgba(${r},${g},${b},${(vals.bgOpacity || 92) / 100}) !important;
+  border-radius: ${vals.borderRadius || 18}px !important;
 }
 .goal-title {
   font-family: ${font} !important;
-  font-size: ${vals.fontSize||15}px !important;
+  font-size: ${vals.fontSize || 15}px !important;
 }
 .goal-bar-bg {
-  height: ${vals.barHeight||18}px !important;
+  height: ${vals.barHeight || 18}px !important;
 }
 .goal-bar-fill {
-  background: linear-gradient(90deg, ${vals.barColor||'#9146ff'}, ${vals.barColor2||'#00f2fe'}) !important;
+  background: linear-gradient(90deg, ${vals.barColor || '#9146ff'}, ${vals.barColor2 || '#00f2fe'}) !important;
 }
 `;
   } else if (widgetKey === 'chat') {
-    const r = parseInt(vals.bubbleBg?.slice(1,3)||'0f',16);
-    const g = parseInt(vals.bubbleBg?.slice(3,5)||'14',16);
-    const b = parseInt(vals.bubbleBg?.slice(5,7)||'1e',16);
+    const r = parseInt(vals.bubbleBg?.slice(1, 3) || '0f', 16);
+    const g = parseInt(vals.bubbleBg?.slice(3, 5) || '14', 16);
+    const b = parseInt(vals.bubbleBg?.slice(5, 7) || '1e', 16);
     return `/* OrbiBot Custom Styles - Chat Overlay */
 .chat-bubble {
   font-family: ${font} !important;
-  background: rgba(${r},${g},${b},${(vals.bgOpacity||85)/100}) !important;
-  border-radius: ${vals.borderRadius||14}px !important;
-  border-left-width: ${vals.borderLeftWidth||4}px !important;
-  border-left-color: ${vals.borderLeftColor||'#9146ff'} !important;
+  background: rgba(${r},${g},${b},${(vals.bgOpacity || 85) / 100}) !important;
+  border-radius: ${vals.borderRadius || 14}px !important;
+  border-left-width: ${vals.borderLeftWidth || 4}px !important;
+  border-left-color: ${vals.borderLeftColor || '#9146ff'} !important;
 }
 .chat-bubble .username {
   font-family: ${font} !important;
-  color: ${vals.usernameColor||'#9146ff'} !important;
+  color: ${vals.usernameColor || '#9146ff'} !important;
 }
 .chat-bubble .text {
   font-family: ${font} !important;
-  color: ${vals.textColor||'#f1f5f9'} !important;
-  font-size: ${vals.fontSize||14}px !important;
+  color: ${vals.textColor || '#f1f5f9'} !important;
+  font-size: ${vals.fontSize || 14}px !important;
 }
 `;
   }
@@ -4177,7 +4175,7 @@ async function saveWidgetStyles() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedAlerts)
         });
-      } catch(e) {}
+      } catch (e) { }
     }
 
     setAutoSaveStatus('saved');
@@ -4245,7 +4243,7 @@ function initWidgetCustomization() {
         }
       }
     })
-    .catch(() => {});
+    .catch(() => { });
 
   // Setup visual controls event listeners for live preview
   document.querySelectorAll('.wc-controls-group input, .wc-controls-group select').forEach(input => {
@@ -4273,7 +4271,7 @@ function initWidgetCustomization() {
 
 // Initialize widget customization when initial data is loaded
 const _origLoadInitialData = loadInitialData;
-loadInitialData = async function() {
+loadInitialData = async function () {
   await _origLoadInitialData();
   initWidgetCustomization();
 };

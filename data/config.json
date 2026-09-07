@@ -1,35 +1,55 @@
 {
-  "tts": {
-    "rate": 1,
-    "pitch": 1,
-    "voice": "es_female",
-    "engine": "webspeech",
-    "volume": 90,
-    "enabled": true,
-    "minBits": 50,
-    "maxLength": 250,
-    "bannedWords": [],
-    "chatCommand": "!tts",
-    "allowChatCommand": true,
-    "channelPointsRewardName": "TTS"
+  "security": {
+    "widgetToken": "sec_cb04c456356689d198f80b1d3c9d86ff"
+  },
+  "twitch": {
+    "channel": "bersek___",
+    "botUsername": "bersek___",
+    "oauthToken": "43jh824qaqogjil3y12390isywc086",
+    "clientId": "yw1vr664ichms8an2x5lhji58v7ozk",
+    "connected": true,
+    "userId": "226055830",
+    "displayName": "Bersek___",
+    "profileImage": "https://static-cdn.jtvnw.net/jtv_user_pictures/92a6561b-8e64-4f5f-a5fe-af7782347288-profile_image-300x300.jpeg"
   },
   "kick": {
-    "userId": "",
-    "channel": "",
+    "channel": "bersek",
+    "username": "Bersek",
+    "profile_picture": "https://files.kick.com/images/user/2984464/profile_image/conversion/8b4e7fba-64d9-469b-b1eb-da87178f4fab-medium.webp",
+    "userId": "2984464",
+    "accessToken": "MTI2OTLJZTUTNZRHNY0ZMTY4LTG5NTCTMTHIOTLMZJU4ZWU2",
+    "refreshToken": "ZDEYY2Q4OWITZTC4ZS01NTU2LWFJN2ETMDJMMZY4NJI4ZJC3",
     "clientId": "01M0VT0JC58YQEVGRHM8JFXQX3",
-    "username": "",
-    "connected": false,
-    "accessToken": "",
-    "refreshToken": "",
-    "profile_picture": ""
+    "connected": true
+  },
+  "chatPlatforms": {
+    "twitch": true,
+    "kick": true
+  },
+  "songRequest": {
+    "prefix": "!sr",
+    "enabled": true,
+    "maxDurationMinutes": 8,
+    "maxPerUser": 5,
+    "userLevel": "all",
+    "volume": 75,
+    "autoplay": true
+  },
+  "tts": {
+    "enabled": true,
+    "engine": "webspeech",
+    "voice": "es_female",
+    "volume": 90,
+    "rate": 1,
+    "pitch": 1,
+    "minBits": 50,
+    "allowChatCommand": true,
+    "chatCommand": "!tts",
+    "bannedWords": [],
+    "maxLength": 250,
+    "channelPointsRewardName": "TTS"
   },
   "goals": {
-    "bits": {
-      "color": "#f5a623",
-      "title": "Meta de Bits",
-      "target": 5000,
-      "current": 1500
-    },
     "subs": {
       "color": "#9146ff",
       "title": "Meta de Suscriptores",
@@ -41,29 +61,13 @@
       "title": "Meta de Seguidores",
       "target": 300,
       "current": 185
+    },
+    "bits": {
+      "color": "#f5a623",
+      "title": "Meta de Bits",
+      "target": 5000,
+      "current": 1500
     }
-  },
-  "twitch": {
-    "userId": "226055830",
-    "channel": "bersek___",
-    "clientId": "yw1vr664ichms8an2x5lhji58v7ozk",
-    "connected": true,
-    "oauthToken": "43jh824qaqogjil3y12390isywc086",
-    "botUsername": "bersek___",
-    "displayName": "Bersek___",
-    "profileImage": "https://static-cdn.jtvnw.net/jtv_user_pictures/92a6561b-8e64-4f5f-a5fe-af7782347288-profile_image-300x300.jpeg"
-  },
-  "security": {
-    "widgetToken": "sec_cb04c456356689d198f80b1d3c9d86ff"
-  },
-  "songRequest": {
-    "prefix": "!sr",
-    "volume": 75,
-    "enabled": true,
-    "autoplay": true,
-    "userLevel": "all",
-    "maxPerUser": 5,
-    "maxDurationMinutes": 8
   },
   "widgetStyles": {}
 }

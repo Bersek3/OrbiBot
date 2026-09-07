@@ -25,7 +25,7 @@
         (window.innerWidth < 850 && window.innerHeight < 900);
 
       // Only intercept if this is explicitly a Twitch OAuth redirect, NOT Google / Supabase
-      const isTwitchSpecific = isPopup || 
+      const isTwitchSpecific = isPopup ||
         (hash && (hash.includes('state=popup') || hash.includes('scope=chat') || hash.includes('scope='))) ||
         (search && (search.includes('state=popup') || search.includes('scope=chat')));
 
@@ -177,11 +177,15 @@
         <button id="landingHeroGoogleBtn" class="btn-platform btn-platform-google" onclick="signInWithGoogle()"
           title="Continuar con Google">
           <svg class="platform-svg-icon" viewBox="0 0 48 48" width="20" height="20">
-            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-            <path fill="none" d="M0 0h48v48H0z"/>
+            <path fill="#EA4335"
+              d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+            <path fill="#4285F4"
+              d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+            <path fill="#FBBC05"
+              d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+            <path fill="#34A853"
+              d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+            <path fill="none" d="M0 0h48v48H0z" />
           </svg>
           <span>Continuar con Google</span>
         </button>
@@ -189,9 +193,10 @@
         <!-- Email Button -->
         <button id="landingHeroEmailBtn" class="btn-platform btn-platform-email" onclick="openAuthModal('login')"
           title="Iniciar o registrarse con correo">
-          <svg class="platform-svg-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-            <polyline points="22,6 12,13 2,6"/>
+          <svg class="platform-svg-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+            <polyline points="22,6 12,13 2,6" />
           </svg>
           <span>Entrar con Correo</span>
         </button>
@@ -514,14 +519,17 @@
 
       <!-- Direct Google OAuth Button -->
       <div class="auth-social-row" style="margin-bottom: 16px;">
-        <button type="button" class="btn-auth-google" onclick="signInWithGoogle()"
-          title="Continuar con Google">
+        <button type="button" class="btn-auth-google" onclick="signInWithGoogle()" title="Continuar con Google">
           <svg class="platform-svg-icon" viewBox="0 0 48 48" width="20" height="20">
-            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-            <path fill="none" d="M0 0h48v48H0z"/>
+            <path fill="#EA4335"
+              d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+            <path fill="#4285F4"
+              d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+            <path fill="#FBBC05"
+              d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+            <path fill="#34A853"
+              d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+            <path fill="none" d="M0 0h48v48H0z" />
           </svg>
           <span>Continuar con Google</span>
         </button>
@@ -725,12 +733,6 @@
               Sesión</button>
           </div>
 
-          <!-- Botón Volver a la Landing (Siempre disponible) -->
-          <button id="topGoHomeBtn" class="btn btn-sm btn-secondary" onclick="showLandingView()"
-            title="Volver a la página principal" style="padding:6px 12px; font-size:12px; gap:6px; border-radius:8px;">
-            <span>🏠</span> <span>Inicio</span>
-          </button>
-
           <!-- Indicador de Autoguardado Automático -->
           <div id="autoSaveIndicator"
             style="display:inline-flex; align-items:center; gap:8px; padding:6px 14px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:999px; font-size:12px; color:var(--text-muted); font-weight:600; transition:all 0.3s ease;">
@@ -747,23 +749,31 @@
         <section id="tab-dashboard" class="tab-pane active">
 
           <!-- ================= VINCULACIÓN DE CUENTAS (KICK & TWITCH) ================= -->
-          <div class="card platform-linking-container" style="margin-bottom: 24px; padding: 24px 28px; background: rgba(14, 20, 34, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; position: relative; overflow: hidden;">
-            <div style="position: absolute; top:0; left:0; right:0; height:3px; background: linear-gradient(90deg, #53fc18, #9146ff, #00f2fe);"></div>
-            
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+          <div class="card platform-linking-container"
+            style="margin-bottom: 24px; padding: 24px 28px; background: rgba(14, 20, 34, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; position: relative; overflow: hidden;">
+            <div
+              style="position: absolute; top:0; left:0; right:0; height:3px; background: linear-gradient(90deg, #53fc18, #9146ff, #00f2fe);">
+            </div>
+
+            <div
+              style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
               <div>
-                <h3 style="font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+                <h3
+                  style="font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
                   <span>🎮</span> <span>Vincular Canales de Transmisión</span>
                 </h3>
                 <p style="font-size: 13px; color: var(--text-secondary);">
-                  Conecta tus canales de Kick y Twitch para sincronizar el chat multi-plataforma, alertas de pantalla, ruleta y widgets en OBS Studio.
+                  Conecta tus canales de Kick y Twitch para sincronizar el chat multi-plataforma, alertas de pantalla,
+                  ruleta y widgets en OBS Studio.
                 </p>
               </div>
               <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <div id="multiChatIndicatorBadge" style="display: flex; align-items: center; gap: 6px; background: rgba(145, 70, 255, 0.15); border: 1px solid rgba(145, 70, 255, 0.4); padding: 5px 12px; border-radius: 999px; font-size: 12px; color: #e2e8f0; font-weight: 700;">
+                <div id="multiChatIndicatorBadge"
+                  style="display: flex; align-items: center; gap: 6px; background: rgba(145, 70, 255, 0.15); border: 1px solid rgba(145, 70, 255, 0.4); padding: 5px 12px; border-radius: 999px; font-size: 12px; color: #e2e8f0; font-weight: 700;">
                   <span id="multiChatIcon">✨</span> <span id="multiChatText">Multi-Chat OBS: Twitch + Kick</span>
                 </div>
-                <div id="userLoggedInBadge" style="display: flex; align-items: center; gap: 8px; background: rgba(0, 242, 254, 0.1); border: 1px solid rgba(0, 242, 254, 0.3); padding: 5px 12px; border-radius: 999px; font-size: 12px; color: #00f2fe; font-weight: 700;">
+                <div id="userLoggedInBadge"
+                  style="display: flex; align-items: center; gap: 8px; background: rgba(0, 242, 254, 0.1); border: 1px solid rgba(0, 242, 254, 0.3); padding: 5px 12px; border-radius: 999px; font-size: 12px; color: #00f2fe; font-weight: 700;">
                   <span>👤</span> <span id="userLoggedInEmail">Sesión activa</span>
                 </div>
               </div>
@@ -772,12 +782,15 @@
             <!-- Platform Cards Grid (Twitch & Kick) -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
               <!-- 1. Twitch Platform Link Card -->
-              <div class="platform-link-card platform-twitch-card" style="background: rgba(145, 70, 255, 0.06); border: 1px solid rgba(145, 70, 255, 0.25); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px;">
+              <div class="platform-link-card platform-twitch-card"
+                style="background: rgba(145, 70, 255, 0.06); border: 1px solid rgba(145, 70, 255, 0.25); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
                   <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="width: 40px; height: 40px; border-radius: 10px; background: #9146ff; display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 0 15px rgba(145, 70, 255, 0.4);">
+                    <div
+                      style="width: 40px; height: 40px; border-radius: 10px; background: #9146ff; display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 0 15px rgba(145, 70, 255, 0.4);">
                       <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-                        <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+                        <path
+                          d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
                       </svg>
                     </div>
                     <div>
@@ -785,46 +798,61 @@
                       <p id="dashTwitchStatusText" style="font-size: 12px; color: #94a3b8;">No conectado</p>
                     </div>
                   </div>
-                  <span id="dashTwitchStatusBadge" class="badge" style="background: rgba(255,255,255,0.08); color: #94a3b8; font-size: 11px; padding: 4px 10px; border-radius: 999px; font-weight: 700;">● Desconectado</span>
+                  <span id="dashTwitchStatusBadge" class="badge"
+                    style="background: rgba(255,255,255,0.08); color: #94a3b8; font-size: 11px; padding: 4px 10px; border-radius: 999px; font-weight: 700;">●
+                    Desconectado</span>
                 </div>
 
                 <div id="dashTwitchDisconnectedView" style="display: flex; gap: 10px;">
-                  <button id="heroTwitchLoginBtn" class="btn" onclick="triggerTwitchOAuthLogin()" style="background: #9146ff; color: #fff; font-weight: 700; font-size: 13px; padding: 10px 18px; border-radius: 10px; border: none; cursor: pointer; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(145, 70, 255, 0.35);">
+                  <button id="heroTwitchLoginBtn" class="btn" onclick="triggerTwitchOAuthLogin()"
+                    style="background: #9146ff; color: #fff; font-weight: 700; font-size: 13px; padding: 10px 18px; border-radius: 10px; border: none; cursor: pointer; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(145, 70, 255, 0.35);">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                      <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+                      <path
+                        d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
                     </svg>
                     <span>Vincular Twitch</span>
                   </button>
                 </div>
 
-                <div id="dashTwitchConnectedView" style="display: none; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                <div id="dashTwitchConnectedView"
+                  style="display: none; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
                   <div style="display: flex; align-items: center; gap: 10px;">
-                    <img id="dashUserAvatar" src="" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #9146ff; object-fit: cover;" alt="Twitch Avatar">
+                    <img id="dashUserAvatar" src=""
+                      style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #9146ff; object-fit: cover;"
+                      alt="Twitch Avatar">
                     <span id="dashUserName" style="font-weight: 700; color: #fff; font-size: 13.5px;">@streamer</span>
                   </div>
-                  <button id="dashLogoutBtn" class="btn btn-danger btn-sm" onclick="showLogoutConfirmModal()" style="padding: 6px 14px; font-size: 12px; border-radius: 8px;">
+                  <button id="dashLogoutBtn" class="btn btn-danger btn-sm" onclick="showLogoutConfirmModal()"
+                    style="padding: 6px 14px; font-size: 12px; border-radius: 8px;">
                     Desvincular
                   </button>
                 </div>
 
                 <!-- Chat Multi-Platform Toggle Switch for Twitch -->
-                <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: #cbd5e1;">
+                <div
+                  style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: #cbd5e1;">
                   <span style="display: flex; align-items: center; gap: 6px;">
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="#9146ff"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="#9146ff">
+                      <path
+                        d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+                    </svg>
                     <span>Activar en Chat OBS</span>
                   </span>
                   <label class="switch-label" style="margin: 0;">
-                    <input type="checkbox" id="toggleChatTwitch" class="switch-input" checked onchange="handleChatPlatformToggle('twitch', this.checked)">
+                    <input type="checkbox" id="toggleChatTwitch" class="switch-input" checked
+                      onchange="handleChatPlatformToggle('twitch', this.checked)">
                     <span class="switch-slider" style="width: 38px; height: 20px;"></span>
                   </label>
                 </div>
               </div>
 
               <!-- 2. Kick Platform Link Card -->
-              <div class="platform-link-card platform-kick-card" style="background: rgba(83, 252, 24, 0.06); border: 1px solid rgba(83, 252, 24, 0.25); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px;">
+              <div class="platform-link-card platform-kick-card"
+                style="background: rgba(83, 252, 24, 0.06); border: 1px solid rgba(83, 252, 24, 0.25); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
                   <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="width: 40px; height: 40px; border-radius: 10px; background: #53fc18; display: flex; align-items: center; justify-content: center; color: #000; box-shadow: 0 0 15px rgba(83, 252, 24, 0.35);">
+                    <div
+                      style="width: 40px; height: 40px; border-radius: 10px; background: #53fc18; display: flex; align-items: center; justify-content: center; color: #000; box-shadow: 0 0 15px rgba(83, 252, 24, 0.35);">
                       <svg viewBox="0 0 32 32" width="22" height="22" fill="currentColor">
                         <path d="M4 2h8v8h3V6h3V2h10v10h-3v3h-3v2h3v3h3v10H18v-4h-3v-3h-3v-2H9v9H4V2z" />
                       </svg>
@@ -834,11 +862,14 @@
                       <p id="dashKickStatusText" style="font-size: 12px; color: #94a3b8;">No conectado</p>
                     </div>
                   </div>
-                  <span id="dashKickStatusBadge" class="badge" style="background: rgba(255,255,255,0.08); color: #94a3b8; font-size: 11px; padding: 4px 10px; border-radius: 999px; font-weight: 700;">● Desconectado</span>
+                  <span id="dashKickStatusBadge" class="badge"
+                    style="background: rgba(255,255,255,0.08); color: #94a3b8; font-size: 11px; padding: 4px 10px; border-radius: 999px; font-weight: 700;">●
+                    Desconectado</span>
                 </div>
 
                 <div id="dashKickDisconnectedView" style="display: flex; gap: 10px;">
-                  <button id="heroKickLoginBtn" class="btn" onclick="triggerKickOAuthLogin()" style="background: #53fc18; color: #000; font-weight: 800; font-size: 13px; padding: 10px 18px; border-radius: 10px; border: none; cursor: pointer; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(83, 252, 24, 0.35);">
+                  <button id="heroKickLoginBtn" class="btn" onclick="triggerKickOAuthLogin()"
+                    style="background: #53fc18; color: #000; font-weight: 800; font-size: 13px; padding: 10px 18px; border-radius: 10px; border: none; cursor: pointer; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(83, 252, 24, 0.35);">
                     <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor">
                       <path d="M4 2h8v8h3V6h3V2h10v10h-3v3h-3v2h3v3h3v10H18v-4h-3v-3h-3v-2H9v9H4V2z" />
                     </svg>
@@ -846,24 +877,33 @@
                   </button>
                 </div>
 
-                <div id="dashKickConnectedView" style="display: none; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                <div id="dashKickConnectedView"
+                  style="display: none; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
                   <div style="display: flex; align-items: center; gap: 10px;">
-                    <img id="dashKickAvatar" src="" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #53fc18; object-fit: cover; display: none;" alt="Kick Avatar">
-                    <span id="dashKickChannelName" style="font-weight: 700; color: #53fc18; font-size: 13.5px;">@canal</span>
+                    <img id="dashKickAvatar" src=""
+                      style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #53fc18; object-fit: cover; display: none;"
+                      alt="Kick Avatar">
+                    <span id="dashKickChannelName"
+                      style="font-weight: 700; color: #53fc18; font-size: 13.5px;">@canal</span>
                   </div>
-                  <button id="btnUnlinkKickBtn" class="btn btn-danger btn-sm" onclick="disconnectKickAccount()" style="padding: 6px 14px; font-size: 12px; border-radius: 8px;">
+                  <button id="btnUnlinkKickBtn" class="btn btn-danger btn-sm" onclick="disconnectKickAccount()"
+                    style="padding: 6px 14px; font-size: 12px; border-radius: 8px;">
                     Desvincular
                   </button>
                 </div>
 
                 <!-- Chat Multi-Platform Toggle Switch for Kick -->
-                <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: #cbd5e1;">
+                <div
+                  style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: #cbd5e1;">
                   <span style="display: flex; align-items: center; gap: 6px;">
-                    <svg viewBox="0 0 32 32" width="13" height="13" fill="#53fc18"><path d="M4 2h8v8h3V6h3V2h10v10h-3v3h-3v2h3v3h3v10H18v-4h-3v-3h-3v-2H9v9H4V2z"/></svg>
+                    <svg viewBox="0 0 32 32" width="13" height="13" fill="#53fc18">
+                      <path d="M4 2h8v8h3V6h3V2h10v10h-3v3h-3v2h3v3h3v10H18v-4h-3v-3h-3v-2H9v9H4V2z" />
+                    </svg>
                     <span>Activar en Chat OBS</span>
                   </span>
                   <label class="switch-label" style="margin: 0;">
-                    <input type="checkbox" id="toggleChatKick" class="switch-input" checked onchange="handleChatPlatformToggle('kick', this.checked)">
+                    <input type="checkbox" id="toggleChatKick" class="switch-input" checked
+                      onchange="handleChatPlatformToggle('kick', this.checked)">
                     <span class="switch-slider" style="width: 38px; height: 20px;"></span>
                   </label>
                 </div>
