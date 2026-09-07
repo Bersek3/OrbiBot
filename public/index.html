@@ -101,18 +101,30 @@
 </head>
 <body>
 
-  <!-- ================= LANDING PAGE VIEW (ESTILO BOTRIX.LIVE) ================= -->
+  <!-- ================= LANDING PAGE VIEW (ESTILO KICKBOT MODERNO & CYBER CYAN/VIOLET) ================= -->
   <div id="landingView" class="landing-view-wrapper">
-    <!-- Top Minimalist Bar -->
+    <!-- Top Modern Navigation Bar -->
     <header class="landing-top-bar">
       <div class="landing-top-bar-inner">
         <div class="landing-brand-minimal" onclick="showLandingView()">
-          <span class="landing-brand-glow">⚡</span>
+          <div class="landing-brand-icon-wrapper">
+            <span class="landing-brand-glow">⚡</span>
+          </div>
           <span class="landing-brand-title">OrbiBot</span>
+          <span class="landing-version-tag">v2.5 CLOUD</span>
         </div>
+
+        <nav class="landing-nav-links">
+          <a href="#caracteristicas" class="landing-nav-link">Características</a>
+          <a href="#plataformas" class="landing-nav-link">Plataformas</a>
+          <a href="javascript:void(0)" onclick="showDashboardView('tab-overlays')" class="landing-nav-link">Widgets OBS</a>
+          <a href="javascript:void(0)" onclick="showDashboardView('tab-tts')" class="landing-nav-link">TTS con IA</a>
+        </nav>
+
         <div class="landing-top-actions">
           <button id="landingNavDashboardBtn" class="landing-btn-pill-subtle" onclick="showDashboardView('tab-dashboard')">
-            <span>⚙️ Panel de Control</span>
+            <span class="pill-sparkle">✨</span>
+            <span>Panel de Control</span>
           </button>
         </div>
       </div>
@@ -120,17 +132,29 @@
 
     <!-- Hero Section -->
     <section class="landing-hero-simple">
+      <!-- Trust Badge / Pill -->
+      <div class="landing-trust-badge">
+        <span class="trust-badge-dot"></span>
+        <span class="trust-badge-text">MÁS DE 100,000 STREAMERS Y CREADORES CONFÍAN EN NOSOTROS</span>
+        <span class="trust-badge-heart">💜</span>
+      </div>
+
+      <!-- Giant Two-Tone Title -->
       <h1 class="landing-hero-title-simple">
-        El mejor software para<br>potenciar tu stream
+        El bot #1 para Streamers<br>
+        <span class="hero-title-gradient">de Kick, Twitch y YouTube</span>
       </h1>
 
+      <!-- Subtitle -->
+      <p class="landing-hero-subtitle-bold">
+        <strong>OrbiBot</strong> hace que streamear sea <a href="#caracteristicas" class="hero-link-underline">aún mejor</a>
+      </p>
+
+      <!-- Description Paragraph -->
       <p class="landing-hero-desc-simple">
-        <strong>OrbiBot</strong> es el mejor software para creadores de contenido, ya sea que emitas en 
-        <span class="brand-text-trovo">Trovo</span>, 
-        <span class="brand-text-twitch">Twitch</span>, 
-        <span class="brand-text-youtube">YouTube</span>, 
-        <span class="brand-text-kick">Kick</span> o que simplemente tengas una comunidad de 
-        <span class="brand-text-discord">Discord</span> que quieras llevar al siguiente nivel.
+        Herramienta de streaming en la nube con comandos de chat, overlays en tiempo real, alertas dinámicas, 
+        más de 2,500 voces TTS con IA, Song Request interactivo con YouTube, ruleta de recompensas, 
+        widgets personalizados y moderación inteligente. 100% gratis, configúralo en segundos.
       </p>
 
       <!-- Platform Login Buttons -->
@@ -165,139 +189,296 @@
           <span>Entrar con Discord</span>
         </button>
       </div>
-    </section>
 
-    <!-- Section: Why choose OrbiBot? -->
-    <section class="landing-content-simple">
-      <h2 class="landing-section-title-green">¿Por qué elegir OrbiBot?</h2>
-
-      <div class="landing-grid-simple">
-        <!-- 1. Fácil -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          </div>
-          <div class="landing-card-title-green">Fácil</div>
-          <p class="landing-card-desc-simple">Ya seas un profesional de la informática o simplemente un aficionado, OrbiBot ofrece herramientas para que todos puedan configurarlo sin problemas en función de sus conocimientos.</p>
-        </div>
-
-        <!-- 2. Personalización -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-          </div>
-          <div class="landing-card-title-green">Personalización</div>
-          <p class="landing-card-desc-simple">Aunque nuestra configuración estándar es muy buena, te permitimos ajustar cada detalle como desees para que tu contenido sea único.</p>
-        </div>
-
-        <!-- 3. Alojado en la nube -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
-          </div>
-          <div class="landing-card-title-green">Alojado en la nube</div>
-          <p class="landing-card-desc-simple">No tienes que instalar nada. OrbiBot funciona en la nube para que te olvides de lo técnico y disfrutes tu streaming con tranquilidad.</p>
-        </div>
-
-        <!-- 4. Sistema AntiSpam -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-          </div>
-          <div class="landing-card-title-green">Sistema AntiSpam</div>
-          <p class="landing-card-desc-simple">OrbiBot ayudará a sus moderadores, eliminando automáticamente los mensajes de spam, enlaces, etc. Y todo completamente configurable.</p>
-        </div>
-
-        <!-- 5. Widgets -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 12L2 9z"></path></svg>
-          </div>
-          <div class="landing-card-title-green">Widgets</div>
-          <p class="landing-card-desc-simple">Disponemos de todos los widgets necesarios para que tu streaming tenga un toque único además de interactivo.</p>
-        </div>
-
-        <!-- 6. Comandos -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-          </div>
-          <div class="landing-card-title-green">Comandos</div>
-          <p class="landing-card-desc-simple">Contamos con un sistema de comandos personalizados con infinidad de variables para que el único límite sea tu imaginación.</p>
-        </div>
-
-        <!-- 7. Notificaciones -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-          </div>
-          <div class="landing-card-title-green">Notificaciones</div>
-          <p class="landing-card-desc-simple">Cree alertas en su servidor de Discord para notificar a su comunidad cuando empiece un nuevo streaming o suba un video en YouTube.</p>
-        </div>
-
-        <!-- 8. Temporizadores -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-          </div>
-          <div class="landing-card-title-green">Temporizadores</div>
-          <p class="landing-card-desc-simple">OrbiBot puede publicar mensajes automáticamente en su chat en el intervalo que defina. Promocione sus redes sociales, información importante para sus espectadores, etc.</p>
-        </div>
-
-        <!-- 9. Puntos y niveles -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H8v4h8v-4h-1c-.55 0-1-.45-1-1v-2.34c3.42-.77 6-3.83 6-7.66V4H4v5.66c0 3.83 2.58 6.89 6 7.66z"></path></svg>
-          </div>
-          <div class="landing-card-title-green">Puntos y niveles</div>
-          <p class="landing-card-desc-simple">Puede activar un sistema para recompensar a sus espectadores por ver su transmisión o enviar mensajes en el chat otorgándoles puntos y niveles completamente automático.</p>
-        </div>
-
-        <!-- 10. Sorteos -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>
-          </div>
-          <div class="landing-card-title-green">Sorteos</div>
-          <p class="landing-card-desc-simple">OrbiBot tiene un sistema de sorteos incorporado para que pueda recompensar a su comunidad dándoles un regalo de vez en cuando.</p>
-        </div>
-
-        <!-- 11. Registro rápido -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-          </div>
-          <div class="landing-card-title-green">Registro rápido</div>
-          <p class="landing-card-desc-simple">Para registrarte simplemente tienes que autorizar con la plataforma que desees y en menos de un minuto tendrás tu cuenta creada, ¡Sin usuarios contraseñas ni complicaciones!</p>
-        </div>
-
-        <!-- 12. Sugerencias -->
-        <div class="landing-card-simple">
-          <div class="landing-card-icon-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.76.76 1.23 1.52 1.41 2.5h6.18z"></path></svg>
-          </div>
-          <div class="landing-card-title-green">Sugerencias</div>
-          <p class="landing-card-desc-simple">Nuestro equipo siempre está listo para escuchar sus sugerencias e incorporarlas si cree que merecen la pena para mejorar aún más su experiencia.</p>
-        </div>
+      <!-- Quick Action Buttons -->
+      <div class="landing-hero-actions-row">
+        <button id="landingHeroDashboardBtn" class="landing-cta-primary" onclick="showDashboardView('tab-dashboard')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          <span>Abrir Panel de Control</span>
+        </button>
+        <button class="landing-cta-secondary" onclick="showDashboardView('tab-overlays')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+          <span>Ver Overlays para OBS</span>
+        </button>
       </div>
     </section>
 
-    <!-- Minimalist BotRix-Style Footer -->
-    <footer class="landing-footer-simple">
-      <div class="landing-footer-left">
-        © 2026 OrbiBot Todos los derechos reservados.
+    <!-- Section: 8 Feature Cards Grid (Estilo KickBot) -->
+    <section id="caracteristicas" class="landing-features-showcase">
+      <div class="landing-features-header">
+        <h2 class="landing-section-main-title">
+          <span class="title-accent-cyan">Todo</span> lo que tu stream necesita, en un solo bot
+        </h2>
+        <p class="landing-section-subtitle">
+          No necesitas usar múltiples herramientas, OrbiBot lo hace todo desde la nube.
+        </p>
       </div>
-      <div class="landing-footer-center">
-        <a href="#terminos" onclick="return false;">Términos y Condiciones</a>
-        <a href="#privacidad" onclick="return false;">Política de Privacidad</a>
+
+      <div class="landing-cards-grid-8">
+        <!-- 1. Widgets personalizados -->
+        <div class="landing-feature-card">
+          <div class="card-mockup-wrapper card-mockup-widgets">
+            <div class="mockup-chat-stream">
+              <div class="mockup-chat-line"><span class="user-badge sub">SUB</span><span class="user-name cyan">awaisrajaz:</span> <span class="chat-msg">Nice move there!</span></div>
+              <div class="mockup-chat-line"><span class="user-badge vip">VIP</span><span class="user-name purple">Plunzle:</span> <span class="chat-msg">Epic win coming up!</span></div>
+              <div class="mockup-chat-line"><span class="user-badge mod">MOD</span><span class="user-name green">ted1161:</span> <span class="chat-msg">You got this! 🚀</span></div>
+              <div class="mockup-chat-line"><span class="user-name yellow">ayayron_ito:</span> <span class="chat-msg">Let's go team!</span></div>
+            </div>
+            <div class="mockup-overlay-bar">
+              <div class="mockup-bar-label"><span>🎯 Meta de Seguidores</span><span>485 / 500</span></div>
+              <div class="mockup-bar-track"><div class="mockup-bar-fill"></div></div>
+            </div>
+          </div>
+          <div class="card-info-content">
+            <h3 class="card-feature-title">Widgets personalizados</h3>
+            <p class="card-feature-desc">Widgets para todo lo que necesitas: chat en vivo, seguidores, espectadores, suscriptores, metas de canal y más de 30 opciones adicionales.</p>
+          </div>
+        </div>
+
+        <!-- 2. Chatbot -->
+        <div class="landing-feature-card">
+          <div class="card-mockup-wrapper card-mockup-chatbot">
+            <div class="mockup-bot-chat-box">
+              <div class="mockup-user-cmd"><span class="cmd-avatar">🎤</span> <span class="cmd-user">henryk89:</span> <span class="cmd-text">!discord</span></div>
+              <div class="mockup-bot-reply">
+                <div class="bot-reply-header"><span class="bot-icon">⚡</span> <span class="bot-name">OrbiBot</span> <span class="bot-tag">BOT</span></div>
+                <div class="bot-reply-body">¡Únete a nuestro servidor de Discord para sorteos y eventos! <span class="bot-link">https://discord.gg/orbibot</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="card-info-content">
+            <h3 class="card-feature-title">Chatbot Inteligente</h3>
+            <p class="card-feature-desc">Chatbot en la nube con comandos personalizados, mensajes programados, respuestas automáticas con IA y alertas sincronizadas.</p>
+          </div>
+        </div>
+
+        <!-- 3. TTS con IA -->
+        <div class="landing-feature-card">
+          <div class="card-mockup-wrapper card-mockup-tts">
+            <div class="mockup-tts-console">
+              <div class="tts-voice-header">
+                <span class="tts-pill active">Voces IA (2,500+)</span>
+                <span class="tts-pill">Español Neutro</span>
+              </div>
+              <div class="tts-voice-item selected">
+                <div class="voice-dot"></div>
+                <div class="voice-info"><span class="voice-name">Camilo (Locutor Pro)</span><span class="voice-lang">ES - Ultrarrealista</span></div>
+                <div class="voice-wave"><span></span><span></span><span></span><span></span><span></span></div>
+              </div>
+              <div class="tts-voice-item">
+                <div class="voice-dot purple"></div>
+                <div class="voice-info"><span class="voice-name">Elena (Gamer AI)</span><span class="voice-lang">ES - Natural HD</span></div>
+                <div class="voice-status">Listo</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-info-content">
+            <h3 class="card-feature-title">TTS con IA Ultrarrealista</h3>
+            <p class="card-feature-desc">Texto a voz con más de 2,500 voces de IA hiperrealistas para propinas, bits y comandos de chat. La mejor forma de interactuar con tu comunidad.</p>
+          </div>
+        </div>
+
+        <!-- 4. Clips & Song Request -->
+        <div class="landing-feature-card">
+          <div class="card-mockup-wrapper card-mockup-clips">
+            <div class="mockup-sr-player">
+              <div class="sr-track-info">
+                <div class="sr-thumb">🎵</div>
+                <div class="sr-details">
+                  <span class="sr-title">Cyberpunk Synthwave 2026</span>
+                  <span class="sr-author">Pedido por @henryk89 (!sr)</span>
+                </div>
+              </div>
+              <div class="sr-progress-bar"><div class="sr-progress-fill"></div></div>
+              <div class="sr-controls">
+                <span>⏮️</span><span class="sr-play">⏸️</span><span>⏭️</span>
+                <span class="sr-badge-live">EN VIVO</span>
+              </div>
+            </div>
+          </div>
+          <div class="card-info-content">
+            <h3 class="card-feature-title">Song Request & Clips</h3>
+            <p class="card-feature-desc">Reproductor en la nube sincronizado con YouTube para que tu chat pida canciones con !sr y creación instantánea de clips en alta definición.</p>
+          </div>
+        </div>
+
+        <!-- 5. Moderación -->
+        <div class="landing-feature-card">
+          <div class="card-mockup-wrapper card-mockup-mod">
+            <div class="mockup-mod-toggles">
+              <div class="mod-row"><span>Filtro de malas palabras</span><div class="mock-switch on"></div></div>
+              <div class="mod-row"><span>Filtro de enlaces & spam</span><div class="mock-switch on"></div></div>
+              <div class="mod-row"><span>Mayúsculas excesivas (&gt;70%)</span><div class="mock-switch on"></div></div>
+              <div class="mod-row"><span>Filtro de texto Zalgo / flood</span><div class="mock-switch off"></div></div>
+            </div>
+          </div>
+          <div class="card-info-content">
+            <h3 class="card-feature-title">Moderación Automática</h3>
+            <p class="card-feature-desc">Herramientas avanzadas de moderación en tiempo real para mantener tu chat protegido, libre de spam y acogedor para todos los espectadores.</p>
+          </div>
+        </div>
+
+        <!-- 6. Alertas -->
+        <div class="landing-feature-card">
+          <div class="card-mockup-wrapper card-mockup-alerts">
+            <div class="mockup-alert-box">
+              <div class="mockup-alert-icon">💜</div>
+              <div class="mockup-alert-text">¡Gracias por el follow <span class="alert-highlight">thelegend!</span></div>
+              <div class="mockup-alert-sub">NUEVO SEGUIDOR EN KICK / TWITCH</div>
+              <div class="mockup-sparkles">✨ ✨ ✨</div>
+            </div>
+          </div>
+          <div class="card-info-content">
+            <h3 class="card-feature-title">Alertas en Pantalla</h3>
+            <p class="card-feature-desc">Alertas instantáneas animadas con sonidos y GIFs en pantalla cuando alguien te sigue, se suscribe, envía KICKs, bits o una donación.</p>
+          </div>
+        </div>
+
+        <!-- 7. Puntos y Propinas -->
+        <div class="landing-feature-card">
+          <div class="card-mockup-wrapper card-mockup-payments">
+            <div class="mockup-payment-badges">
+              <div class="pay-chip visa">VISA</div>
+              <div class="pay-chip mc">
+                <span class="circle-red"></span><span class="circle-yellow"></span>
+              </div>
+              <div class="pay-chip amex">AMEX</div>
+              <div class="pay-chip paypal">PayPal</div>
+            </div>
+            <div class="mockup-points-pill">
+              <span class="coin-icon">🪙</span>
+              <span class="coin-text">Ruleta de Puntos & Niveles de Chat</span>
+            </div>
+          </div>
+          <div class="card-info-content">
+            <h3 class="card-feature-title">Puntos y Propinas</h3>
+            <p class="card-feature-desc">Sistema de propinas personalizado compatible con más de 100 países, ruleta interactiva de desafíos, niveles automáticos y protección contra contracargos.</p>
+          </div>
+        </div>
+
+        <!-- 8. Herramientas de Creación -->
+        <div class="landing-feature-card">
+          <div class="card-mockup-wrapper card-mockup-creator">
+            <div class="mockup-creator-box">
+              <div class="creator-header"><span class="dot-red"></span><span>OBS Browser Source URL</span></div>
+              <div class="creator-url-input">
+                <code>https://orbibot.com/overlays/chat.html?key=9x81...</code>
+                <button class="creator-copy-btn">COPIAR</button>
+              </div>
+              <div class="creator-resolutions">
+                <span class="res-tag active">1080p 60FPS</span>
+                <span class="res-tag">Transparente</span>
+                <span class="res-tag">Baja Latencia</span>
+              </div>
+            </div>
+          </div>
+          <div class="card-info-content">
+            <h3 class="card-feature-title">Herramientas de OBS Studio</h3>
+            <p class="card-feature-desc">Enlaces directos y transparentes para OBS Studio, Streamlabs y vMix sin necesidad de instalar programas locales ni ralentizar tu PC.</p>
+          </div>
+        </div>
       </div>
-      <div class="landing-footer-right">
-        <button class="footer-icon-btn" title="Ayuda" onclick="alert('OrbiBot Suite - Plataforma de Streaming en la Nube.');">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
-        </button>
-        <button class="footer-icon-btn" title="Discord" onclick="window.open('https://discord.com', '_blank');">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
-        </button>
+    </section>
+
+    <!-- Platform Compatibility Bar -->
+    <section id="plataformas" class="landing-platforms-bar">
+      <div class="platforms-bar-inner">
+        <span class="platforms-bar-label">COMPATIBLE CON TODAS TUS PLATAFORMAS:</span>
+        <div class="platforms-bar-logos">
+          <span class="platform-tag tag-kick">⚡ KICK</span>
+          <span class="platform-tag tag-twitch">🟣 TWITCH</span>
+          <span class="platform-tag tag-youtube">🔴 YOUTUBE</span>
+          <span class="platform-tag tag-discord">🔵 DISCORD</span>
+          <span class="platform-tag tag-trovo">🟢 TROVO</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Modern 4-Column Footer (Estilo KickBot) -->
+    <footer class="landing-footer-modern">
+      <div class="landing-footer-grid">
+        <!-- Col 1: Brand Info -->
+        <div class="footer-col footer-col-brand">
+          <div class="footer-brand-header">
+            <span class="footer-brand-icon">⚡</span>
+            <span class="footer-brand-title">OrbiBot</span>
+          </div>
+          <div class="footer-brand-slogan">El bot #1 para streamers y creadores</div>
+          <p class="footer-brand-desc">
+            Herramienta de streaming en la nube diseñada específicamente para creadores de Kick, Twitch y YouTube. 
+            100% en la nube, sin instalación, configúralo en minutos.
+          </p>
+        </div>
+
+        <!-- Col 2: Producto -->
+        <div class="footer-col">
+          <h4 class="footer-col-title">PRODUCTO</h4>
+          <ul class="footer-links-list">
+            <li><a href="javascript:void(0)" onclick="showDashboardView('tab-overlays')">Biblioteca de Widgets OBS</a></li>
+            <li><a href="javascript:void(0)" onclick="showDashboardView('tab-sr')">Song Request YouTube</a></li>
+            <li><a href="javascript:void(0)" onclick="showDashboardView('tab-tts')">VoxBot - TTS con IA</a></li>
+            <li><a href="javascript:void(0)" onclick="showDashboardView('tab-commands')">Comandos de Chat</a></li>
+            <li><a href="javascript:void(0)" onclick="showDashboardView('tab-points')">Puntos de Canal & Ruleta</a></li>
+          </ul>
+        </div>
+
+        <!-- Col 3: Recursos -->
+        <div class="footer-col">
+          <h4 class="footer-col-title">RECURSOS</h4>
+          <ul class="footer-links-list">
+            <li><a href="#caracteristicas">Documentación</a></li>
+            <li><a href="javascript:void(0)" onclick="alert('OrbiBot respeta tu privacidad y protege tus datos.');">Política de Privacidad</a></li>
+            <li><a href="javascript:void(0)" onclick="alert('Términos de Servicio de OrbiBot Cloud Suite.');">Términos de Servicio</a></li>
+            <li><a href="javascript:void(0)" onclick="alert('Servidores operativos al 100% con latencia ultra baja.');">Estado del Servicio (99.9%)</a></li>
+          </ul>
+        </div>
+
+        <!-- Col 4: Comunidad -->
+        <div class="footer-col">
+          <h4 class="footer-col-title">COMUNIDAD</h4>
+          <ul class="footer-links-list footer-social-list">
+            <li>
+              <a href="https://kick.com" target="_blank" class="footer-social-link">
+                <span class="social-icon kick-icon">K</span>
+                <span>Kick</span>
+              </a>
+            </li>
+            <li>
+              <a href="https://twitch.tv" target="_blank" class="footer-social-link">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+                <span>Twitch</span>
+              </a>
+            </li>
+            <li>
+              <a href="https://x.com" target="_blank" class="footer-social-link">
+                <span style="font-weight: 900; font-size: 14px;">𝕏</span>
+                <span>X (Twitter)</span>
+              </a>
+            </li>
+            <li>
+              <a href="https://discord.com" target="_blank" class="footer-social-link">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                <span>Discord</span>
+              </a>
+            </li>
+            <li>
+              <a href="https://youtube.com" target="_blank" class="footer-social-link">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="#FF0000"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                <span>YouTube</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Bottom Bar -->
+      <div class="landing-footer-bottom-bar">
+        <div class="footer-bottom-left">
+          <a href="mailto:soporte@orbibot.com" class="footer-email-link">soporte@orbibot.com</a>
+        </div>
+        <div class="footer-bottom-right">
+          © 2026 OrbiBot, Inc. Todos los derechos reservados. OrbiBot™ es una marca registrada de OrbiBot, Inc.
+        </div>
       </div>
     </footer>
   </div>
