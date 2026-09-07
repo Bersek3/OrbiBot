@@ -13,6 +13,16 @@
     "allowChatCommand": true,
     "channelPointsRewardName": "TTS"
   },
+  "kick": {
+    "userId": "",
+    "channel": "",
+    "clientId": "01M0VT0JC58YQEVGRHM8JFXQX3",
+    "username": "",
+    "connected": false,
+    "accessToken": "",
+    "refreshToken": "",
+    "profile_picture": ""
+  },
   "goals": {
     "bits": {
       "color": "#f5a623",
@@ -34,11 +44,14 @@
     }
   },
   "twitch": {
-    "channel": "",
+    "userId": "226055830",
+    "channel": "bersek___",
     "clientId": "yw1vr664ichms8an2x5lhji58v7ozk",
-    "connected": false,
-    "oauthToken": "",
-    "botUsername": ""
+    "connected": true,
+    "oauthToken": "43jh824qaqogjil3y12390isywc086",
+    "botUsername": "bersek___",
+    "displayName": "Bersek___",
+    "profileImage": "https://static-cdn.jtvnw.net/jtv_user_pictures/92a6561b-8e64-4f5f-a5fe-af7782347288-profile_image-300x300.jpeg"
   },
   "security": {
     "widgetToken": "sec_cb04c456356689d198f80b1d3c9d86ff"
@@ -51,5 +64,6 @@
     "userLevel": "all",
     "maxPerUser": 5,
     "maxDurationMinutes": 8
-  }
+  },
+  "widgetStyles": {}
 }
