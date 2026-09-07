@@ -3066,5 +3066,80 @@ input[type=range]::-webkit-slider-thumb {
   text-decoration: underline;
 }
 
+/* Social Login in Auth Modal (Kick & Twitch) */
+.auth-social-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.btn-auth-social {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-family: var(--font-heading);
+  font-size: 13.5px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-auth-kick {
+  background: #53fc18;
+  color: #000000;
+  box-shadow: 0 4px 14px rgba(83, 252, 24, 0.25);
+}
+
+.btn-auth-kick:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(83, 252, 24, 0.4);
+}
+
+.btn-auth-twitch {
+  background: #9146ff;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(145, 70, 255, 0.25);
+}
+
+.btn-auth-twitch:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(145, 70, 255, 0.4);
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 14px 0 18px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.auth-divider span {
+  padding: 0 10px;
+}
+
+.platform-svg-icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+
 
 
