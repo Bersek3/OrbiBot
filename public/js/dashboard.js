@@ -225,6 +225,9 @@ async function signInWithGoogle() {
     if (error) {
       throw error;
     }
+    if (data && data.url) {
+      window.location.href = data.url;
+    }
   } catch (err) {
     console.error('Error al conectar con Google:', err);
     showAuthAlert('error', 'Error con Google OAuth: ' + (err.message || 'Verifica la configuración del proveedor Google en Supabase.'));
@@ -610,6 +613,9 @@ function showDashboardView(targetTab = 'tab-dashboard') {
   if (targetTab) {
     switchTab(targetTab);
   }
+  updateAuthUI();
+  updatePlatformLinkingUI();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 window.showLandingView = showLandingView;
 window.showDashboardView = showDashboardView;

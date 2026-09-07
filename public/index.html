@@ -24,6 +24,16 @@
         window.name === 'TwitchOAuthLogin' ||
         (window.innerWidth < 850 && window.innerHeight < 900);
 
+      // Only intercept if this is explicitly a Twitch OAuth redirect, NOT Google / Supabase
+      const isTwitchSpecific = isPopup || 
+        (hash && (hash.includes('state=popup') || hash.includes('scope=chat') || hash.includes('scope='))) ||
+        (search && (search.includes('state=popup') || search.includes('scope=chat')));
+
+      if (!isTwitchSpecific) {
+        // Allow Supabase to parse Google OAuth tokens without interruption
+        return;
+      }
+
       // 1. Check for Twitch Error (e.g., redirect_mismatch, access_denied)
       if (search && (search.includes('error=') || search.includes('error_description='))) {
         const searchParams = new URLSearchParams(search);
