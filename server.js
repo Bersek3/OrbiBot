@@ -264,6 +264,243 @@ app.post('/api/auth/twitch-token', async (req, res) => {
   }
 });
 
+// ================= KICK OAUTH 2.0 INTEGRATION =================
+const kickAuthStates = new Map();
+
+function generateCodeVerifier() {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+function generateCodeChallenge(verifier) {
+  return crypto.createHash('sha256').update(verifier).digest('base64url');
+}
+
+// 1. Initiate Kick OAuth 2.0 flow
+app.get('/api/auth/kick/login', (req, res) => {
+  const clientId = process.env.KICK_CLIENT_ID || '01M0VT0JC58YQEVGRHM8JFXQX3';
+  const state = crypto.randomBytes(16).toString('hex');
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
+
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  const redirectUri = `${protocol}://${host}/api/auth/kick/callback`;
+
+  // Store in memory (expires in 10 mins)
+  kickAuthStates.set(state, {
+    codeVerifier,
+    redirectUri,
+    createdAt: Date.now()
+  });
+
+  // Clean old states
+  for (const [k, v] of kickAuthStates.entries()) {
+    if (Date.now() - v.createdAt > 10 * 60 * 1000) {
+      kickAuthStates.delete(k);
+    }
+  }
+
+  const scopes = encodeURIComponent('user:read channel:read chat:write events:subscribe');
+  const authUrl = `https://id.kick.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scopes}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+
+  res.redirect(authUrl);
+});
+
+// 2. Kick OAuth 2.0 Callback handler
+app.get('/api/auth/kick/callback', async (req, res) => {
+  const { code, state, error, error_description } = req.query;
+
+  if (error || !code) {
+    const desc = error_description || error || 'Autorización cancelada por el usuario.';
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Error de Autenticación Kick</title>
+        <style>
+          body { background: #07090e; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+          .card { background: #131722; padding: 30px; border-radius: 16px; border: 1px solid #ef4444; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+          button { background: #ef4444; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 15px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div style="font-size: 40px; margin-bottom: 10px;">⚠️</div>
+          <h2 style="color: #ef4444; margin: 0 0 10px;">Error al conectar con Kick</h2>
+          <p style="color: #cbd5e1; font-size: 14px;">${desc}</p>
+          <button onclick="window.close()">Cerrar Ventana</button>
+        </div>
+        <script>
+          const errPayload = { type: 'KICK_AUTH_ERROR', error: '${error || "error"}', desc: '${desc}' };
+          if (window.opener) window.opener.postMessage(errPayload, '*');
+          localStorage.setItem('orbibot_kick_auth_error', JSON.stringify(errPayload));
+          setTimeout(() => window.close(), 3000);
+        </script>
+      </body>
+      </html>
+    `);
+  }
+
+  const stateData = kickAuthStates.get(state);
+  const clientId = process.env.KICK_CLIENT_ID || '01M0VT0JC58YQEVGRHM8JFXQX3';
+  const clientSecret = process.env.KICK_CLIENT_SECRET || 'ee10e46fccf83a105e86834973db23cabcad279f33acf48bd4f6b5749884bb20';
+
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  const redirectUri = stateData?.redirectUri || `${protocol}://${host}/api/auth/kick/callback`;
+
+  try {
+    // Exchange Code for Access Token
+    const params = new URLSearchParams();
+    params.append('grant_type', 'authorization_code');
+    params.append('client_id', clientId);
+    params.append('client_secret', clientSecret);
+    params.append('redirect_uri', redirectUri);
+    params.append('code', code);
+    if (stateData?.codeVerifier) {
+      params.append('code_verifier', stateData.codeVerifier);
+    }
+
+    const tokenRes = await fetch('https://id.kick.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: params.toString()
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      console.error('Kick Token Exchange Error:', errText);
+      throw new Error(`Error en el intercambio de tokens de Kick: ${tokenRes.status} ${errText}`);
+    }
+
+    const tokenData = await tokenRes.json();
+    const accessToken = tokenData.access_token;
+    const refreshToken = tokenData.refresh_token || '';
+
+    // Fetch User Profile from Kick API
+    let channelName = 'streamer';
+    let displayName = 'Streamer';
+    let profileImage = 'https://kick.com/favicon.ico';
+    let userId = '';
+
+    try {
+      const userRes = await fetch('https://api.kick.com/public/v1/users', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json'
+        }
+      });
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        const u = (userData.data && userData.data[0]) || userData.data || userData;
+        channelName = (u.name || u.username || u.slug || '').toLowerCase();
+        displayName = u.name || u.username || channelName;
+        profileImage = u.profile_picture || u.avatar || profileImage;
+        userId = u.user_id || u.id || '';
+      }
+    } catch (uErr) {
+      console.warn('Kick User Fetch Warning:', uErr.message);
+    }
+
+    // Save to configuration
+    const kickConfig = {
+      channel: channelName,
+      username: displayName,
+      profile_picture: profileImage,
+      userId: String(userId),
+      accessToken,
+      refreshToken,
+      clientId,
+      connected: true
+    };
+
+    const updated = storage.saveConfig({ kick: kickConfig });
+    broadcast('config_updated', updated);
+
+    // Render Success Popup
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Kick Conectado</title>
+        <style>
+          body { background: #07090e; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+          .card { background: #101522; padding: 30px; border-radius: 16px; border: 1px solid #53fc18; max-width: 380px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+          .avatar { width: 64px; height: 64px; border-radius: 50%; border: 3px solid #53fc18; margin: 0 auto 12px; }
+          button { background: #53fc18; color: #000; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 800; cursor: pointer; margin-top: 15px; width: 100%; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <img src="${profileImage}" class="avatar" alt="Avatar" onerror="this.src='https://kick.com/favicon.ico'">
+          <h2 style="color: #53fc18; margin: 0 0 6px;">¡Kick Conectado!</h2>
+          <p style="color: #cbd5e1; font-size: 14px; margin: 0 0 10px;">Canal <strong>@${displayName || channelName}</strong> vinculado con éxito.</p>
+          <p style="color: #94a3b8; font-size: 12px;">Cerrando ventana y actualizando tu panel...</p>
+          <button onclick="window.close()">Volver al Dashboard</button>
+        </div>
+        <script>
+          const payload = {
+            type: 'KICK_AUTH_SUCCESS',
+            kick: ${JSON.stringify(kickConfig)},
+            timestamp: Date.now()
+          };
+          localStorage.setItem('orbibot_kick_auth_event', JSON.stringify(payload));
+          if (window.opener) {
+            try { window.opener.postMessage(payload, '*'); } catch(e) {}
+            try { window.opener.focus(); } catch(e) {}
+          }
+          if (typeof BroadcastChannel !== 'undefined') {
+            new BroadcastChannel('orbibot_stream_channel').postMessage(payload);
+          }
+          setTimeout(() => window.close(), 600);
+        </script>
+      </body>
+      </html>
+    `);
+  } catch (err) {
+    console.error('Kick OAuth Error:', err);
+    return res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Error Kick OAuth</title>
+        <style>
+          body { background: #07090e; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+          .card { background: #131722; padding: 30px; border-radius: 16px; border: 1px solid #ef4444; max-width: 420px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2 style="color: #ef4444;">Error al conectar con Kick</h2>
+          <p style="color: #cbd5e1; font-size: 13px;">${err.message}</p>
+          <button onclick="window.close()" style="background: #ef4444; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">Cerrar</button>
+        </div>
+      </body>
+      </html>
+    `);
+  }
+});
+
+// 3. Disconnect Kick
+app.post('/api/auth/kick/disconnect', (req, res) => {
+  const updated = storage.saveConfig({
+    kick: {
+      channel: '',
+      username: '',
+      profile_picture: '',
+      userId: '',
+      accessToken: '',
+      refreshToken: '',
+      clientId: process.env.KICK_CLIENT_ID || '01M0VT0JC58YQEVGRHM8JFXQX3',
+      connected: false
+    }
+  });
+  broadcast('config_updated', updated);
+  res.json({ success: true, message: 'Canal de Kick desvinculado.', config: updated });
+});
+
 // Disconnect / Logout
 app.post(['/api/bot/disconnect', '/api/auth/logout'], async (req, res) => {
   try {

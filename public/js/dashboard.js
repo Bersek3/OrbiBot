@@ -507,16 +507,23 @@ function updatePlatformLinkingUI() {
   }
 
   // 2. Kick Status
-  const kickChannel = (appConfig?.kick?.channel || localStorage.getItem('orbibot_kick_channel') || '').toLowerCase().replace(/^@/, '').trim();
-  const isKickConn = Boolean(kickChannel && (appConfig?.kick?.connected !== false));
+  const kickConfig = appConfig?.kick || (() => {
+    try { return JSON.parse(localStorage.getItem('orbibot_kick_auth') || '{}'); } catch(e) { return {}; }
+  })();
+  const kickChannel = (kickConfig.channel || kickConfig.username || localStorage.getItem('orbibot_kick_channel') || '').toLowerCase().replace(/^@/, '').trim();
+  const isKickConn = Boolean(kickChannel && (kickConfig.connected !== false));
+  const kickDisplayName = kickConfig.username || kickChannel;
+  const kickAvatar = kickConfig.profile_picture || '';
+
   const kickStatusText = document.getElementById('dashKickStatusText');
   const kickStatusBadge = document.getElementById('dashKickStatusBadge');
   const kickDiscView = document.getElementById('dashKickDisconnectedView');
   const kickConnView = document.getElementById('dashKickConnectedView');
   const dashKickChannelName = document.getElementById('dashKickChannelName');
+  const dashKickAvatar = document.getElementById('dashKickAvatar');
 
   if (isKickConn && kickChannel) {
-    if (kickStatusText) kickStatusText.textContent = `@${kickChannel} sincronizado`;
+    if (kickStatusText) kickStatusText.textContent = `@${kickDisplayName || kickChannel} vinculado`;
     if (kickStatusBadge) {
       kickStatusBadge.textContent = '● Conectado';
       kickStatusBadge.style.background = 'rgba(83, 252, 24, 0.2)';
@@ -525,7 +532,15 @@ function updatePlatformLinkingUI() {
     }
     if (kickDiscView) kickDiscView.style.display = 'none';
     if (kickConnView) kickConnView.style.display = 'flex';
-    if (dashKickChannelName) dashKickChannelName.textContent = `@${kickChannel}`;
+    if (dashKickChannelName) dashKickChannelName.textContent = `@${kickDisplayName || kickChannel}`;
+    if (dashKickAvatar) {
+      if (kickAvatar) {
+        dashKickAvatar.src = kickAvatar;
+        dashKickAvatar.style.display = 'inline-block';
+      } else {
+        dashKickAvatar.style.display = 'none';
+      }
+    }
   } else {
     if (kickStatusText) kickStatusText.textContent = 'No conectado';
     if (kickStatusBadge) {
@@ -536,46 +551,126 @@ function updatePlatformLinkingUI() {
     }
     if (kickDiscView) kickDiscView.style.display = 'flex';
     if (kickConnView) kickConnView.style.display = 'none';
+    if (dashKickAvatar) dashKickAvatar.style.display = 'none';
   }
 }
 
-async function handleLinkKickSubmit() {
-  const input = document.getElementById('dashKickChannelInput');
-  const channel = input ? input.value.trim().toLowerCase().replace(/^@/, '') : '';
-  if (!channel) {
-    showToast('Ingresa el nombre de tu canal en Kick.', 'warning');
-    if (input) input.focus();
+// ================= KICK OAUTH 2.0 FRONTEND LOGIC =================
+let activeKickAuthPopup = null;
+
+function triggerKickOAuthLogin() {
+  const width = 560, height = 750;
+  const left = Math.max(0, (window.innerWidth - width) / 2 + window.screenX);
+  const top = Math.max(0, (window.innerHeight - height) / 2 + window.screenY);
+
+  showToast('Abriendo ventana segura de inicio de sesión con Kick...', 'info');
+
+  // Clean any prior auth event or error
+  localStorage.removeItem('orbibot_kick_auth_event');
+  localStorage.removeItem('orbibot_kick_auth_error');
+
+  const kickAuthUrl = '/api/auth/kick/login';
+  activeKickAuthPopup = window.open(kickAuthUrl, 'KickOAuthLogin', `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no,scrollbars=yes`);
+
+  if (!activeKickAuthPopup || activeKickAuthPopup.closed || typeof activeKickAuthPopup.closed === 'undefined') {
+    window.location.href = kickAuthUrl;
     return;
   }
 
+  let pollCount = 0;
+  const authPollInterval = setInterval(async () => {
+    pollCount++;
+
+    // 1. Check for success
+    const rawEvent = localStorage.getItem('orbibot_kick_auth_event');
+    if (rawEvent) {
+      clearInterval(authPollInterval);
+      localStorage.removeItem('orbibot_kick_auth_event');
+      try {
+        if (activeKickAuthPopup && !activeKickAuthPopup.closed) activeKickAuthPopup.close();
+      } catch(e) {}
+      activeKickAuthPopup = null;
+
+      try {
+        const payload = JSON.parse(rawEvent);
+        await handleKickAuthSuccess(payload);
+      } catch(err) {
+        console.error('Error handling Kick auth success payload:', err);
+      }
+      return;
+    }
+
+    // 2. Check for error
+    const rawError = localStorage.getItem('orbibot_kick_auth_error');
+    if (rawError) {
+      clearInterval(authPollInterval);
+      localStorage.removeItem('orbibot_kick_auth_error');
+      try {
+        const errData = JSON.parse(rawError);
+        showToast(`⚠️ Kick: ${errData.desc || errData.error}`, 'error');
+      } catch(e) {}
+      return;
+    }
+
+    if (pollCount > 600) {
+      clearInterval(authPollInterval);
+    }
+  }, 300);
+}
+
+async function handleKickAuthSuccess(payload) {
+  if (activeKickAuthPopup) {
+    try { activeKickAuthPopup.close(); } catch(e) {}
+    activeKickAuthPopup = null;
+  }
+  try { window.focus(); } catch(e) {}
+
+  const kick = payload.kick || payload;
+  const channel = (kick.channel || kick.username || '').toLowerCase();
+  const displayName = kick.username || kick.name || channel;
+  const profilePicture = kick.profile_picture || kick.avatar || '';
+
   if (!appConfig) appConfig = {};
-  appConfig.kick = { channel, connected: true };
+  appConfig.kick = {
+    channel,
+    username: displayName,
+    profile_picture: profilePicture,
+    userId: kick.userId || '',
+    accessToken: kick.accessToken || '',
+    refreshToken: kick.refreshToken || '',
+    clientId: kick.clientId || '01M0VT0JC58YQEVGRHM8JFXQX3',
+    connected: true
+  };
+
+  localStorage.setItem('orbibot_kick_auth', JSON.stringify(appConfig.kick));
   localStorage.setItem('orbibot_kick_channel', channel);
 
-  try {
-    await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kick: appConfig.kick })
-    });
-  } catch (e) {}
+  showToast(`🟢 ¡Kick vinculado con éxito! Conectado como @${displayName || channel}`, 'success');
 
-  showToast(`Canal de Kick @${channel} vinculado exitosamente.`, 'success');
   updatePlatformLinkingUI();
 }
 
-async function handleUnlinkKick() {
-  if (!appConfig) appConfig = {};
-  appConfig.kick = { channel: '', connected: false };
-  localStorage.removeItem('orbibot_kick_channel');
-
+async function disconnectKickAccount() {
   try {
-    await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kick: appConfig.kick })
-    });
+    await fetch('/api/auth/kick/disconnect', { method: 'POST' });
   } catch (e) {}
+
+  localStorage.removeItem('orbibot_kick_auth');
+  localStorage.removeItem('orbibot_kick_channel');
+  localStorage.removeItem('orbibot_kick_auth_event');
+  localStorage.removeItem('orbibot_kick_auth_error');
+
+  if (!appConfig) appConfig = {};
+  appConfig.kick = {
+    channel: '',
+    username: '',
+    profile_picture: '',
+    userId: '',
+    accessToken: '',
+    refreshToken: '',
+    clientId: '01M0VT0JC58YQEVGRHM8JFXQX3',
+    connected: false
+  };
 
   showToast('Canal de Kick desvinculado.', 'info');
   updatePlatformLinkingUI();
@@ -593,8 +688,9 @@ window.handleAuthLoginSubmit = handleAuthLoginSubmit;
 window.handleAuthLogout = handleAuthLogout;
 window.getUserSession = getUserSession;
 window.updatePlatformLinkingUI = updatePlatformLinkingUI;
-window.handleLinkKickSubmit = handleLinkKickSubmit;
-window.handleUnlinkKick = handleUnlinkKick;
+window.triggerKickOAuthLogin = triggerKickOAuthLogin;
+window.handleKickAuthSuccess = handleKickAuthSuccess;
+window.disconnectKickAccount = disconnectKickAccount;
 
 // ================= VIEW SWITCHER (LANDING VS DASHBOARD) =================
 function showLandingView() {
@@ -3038,6 +3134,9 @@ function setupEventListeners() {
   window.addEventListener('message', async (event) => {
     if (event.data && event.data.type === 'TWITCH_AUTH_SUCCESS') {
       await handleAuthSuccess(event.data);
+    }
+    if (event.data && event.data.type === 'KICK_AUTH_SUCCESS') {
+      await handleKickAuthSuccess(event.data);
     }
   });
 

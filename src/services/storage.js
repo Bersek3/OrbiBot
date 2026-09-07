@@ -24,6 +24,16 @@ const DEFAULT_CONFIG = {
     clientId: 'yw1vr664ichms8an2x5lhji58v7ozk',
     connected: false
   },
+  kick: {
+    channel: '',
+    username: '',
+    profile_picture: '',
+    userId: '',
+    accessToken: '',
+    refreshToken: '',
+    clientId: process.env.KICK_CLIENT_ID || '01M0VT0JC58YQEVGRHM8JFXQX3',
+    connected: false
+  },
   songRequest: {
     prefix: '!sr',
     enabled: true,
