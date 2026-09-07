@@ -138,17 +138,12 @@
 
     <!-- Hero Section -->
     <section class="landing-hero-simple">
-      <!-- Trust Badge / Pill -->
-      <div class="landing-trust-badge">
-        <span class="trust-badge-dot"></span>
-        <span class="trust-badge-text">MÁS DE 100,000 STREAMERS Y CREADORES CONFÍAN EN NOSOTROS</span>
-        <span class="trust-badge-heart">💜</span>
-      </div>
+
 
       <!-- Giant Two-Tone Title -->
       <h1 class="landing-hero-title-simple">
         El bot #1 para Streamers<br>
-        <span class="hero-title-gradient">de Kick, Twitch y YouTube</span>
+        <span class="hero-title-gradient">de Kick, Twitch</span>
       </h1>
 
       <!-- Subtitle -->
@@ -160,7 +155,7 @@
       <!-- Description Paragraph -->
       <p class="landing-hero-desc-simple">
         Herramienta de streaming en la nube con comandos de chat, overlays en tiempo real, alertas dinámicas,
-        más de 2,500 voces TTS con IA, Song Request interactivo con YouTube, ruleta de recompensas,
+        más de 2,500 voces TTS con IA, Song Request interactivo con , ruleta de recompensas,
         widgets personalizados y moderación inteligente. 100% gratis, configúralo en segundos.
       </p>
 
@@ -300,7 +295,7 @@
           </div>
           <div class="card-info-content">
             <h3 class="card-feature-title">Song Request & Clips</h3>
-            <p class="card-feature-desc">Reproductor en la nube sincronizado con YouTube para que tu chat pida canciones
+            <p class="card-feature-desc">Reproductor en la nube sincronizado con para que tu chat pida canciones
               con !sr y creación instantánea de clips en alta definición.</p>
           </div>
         </div>
@@ -441,7 +436,7 @@
           <h4 class="footer-col-title">PRODUCTO</h4>
           <ul class="footer-links-list">
             <li><a href="javascript:void(0)">Biblioteca de Widgets OBS</a></li>
-            <li><a href="javascript:void(0)">Song Request YouTube</a></li>
+            <li><a href="javascript:void(0)">Song Request </a></li>
             <li><a href="javascript:void(0)">Comandos de Chat</a></li>
           </ul>
         </div>
@@ -782,7 +777,7 @@
                   activar Widgets y Bot</h2>
                 <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px;">
                   Inicia sesión en un solo clic. Detectaremos tu canal automáticamente para habilitar tus fuentes de OBS
-                  Studio, Song Request con YouTube, Text to Speech (TTS) y comandos de chat en tiempo real.
+                  Studio, Song Request con , Text to Speech (TTS) y comandos de chat en tiempo real.
                 </p>
                 <div style="display: flex; gap: 20px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
                   <span style="display: flex; align-items: center; gap: 6px;"><span
@@ -1023,8 +1018,8 @@
 
         <!-- ================= TAB 3: SONG REQUEST ================= -->
         <section id="tab-sr" class="tab-pane">
-          <!-- Reproductor oculto de YouTube en segundo plano para que el audio siga funcionando sin mostrar video -->
-          <div id="youtubePlayerContainer"
+          <!-- Reproductor oculto de  en segundo plano para que el audio siga funcionando sin mostrar video -->
+          <div id="PlayerContainer"
             style="position: fixed; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none; z-index: -999;">
           </div>
 
@@ -1071,7 +1066,7 @@
                   <label class="form-label" style="font-size: 12px;">Añadir Canción Manualmente</label>
                   <div style="display: flex; gap: 10px;">
                     <input type="text" id="srManualInput" class="form-control"
-                      placeholder="Pega un enlace de YouTube o escribe el nombre de la canción...">
+                      placeholder="Pega un enlace de  o escribe el nombre de la canción...">
                     <button id="btnSrAddManual" class="btn btn-primary" style="flex-shrink: 0;">Añadir a la
                       Cola</button>
                   </div>
@@ -2452,8 +2447,6 @@ console.log('Widget personalizado cargado');"></textarea>
   <script src="https://cdn.jsdelivr.net/npm/tmi.js@1.8.5/dist/tmi.min.js"></script>
   <!-- Paho MQTT for real-time cloud relay to OBS Studio overlays -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
-  <!-- YouTube Iframe API -->
-  <script src="https://www.youtube.com/iframe_api"></script>
   <script src="./js/dashboard.js"></script>
 </body>
 
