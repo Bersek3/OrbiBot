@@ -1,55 +1,55 @@
 {
-  "security": {
-    "widgetToken": "sec_cb04c456356689d198f80b1d3c9d86ff"
-  },
-  "twitch": {
-    "channel": "",
-    "botUsername": "",
-    "oauthToken": "",
-    "clientId": "yw1vr664ichms8an2x5lhji58v7ozk",
-    "connected": false
-  },
-  "songRequest": {
-    "prefix": "!sr",
-    "enabled": true,
-    "maxDurationMinutes": 8,
-    "maxPerUser": 5,
-    "userLevel": "all",
-    "volume": 75,
-    "autoplay": true
-  },
   "tts": {
-    "enabled": true,
-    "engine": "webspeech",
-    "voice": "es_female",
-    "volume": 90,
     "rate": 1,
     "pitch": 1,
+    "voice": "es_female",
+    "engine": "webspeech",
+    "volume": 90,
+    "enabled": true,
     "minBits": 50,
-    "allowChatCommand": true,
-    "chatCommand": "!tts",
-    "bannedWords": [],
     "maxLength": 250,
+    "bannedWords": [],
+    "chatCommand": "!tts",
+    "allowChatCommand": true,
     "channelPointsRewardName": "TTS"
   },
   "goals": {
+    "bits": {
+      "color": "#f5a623",
+      "title": "Meta de Bits",
+      "target": 5000,
+      "current": 1500
+    },
     "subs": {
+      "color": "#9146ff",
       "title": "Meta de Suscriptores",
-      "current": 12,
       "target": 50,
-      "color": "#9146ff"
+      "current": 12
     },
     "followers": {
+      "color": "#00f2fe",
       "title": "Meta de Seguidores",
-      "current": 185,
       "target": 300,
-      "color": "#00f2fe"
-    },
-    "bits": {
-      "title": "Meta de Bits",
-      "current": 1500,
-      "target": 5000,
-      "color": "#f5a623"
+      "current": 185
     }
+  },
+  "twitch": {
+    "channel": "",
+    "clientId": "yw1vr664ichms8an2x5lhji58v7ozk",
+    "connected": false,
+    "oauthToken": "",
+    "botUsername": ""
+  },
+  "security": {
+    "widgetToken": "sec_cb04c456356689d198f80b1d3c9d86ff"
+  },
+  "songRequest": {
+    "prefix": "!sr",
+    "volume": 75,
+    "enabled": true,
+    "autoplay": true,
+    "userLevel": "all",
+    "maxPerUser": 5,
+    "maxDurationMinutes": 8
   }
 }

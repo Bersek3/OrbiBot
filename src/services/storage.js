@@ -518,6 +518,48 @@ class StorageService {
     this.syncToSupabase('channel_points', rewards);
     return rewards;
   }
+
+  getUsers() {
+    return readJSON('users.json', []);
+  }
+
+  registerUser(email, password) {
+    if (!email || !password) {
+      throw new Error('Correo y contraseña son obligatorios.');
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const users = this.getUsers();
+    const existing = users.find(u => u.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      throw new Error('Ya existe una cuenta registrada con este correo electrónico.');
+    }
+    const hash = crypto.createHash('sha256').update(password).digest('hex');
+    const newUser = {
+      id: 'usr_' + crypto.randomBytes(8).toString('hex'),
+      email: cleanEmail,
+      username: cleanEmail.split('@')[0],
+      passwordHash: hash,
+      createdAt: new Date().toISOString()
+    };
+    users.push(newUser);
+    writeJSON('users.json', users);
+    return { id: newUser.id, email: newUser.email, username: newUser.username };
+  }
+
+  loginUser(email, password) {
+    if (!email || !password) {
+      throw new Error('Correo y contraseña son obligatorios.');
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const users = this.getUsers();
+    const hash = crypto.createHash('sha256').update(password).digest('hex');
+    const user = users.find(u => u.email.toLowerCase() === cleanEmail && u.passwordHash === hash);
+    if (!user) {
+      throw new Error('Credenciales inválidas. Por favor verifica tu correo y contraseña.');
+    }
+    return { id: user.id, email: user.email, username: user.username };
+  }
 }
 
 module.exports = new StorageService();
+

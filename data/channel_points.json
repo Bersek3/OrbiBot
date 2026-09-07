@@ -1,21 +1,21 @@
 [
   {
     "id": "reward-1",
-    "rewardName": "Mensaje con Voz (TTS)",
     "action": "tts",
-    "enabled": true
+    "enabled": true,
+    "rewardName": "Mensaje con Voz (TTS)"
   },
   {
     "id": "reward-2",
-    "rewardName": "Pedir Canción",
     "action": "song_request",
-    "enabled": true
+    "enabled": true,
+    "rewardName": "Pedir Canción"
   },
   {
     "id": "reward-3",
-    "rewardName": "Sonido Corneta / Airhorn",
     "action": "sound",
+    "enabled": true,
     "soundUrl": "/assets/sounds/airhorn.mp3",
-    "enabled": true
+    "rewardName": "Sonido Corneta / Airhorn"
   }
 ]

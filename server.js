@@ -136,6 +136,42 @@ app.post('/api/bot/disconnect', async (req, res) => {
   res.json(result);
 });
 
+// User Registration Endpoint
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Correo y contraseña son obligatorios.' });
+    }
+    const user = storage.registerUser(email, password);
+    res.json({
+      success: true,
+      message: 'Cuenta creada exitosamente. Ahora puedes iniciar sesión.',
+      user
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message || 'Error al registrar usuario.' });
+  }
+});
+
+// User Login Endpoint
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Correo y contraseña son obligatorios.' });
+    }
+    const user = storage.loginUser(email, password);
+    res.json({
+      success: true,
+      message: 'Inicio de sesión exitoso.',
+      user
+    });
+  } catch (err) {
+    res.status(401).json({ success: false, message: err.message || 'Error al iniciar sesión.' });
+  }
+});
+
 // Direct Twitch OAuth Token Validation & Connection
 app.post('/api/auth/twitch-token', async (req, res) => {
   try {

@@ -2,33 +2,33 @@
   {
     "id": "cmd-1",
     "name": "!discord",
-    "response": "¡Únete a nuestra comunidad de Discord oficial! https://discord.gg/streamer",
     "enabled": true,
     "cooldown": 0,
+    "response": "¡Únete a nuestra comunidad de Discord oficial! https://discord.gg/streamer",
     "userLevel": "all"
   },
   {
     "id": "cmd-2",
     "name": "!redes",
-    "response": "Sígueme en redes sociales: Twitter @streamer | Instagram @streamer | TikTok @streamer",
     "enabled": true,
     "cooldown": 10,
+    "response": "Sígueme en redes sociales: Twitter @streamer | Instagram @streamer | TikTok @streamer",
     "userLevel": "all"
   },
   {
     "id": "cmd-3",
     "name": "!comandos",
-    "response": "Comandos disponibles: !sr <cancion>, !song, !skip, !queue, !redes, !discord, !bot",
     "enabled": true,
     "cooldown": 15,
+    "response": "Comandos disponibles: !sr <cancion>, !song, !skip, !queue, !redes, !discord, !bot",
     "userLevel": "all"
   },
   {
     "id": "cmd-4",
     "name": "!bot",
-    "response": "Bot de Twitch desarrollado con Antigravity para una experiencia de stream interactiva.",
     "enabled": true,
     "cooldown": 10,
+    "response": "Bot de Twitch desarrollado con Antigravity para una experiencia de stream interactiva.",
     "userLevel": "all"
   }
 ]

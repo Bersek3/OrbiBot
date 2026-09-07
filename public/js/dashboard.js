@@ -21,6 +21,349 @@ document.addEventListener('DOMContentLoaded', async () => {
   initDashboardMqtt();
 });
 
+// ================= USER AUTHENTICATION & SESSION MANAGEMENT =================
+function getUserSession() {
+  try {
+    const raw = localStorage.getItem('orbibot_user_session');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
+function setUserSession(user) {
+  try {
+    localStorage.setItem('orbibot_user_session', JSON.stringify(user));
+    updateAuthUI();
+  } catch (e) {
+    console.error('Error saving user session:', e);
+  }
+}
+
+function clearUserSession() {
+  localStorage.removeItem('orbibot_user_session');
+  updateAuthUI();
+}
+
+function updateAuthUI() {
+  const session = getUserSession();
+  const authAccountPill = document.getElementById('authAccountPill');
+  const authAccountEmail = document.getElementById('authAccountEmail');
+
+  if (session && session.email) {
+    if (authAccountPill) authAccountPill.style.display = 'inline-flex';
+    if (authAccountEmail) authAccountEmail.textContent = session.email;
+  } else {
+    if (authAccountPill) authAccountPill.style.display = 'none';
+  }
+}
+
+// Open Auth Modal
+function openAuthModal(initialTab = 'login') {
+  const modal = document.getElementById('authModal');
+  if (!modal) return;
+  
+  // Clear any existing alert
+  const alertBox = document.getElementById('authAlertBox');
+  if (alertBox) {
+    alertBox.style.display = 'none';
+    alertBox.innerHTML = '';
+  }
+
+  modal.style.display = 'flex';
+  switchAuthTab(initialTab);
+  
+  // Close when clicking overlay backdrop
+  modal.onclick = function(e) {
+    if (e.target === modal) {
+      closeAuthModal();
+    }
+  };
+}
+
+// Close Auth Modal
+function closeAuthModal() {
+  const modal = document.getElementById('authModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Switch between Login and Register Tabs
+function switchAuthTab(tab) {
+  const loginBtn = document.getElementById('authTabLoginBtn');
+  const registerBtn = document.getElementById('authTabRegisterBtn');
+  const loginForm = document.getElementById('authLoginForm');
+  const registerForm = document.getElementById('authRegisterForm');
+  const mainTitle = document.getElementById('authModalMainTitle');
+  const subtitle = document.getElementById('authModalSubtitle');
+  const alertBox = document.getElementById('authAlertBox');
+
+  if (alertBox) {
+    alertBox.style.display = 'none';
+    alertBox.innerHTML = '';
+  }
+
+  if (tab === 'register') {
+    if (loginBtn) loginBtn.classList.remove('active');
+    if (registerBtn) registerBtn.classList.add('active');
+    if (loginForm) loginForm.style.display = 'none';
+    if (registerForm) registerForm.style.display = 'flex';
+    if (mainTitle) mainTitle.textContent = 'Crear Cuenta';
+    if (subtitle) subtitle.textContent = 'Crea tu cuenta gratis en menos de 1 minuto para acceder al panel.';
+    const emailInput = document.getElementById('authRegEmail');
+    if (emailInput) setTimeout(() => emailInput.focus(), 50);
+  } else {
+    if (registerBtn) registerBtn.classList.remove('active');
+    if (loginBtn) loginBtn.classList.add('active');
+    if (registerForm) registerForm.style.display = 'none';
+    if (loginForm) loginForm.style.display = 'flex';
+    if (mainTitle) mainTitle.textContent = 'Iniciar Sesión';
+    if (subtitle) subtitle.textContent = 'Accede a tu panel de control, widgets y overlays en la nube.';
+    const emailInput = document.getElementById('authLoginEmail');
+    if (emailInput) setTimeout(() => emailInput.focus(), 50);
+  }
+}
+
+// Show alert message in Auth Modal
+function showAuthAlert(type, message) {
+  const alertBox = document.getElementById('authAlertBox');
+  if (!alertBox) return;
+  alertBox.className = `auth-alert-box ${type}`;
+  alertBox.innerHTML = (type === 'error' ? '⚠️ ' : '✅ ') + message;
+  alertBox.style.display = 'block';
+}
+
+// Handler for when user clicks "Panel de Control"
+function handleDashboardNavClick(targetTab = 'tab-dashboard') {
+  const session = getUserSession();
+  if (session && session.email) {
+    // User already authenticated -> direct access to dashboard
+    showDashboardView(targetTab);
+  } else {
+    // User not authenticated -> open login modal
+    openAuthModal('login');
+  }
+}
+
+// Handle Register Form Submission
+async function handleAuthRegisterSubmit(event) {
+  event.preventDefault();
+  const emailInput = document.getElementById('authRegEmail');
+  const emailConfirmInput = document.getElementById('authRegEmailConfirm');
+  const passwordInput = document.getElementById('authRegPassword');
+  const passwordConfirmInput = document.getElementById('authRegPasswordConfirm');
+  const submitBtn = document.getElementById('authRegSubmitBtn');
+
+  const email = emailInput ? emailInput.value.trim() : '';
+  const emailConfirm = emailConfirmInput ? emailConfirmInput.value.trim() : '';
+  const password = passwordInput ? passwordInput.value : '';
+  const passwordConfirm = passwordConfirmInput ? passwordConfirmInput.value : '';
+
+  // 1. Validate fields presence
+  if (!email || !emailConfirm || !password || !passwordConfirm) {
+    showAuthAlert('error', 'Por favor completa todos los campos del formulario.');
+    return;
+  }
+
+  // 2. Validate Email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    showAuthAlert('error', 'Por favor ingresa un correo electrónico válido.');
+    return;
+  }
+
+  // 3. Validate Email Double Matching (2 veces)
+  if (email.toLowerCase() !== emailConfirm.toLowerCase()) {
+    showAuthAlert('error', 'Los correos electrónicos ingresados no coinciden. Por favor verifícalos.');
+    if (emailConfirmInput) emailConfirmInput.focus();
+    return;
+  }
+
+  // 4. Validate Password length
+  if (password.length < 6) {
+    showAuthAlert('error', 'La contraseña debe tener un mínimo de 6 caracteres.');
+    if (passwordInput) passwordInput.focus();
+    return;
+  }
+
+  // 5. Validate Password Double Matching (2 veces)
+  if (password !== passwordConfirm) {
+    showAuthAlert('error', 'Las contraseñas ingresadas no coinciden. Por favor verifícalas.');
+    if (passwordConfirmInput) passwordConfirmInput.focus();
+    return;
+  }
+
+  // Disable button and show spinner
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    const spinner = submitBtn.querySelector('.auth-btn-spinner');
+    if (spinner) spinner.style.display = 'inline-block';
+  }
+
+  try {
+    // Attempt backend registration
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || 'Error al registrar usuario.');
+    }
+
+    // Also store registered user locally as backup
+    try {
+      const localUsers = JSON.parse(localStorage.getItem('orbibot_local_users') || '[]');
+      if (!localUsers.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+        localUsers.push({ email: email.toLowerCase(), password });
+        localStorage.setItem('orbibot_local_users', JSON.stringify(localUsers));
+      }
+    } catch (e) {}
+
+    // Reset register form
+    if (emailInput) emailInput.value = '';
+    if (emailConfirmInput) emailConfirmInput.value = '';
+    if (passwordInput) passwordInput.value = '';
+    if (passwordConfirmInput) passwordConfirmInput.value = '';
+
+    // Switch to Login tab and show success message
+    switchAuthTab('login');
+    showAuthAlert('success', '¡Cuenta creada exitosamente! Por favor inicia sesión con tu correo y contraseña.');
+
+    // Prefill login email
+    const loginEmailInput = document.getElementById('authLoginEmail');
+    if (loginEmailInput) {
+      loginEmailInput.value = email;
+      const loginPassInput = document.getElementById('authLoginPassword');
+      if (loginPassInput) setTimeout(() => loginPassInput.focus(), 100);
+    }
+  } catch (err) {
+    // Fallback: Local registration if backend had an issue
+    console.warn('Backend register failed, trying local storage registration:', err.message);
+    try {
+      const localUsers = JSON.parse(localStorage.getItem('orbibot_local_users') || '[]');
+      if (localUsers.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+        showAuthAlert('error', 'Ya existe una cuenta registrada con este correo electrónico.');
+      } else {
+        localUsers.push({ email: email.toLowerCase(), password });
+        localStorage.setItem('orbibot_local_users', JSON.stringify(localUsers));
+
+        // Switch to login
+        switchAuthTab('login');
+        showAuthAlert('success', '¡Cuenta creada exitosamente! Ahora puedes iniciar sesión.');
+        const loginEmailInput = document.getElementById('authLoginEmail');
+        if (loginEmailInput) {
+          loginEmailInput.value = email;
+          const loginPassInput = document.getElementById('authLoginPassword');
+          if (loginPassInput) setTimeout(() => loginPassInput.focus(), 100);
+        }
+      }
+    } catch (localErr) {
+      showAuthAlert('error', err.message || 'Ocurrió un error al registrar.');
+    }
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      const spinner = submitBtn.querySelector('.auth-btn-spinner');
+      if (spinner) spinner.style.display = 'none';
+    }
+  }
+}
+
+// Handle Login Form Submission
+async function handleAuthLoginSubmit(event) {
+  event.preventDefault();
+  const emailInput = document.getElementById('authLoginEmail');
+  const passwordInput = document.getElementById('authLoginPassword');
+  const submitBtn = document.getElementById('authLoginSubmitBtn');
+
+  const email = emailInput ? emailInput.value.trim() : '';
+  const password = passwordInput ? passwordInput.value : '';
+
+  if (!email || !password) {
+    showAuthAlert('error', 'Por favor ingresa tu correo y contraseña.');
+    return;
+  }
+
+  // Disable button and show spinner
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    const spinner = submitBtn.querySelector('.auth-btn-spinner');
+    if (spinner) spinner.style.display = 'inline-block';
+  }
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || 'Credenciales inválidas.');
+    }
+
+    // Success login via server
+    const sessionData = {
+      id: data.user.id,
+      email: data.user.email,
+      username: data.user.username || data.user.email.split('@')[0],
+      loggedInAt: Date.now()
+    };
+    setUserSession(sessionData);
+
+    // Close modal and enter dashboard
+    closeAuthModal();
+    showDashboardView('tab-dashboard');
+  } catch (err) {
+    // Fallback: Check local storage registered users
+    console.warn('Backend login error, trying local users fallback:', err.message);
+    try {
+      const localUsers = JSON.parse(localStorage.getItem('orbibot_local_users') || '[]');
+      const localMatch = localUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+      
+      if (localMatch) {
+        const sessionData = {
+          email: localMatch.email,
+          username: localMatch.email.split('@')[0],
+          loggedInAt: Date.now()
+        };
+        setUserSession(sessionData);
+        closeAuthModal();
+        showDashboardView('tab-dashboard');
+        return;
+      }
+    } catch (localErr) {}
+
+    showAuthAlert('error', err.message || 'Credenciales inválidas. Verifica tu correo y contraseña.');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      const spinner = submitBtn.querySelector('.auth-btn-spinner');
+      if (spinner) spinner.style.display = 'none';
+    }
+  }
+}
+
+// Handle Logout
+function handleAuthLogout() {
+  clearUserSession();
+  showLandingView();
+}
+
+// Export auth functions to window
+window.openAuthModal = openAuthModal;
+window.closeAuthModal = closeAuthModal;
+window.switchAuthTab = switchAuthTab;
+window.handleDashboardNavClick = handleDashboardNavClick;
+window.handleAuthRegisterSubmit = handleAuthRegisterSubmit;
+window.handleAuthLoginSubmit = handleAuthLoginSubmit;
+window.handleAuthLogout = handleAuthLogout;
+window.getUserSession = getUserSession;
+
 // ================= VIEW SWITCHER (LANDING VS DASHBOARD) =================
 function showLandingView() {
   const landingView = document.getElementById('landingView');
@@ -43,21 +386,33 @@ window.showLandingView = showLandingView;
 window.showDashboardView = showDashboardView;
 
 function initLandingPage() {
+  updateAuthUI();
+
   // Navigation & CTA buttons on Landing
   const landingNavDashboardBtn = document.getElementById('landingNavDashboardBtn');
-  if (landingNavDashboardBtn) landingNavDashboardBtn.addEventListener('click', () => showDashboardView('tab-dashboard'));
+  if (landingNavDashboardBtn) {
+    landingNavDashboardBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleDashboardNavClick('tab-dashboard');
+    });
+  }
 
   const landingNavLoginBtn = document.getElementById('landingNavLoginBtn');
-  if (landingNavLoginBtn) landingNavLoginBtn.addEventListener('click', triggerTwitchOAuthLogin);
+  if (landingNavLoginBtn) landingNavLoginBtn.addEventListener('click', () => openAuthModal('login'));
 
   const landingHeroLoginBtn = document.getElementById('landingHeroLoginBtn');
   if (landingHeroLoginBtn) landingHeroLoginBtn.addEventListener('click', triggerTwitchOAuthLogin);
 
   const landingHeroDashboardBtn = document.getElementById('landingHeroDashboardBtn');
-  if (landingHeroDashboardBtn) landingHeroDashboardBtn.addEventListener('click', () => showDashboardView('tab-dashboard'));
+  if (landingHeroDashboardBtn) {
+    landingHeroDashboardBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleDashboardNavClick('tab-dashboard');
+    });
+  }
 
   const landingBottomLoginBtn = document.getElementById('landingBottomLoginBtn');
-  if (landingBottomLoginBtn) landingBottomLoginBtn.addEventListener('click', triggerTwitchOAuthLogin);
+  if (landingBottomLoginBtn) landingBottomLoginBtn.addEventListener('click', () => openAuthModal('login'));
 
   // Return to Home Buttons
   const sidebarGoHomeBtn = document.getElementById('sidebarGoHomeBtn');
@@ -78,7 +433,8 @@ function initLandingPage() {
 
   // Check URL Hash on load
   const hash = window.location.hash;
-  if (hash === '#dashboard' || hash.startsWith('#tab-')) {
+  const session = getUserSession();
+  if (session && (hash === '#dashboard' || hash.startsWith('#tab-'))) {
     const tabName = hash.startsWith('#tab-') ? hash.substring(1) : 'tab-dashboard';
     showDashboardView(tabName);
   } else {
