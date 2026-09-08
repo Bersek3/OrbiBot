@@ -1493,7 +1493,7 @@ function connectInBrowserKickBot(kickData) {
     browserKickWs = null;
   }
 
-  const pusherUrl = 'wss://ws-us2.pusher.com/app/eb1d5f283081ab659038?protocol=7&client=js&version=7.6.0&flash=false';
+  const pusherUrl = 'wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0-rc2&flash=false';
 
   async function startKickSocket() {
     let chatroomId = null;
