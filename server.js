@@ -594,10 +594,10 @@ app.put('/api/commands/:id', (req, res) => {
   res.status(404).json({ success: false, message: 'Comando no encontrado.' });
 });
 
-// Sound files management
+// Sound files management (Custom user uploaded sounds)
 app.get('/api/sounds', (req, res) => {
   try {
-    const soundsDir = path.join(__dirname, 'public', 'assets', 'sounds');
+    const soundsDir = path.join(__dirname, 'public', 'assets', 'sounds', 'custom');
     if (!fs.existsSync(soundsDir)) {
       fs.mkdirSync(soundsDir, { recursive: true });
     }
@@ -605,7 +605,7 @@ app.get('/api/sounds', (req, res) => {
       .filter(f => /\.(mp3|wav|ogg|m4a|aac)$/i.test(f))
       .map(f => ({
         name: f,
-        url: `/assets/sounds/${f}`
+        url: `/assets/sounds/custom/${f}`
       }));
     res.json(files);
   } catch (e) {
@@ -621,7 +621,7 @@ app.post('/api/sounds/upload', (req, res) => {
     }
 
     const cleanName = name.replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
-    const soundsDir = path.join(__dirname, 'public', 'assets', 'sounds');
+    const soundsDir = path.join(__dirname, 'public', 'assets', 'sounds', 'custom');
     if (!fs.existsSync(soundsDir)) {
       fs.mkdirSync(soundsDir, { recursive: true });
     }
@@ -633,16 +633,33 @@ app.post('/api/sounds/upload', (req, res) => {
     fs.writeFileSync(targetPath, buffer);
 
     // Sync to docs if present
-    const docsDir = path.join(__dirname, 'docs', 'assets', 'sounds');
+    const docsDir = path.join(__dirname, 'docs', 'assets', 'sounds', 'custom');
     if (fs.existsSync(path.join(__dirname, 'docs'))) {
       if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
       fs.writeFileSync(path.join(docsDir, cleanName), buffer);
     }
 
-    const soundUrl = `/assets/sounds/${cleanName}`;
+    const soundUrl = `/assets/sounds/custom/${cleanName}`;
     res.json({ success: true, name: cleanName, url: soundUrl });
   } catch (err) {
     console.error('Error al subir sonido:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/sounds/delete', (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ success: false, message: 'Nombre de archivo requerido.' });
+    const cleanName = path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
+    const soundPath = path.join(__dirname, 'public', 'assets', 'sounds', 'custom', cleanName);
+    const docsPath = path.join(__dirname, 'docs', 'assets', 'sounds', 'custom', cleanName);
+
+    if (fs.existsSync(soundPath)) fs.unlinkSync(soundPath);
+    if (fs.existsSync(docsPath)) fs.unlinkSync(docsPath);
+
+    res.json({ success: true, message: 'Sonido eliminado correctamente.' });
+  } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });

@@ -3140,13 +3140,18 @@ async function loadSounds() {
 
     if (select) {
       select.innerHTML = '';
-      if (sounds.length === 0) {
-        select.innerHTML = '<option value="/assets/sounds/airhorn.mp3">airhorn.mp3 (Predeterminado)</option>';
+      if (!Array.isArray(sounds) || sounds.length === 0) {
+        select.innerHTML = '<option value="">⚠️ No has subido sonidos personalizados aún</option>';
       } else {
+        const placeholderOpt = document.createElement('option');
+        placeholderOpt.value = '';
+        placeholderOpt.innerText = `✨ -- Seleccionar sonido personalizado (${sounds.length} disponibles) --`;
+        select.appendChild(placeholderOpt);
+
         sounds.forEach(s => {
           const opt = document.createElement('option');
           opt.value = s.url;
-          opt.innerText = s.name;
+          opt.innerText = `🔊 ${s.name}`;
           select.appendChild(opt);
         });
       }
@@ -3154,20 +3159,27 @@ async function loadSounds() {
 
     if (container) {
       container.innerHTML = '';
-      if (sounds.length === 0) {
-        container.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 20px;">No has subido sonidos aún. ¡Haz clic en <strong>Subir Sonido</strong> arriba!</div>`;
+      if (!Array.isArray(sounds) || sounds.length === 0) {
+        container.innerHTML = `
+          <div style="font-size: 12.5px; color: var(--text-muted); text-align: center; padding: 32px 16px;">
+            <div style="font-size: 32px; margin-bottom: 8px;">🎵</div>
+            <div style="font-weight: 700; color: #ffffff; font-size: 14px; margin-bottom: 4px;">No has subido sonidos personalizados</div>
+            <div style="font-size: 12px; color: #94a3b8;">Haz clic en <strong>📤 Subir Sonido</strong> arriba para añadir tus audios (.mp3, .wav) y asignarlos a tus recompensas de puntos de canal o alertas de OBS.</div>
+          </div>
+        `;
         return;
       }
       sounds.forEach(s => {
         const item = document.createElement('div');
-        item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px 12px;';
+        item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 14px;';
         item.innerHTML = `
-          <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
-            <span style="font-size: 16px;">🔊</span>
-            <span style="font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.name)}</span>
+          <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+            <span style="font-size: 18px;">🔊</span>
+            <span style="font-size: 13.5px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.name)}</span>
           </div>
-          <div style="display: flex; gap: 6px;">
+          <div style="display: flex; gap: 8px;">
             <button class="btn btn-secondary btn-sm" onclick="previewSound('${s.url}')" title="Escuchar sonido">▶️ Escuchar</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteCustomSound('${escapeHtml(s.name)}')" title="Eliminar sonido">🗑️</button>
           </div>
         `;
         container.appendChild(item);
@@ -3175,6 +3187,26 @@ async function loadSounds() {
     }
   } catch (e) {
     console.warn('Error loading sounds:', e);
+  }
+}
+
+async function deleteCustomSound(name) {
+  if (!confirm(`¿Estás seguro de eliminar el sonido "${name}"?`)) return;
+  try {
+    const res = await fetch('/api/sounds/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`Sonido "${name}" eliminado`, 'success');
+      await loadSounds();
+    } else {
+      showToast(data.message || 'Error al eliminar', 'error');
+    }
+  } catch (e) {
+    showToast('Error al conectar con el servidor', 'error');
   }
 }
 
@@ -3188,8 +3220,8 @@ function previewSound(url) {
 async function handleSoundFileUpload(input) {
   if (!input || !input.files || !input.files[0]) return;
   const file = input.files[0];
-  if (file.size > 15 * 1024 * 1024) {
-    showToast('El archivo es demasiado grande (máximo 15MB)', 'error');
+  if (file.size > 25 * 1024 * 1024) {
+    showToast('El archivo es demasiado grande (máximo 25MB)', 'error');
     return;
   }
 
@@ -3207,7 +3239,7 @@ async function handleSoundFileUpload(input) {
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`¡Sonido ${data.name} subido con éxito!`, 'success');
+        showToast(`¡Sonido ${data.name} subido con éxito y añadido a la lista!`, 'success');
         await loadSounds();
         if (document.getElementById('rewardSoundSelect')) {
           document.getElementById('rewardSoundSelect').value = data.url;
@@ -3227,11 +3259,16 @@ async function saveRewardUI() {
   const inputEl = document.getElementById('rewardNameInput');
   const name = (inputEl?.value || '').trim();
   const action = document.getElementById('rewardActionSelect').value;
-  const soundUrl = document.getElementById('rewardSoundSelect')?.value || '/assets/sounds/airhorn.mp3';
+  const soundUrl = document.getElementById('rewardSoundSelect')?.value || null;
   const editId = document.getElementById('editRewardId').value;
 
   if (!name) {
     showToast('Ingresa o selecciona el nombre de la recompensa en Twitch', 'warn');
+    return;
+  }
+
+  if (action === 'sound' && !soundUrl) {
+    showToast('⚠️ Debes seleccionar o subir un archivo de sonido personalizado para esta recompensa.', 'warn');
     return;
   }
 
