@@ -222,9 +222,26 @@
       }, durationSec);
     }
 
+    const processedEventIds = new Set();
+    function isDuplicateEvent(msg) {
+      if (!msg) return true;
+      const data = msg.data || msg;
+      const eventId = msg.id || data.id || `${msg.event || 'alert'}_${data.type || ''}_${data.user || ''}_${data.amount || ''}_${Math.floor((msg.timestamp || data.timestamp || Date.now()) / 3500)}`;
+      
+      if (processedEventIds.has(eventId)) {
+        return true;
+      }
+      processedEventIds.add(eventId);
+      setTimeout(() => {
+        processedEventIds.delete(eventId);
+      }, 15000);
+      return false;
+    }
+
     function handleIncomingMessage(msg) {
       if (!msg) return;
       if (msg.event === 'alert') {
+        if (isDuplicateEvent(msg)) return;
         alertQueue.push(msg.data);
         processQueue();
       } else if (msg.event === 'alerts_updated') {
@@ -384,8 +401,9 @@
             onSuccess: () => {
               if (token) {
                 mqttClient.subscribe(`orbibot/${channel}_${token}/events`);
+              } else {
+                mqttClient.subscribe(`orbibot/${channel}/events`);
               }
-              mqttClient.subscribe(`orbibot/${channel}/events`);
               showStatusBadge(`🟢 OrbyxBot Listo en OBS (#${channel})`, 4000);
             },
             onFailure: (e) => {

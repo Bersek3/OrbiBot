@@ -245,8 +245,9 @@
               onSuccess: () => {
                 if (token) {
                   mqttClient.subscribe(`orbibot/${channel}_${token}/events`);
+                } else {
+                  mqttClient.subscribe(`orbibot/${channel}/events`);
                 }
-                mqttClient.subscribe(`orbibot/${channel}/events`);
               },
               onFailure: (e) => {
                 console.warn('MQTT connect failed, retrying in 4s...', e);

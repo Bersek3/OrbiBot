@@ -782,11 +782,12 @@ app.post('/api/tts/test', (req, res) => {
 
 // Test Alert Trigger (Follow, Sub, Bits, Raid, Points, Kick Events)
 app.post('/api/alert/test', (req, res) => {
-  const { type, user, amount, viewers, message, tier, reward, room, channel } = req.body;
+  const { id, type, user, amount, viewers, message, tier, reward, room, channel } = req.body;
   const config = storage.getConfig();
   const activeRoom = (room || channel || config?.twitch?.channel || config?.kick?.channel || 'default').toLowerCase().replace(/^#/, '').trim();
 
   const alertData = {
+    id: id || ('srv_evt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7)),
     type: type || 'follower',
     user: user || 'UsuarioDePrueba',
     amount: amount || 100,

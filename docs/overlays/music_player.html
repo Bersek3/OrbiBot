@@ -374,8 +374,9 @@
               onSuccess: () => {
                 if (token) {
                   mqttClient.subscribe(`orbibot/${channel}_${token}/events`);
+                } else {
+                  mqttClient.subscribe(`orbibot/${channel}/events`);
                 }
-                mqttClient.subscribe(`orbibot/${channel}/events`);
                 statusDot.style.background = 'var(--neon-green)';
                 statusText.innerText = 'Audio Player Conectado';
               },

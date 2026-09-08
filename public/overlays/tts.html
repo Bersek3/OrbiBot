@@ -164,9 +164,26 @@
       };
     }
 
+    const processedTtsIds = new Set();
+    function isDuplicateTts(msg) {
+      if (!msg) return true;
+      const data = msg.data || msg;
+      const eventId = msg.id || data.id || `tts_${data.user || ''}_${data.text || ''}_${Math.floor((msg.timestamp || data.timestamp || Date.now()) / 3500)}`;
+      
+      if (processedTtsIds.has(eventId)) {
+        return true;
+      }
+      processedTtsIds.add(eventId);
+      setTimeout(() => {
+        processedTtsIds.delete(eventId);
+      }, 15000);
+      return false;
+    }
+
     function handleIncomingMessage(msg) {
       if (!msg) return;
       if (msg.event === 'tts') {
+        if (isDuplicateTts(msg)) return;
         queue.push(msg.data);
         processQueue();
       }
@@ -185,6 +202,12 @@
         if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
         try {
           wsInstance = new WebSocket(url);
+          wsInstance.onopen = () => {
+            const targetRoom = channel || token;
+            if (targetRoom) {
+              wsInstance.send(JSON.stringify({ action: 'join', room: targetRoom }));
+            }
+          };
           wsInstance.onmessage = (event) => {
             try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
           };
@@ -238,8 +261,9 @@
             onSuccess: () => {
               if (token) {
                 mqttClient.subscribe(`orbibot/${channel}_${token}/events`);
+              } else {
+                mqttClient.subscribe(`orbibot/${channel}/events`);
               }
-              mqttClient.subscribe(`orbibot/${channel}/events`);
             },
             onFailure: (e) => {
               console.warn('MQTT connect failed, retrying in 4s...', e);

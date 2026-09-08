@@ -1033,7 +1033,9 @@ function broadcastEvent(event, data) {
     return;
   }
 
-  const payload = { event, data, channel, room, timestamp: Date.now() };
+  const eventId = data.id || ('evt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7));
+  if (!data.id) data.id = eventId;
+  const payload = { id: eventId, event, data, channel, room, timestamp: Date.now() };
 
   // 1. BroadcastChannel (para pestañas del mismo navegador)
   if (broadcastChannel) {
@@ -1056,17 +1058,16 @@ function broadcastEvent(event, data) {
       const token = getEffectiveWidgetToken();
       const msgStr = JSON.stringify(payload);
 
-      // Publicar en tópico privado protegido con token secreto
+      // Publicar en tópico único (privado si hay token, o público del canal)
       if (token) {
         const msgPriv = new Paho.MQTT.Message(msgStr);
         msgPriv.destinationName = `orbibot/${channel}_${token}/events`;
         dashboardMqttClient.send(msgPriv);
+      } else {
+        const msg1 = new Paho.MQTT.Message(msgStr);
+        msg1.destinationName = `orbibot/${channel}/events`;
+        dashboardMqttClient.send(msg1);
       }
-
-      // Publicar en tópico del canal
-      const msg1 = new Paho.MQTT.Message(msgStr);
-      msg1.destinationName = `orbibot/${channel}/events`;
-      dashboardMqttClient.send(msg1);
     } catch (e) {
       console.warn('Error publishing to MQTT relay:', e);
     }
