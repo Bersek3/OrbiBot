@@ -446,14 +446,26 @@ async function handleAuthLoginSubmit(event) {
 async function handleAuthLogout() {
   if (supabaseClient) {
     try {
-      await supabaseClient.auth.signOut();
+      await supabaseClient.auth.signOut({ scope: 'local' });
     } catch (e) {
       console.warn('Error signing out of Supabase:', e);
     }
   }
   clearUserSession();
+
+  // Limpiar tokens y claves de sesión local
+  try {
+    localStorage.removeItem('orbibot_user_session');
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('sb-') && k.endsWith('-auth-token')) {
+        localStorage.removeItem(k);
+      }
+    });
+  } catch (e) { }
+
   showToast('Has cerrado tu sesión de OrbyxBot Cloud.', 'info');
   showLandingView();
+  updateAuthUI();
 }
 
 // ================= PLATFORM LINKING (TWITCH & KICK IN DASHBOARD) =================
@@ -805,6 +817,14 @@ function showLandingView() {
 }
 
 function showDashboardView(targetTab = 'tab-dashboard') {
+  const session = getUserSession();
+  if (!session || !session.email) {
+    showLandingView();
+    openAuthModal('login');
+    showToast('Debes iniciar sesión para acceder al Panel de Control.', 'warn');
+    return;
+  }
+
   const landingView = document.getElementById('landingView');
   const dashboardView = document.getElementById('dashboardAppView');
   if (landingView) landingView.style.display = 'none';
@@ -1203,11 +1223,9 @@ async function loadInitialData() {
     ];
     renderCommands(localCmds ? JSON.parse(localCmds) : defaultCommands);
 
-    const defaultRewards = [
-      { id: '1', rewardName: 'Mensaje con Voz (TTS)', action: 'tts', cost: 500 },
-      { id: '2', rewardName: 'Pedir Canción', action: 'song_request', cost: 300 }
-    ];
-    renderRewards(localRwds ? JSON.parse(localRwds) : defaultRewards);
+    const defaultRewards = [];
+    const initialRewards = localRwds !== null ? JSON.parse(localRwds) : defaultRewards;
+    renderRewards(initialRewards);
 
     updateSongRequestUI({ currentSong: null, queue: [], isPlaying: false });
 
@@ -2501,32 +2519,64 @@ async function syncTwitchRewardsUI() {
     const config = appConfig || JSON.parse(localStorage.getItem('orbibot_config') || '{}');
     const twitchCfg = config.twitch || {};
 
+    if (!twitchCfg.oauthToken) {
+      showToast('⚠️ Primero vincula tu cuenta de Twitch en el Panel General.', 'warn');
+      return;
+    }
+
+    const cleanToken = twitchCfg.oauthToken.replace(/^oauth:/i, '').trim();
+    let userId = twitchCfg.userId;
+    let clientId = twitchCfg.clientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
+
     // 1. Intentar obtener a través del backend
     try {
       const res = await fetch('/api/rewards/twitch');
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.rewards) {
+        if (data.success && Array.isArray(data.rewards)) {
           twRewards = data.rewards;
         }
+      } else if (res.status === 403) {
+        showToast('ℹ️ Tu canal de Twitch debe tener estado de Afiliado o Partner para usar Puntos de Canal.', 'warn');
+        return;
       }
     } catch (e) { }
 
-    // 2. Si no hubo backend o estamos en frontend puro, consultar Twitch Helix con el token
-    if (twRewards.length === 0 && twitchCfg.oauthToken && twitchCfg.userId) {
-      try {
-        const cleanToken = twitchCfg.oauthToken.replace(/^oauth:/i, '').trim();
-        const helixRes = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchCfg.userId}`, {
-          headers: {
-            'Client-Id': twitchCfg.clientId || 'yw1vr664ichms8an2x5lhji58v7ozk',
-            'Authorization': `Bearer ${cleanToken}`
+    // 2. Si no hubo backend o estamos en frontend directo, consultar Twitch Helix
+    if (twRewards.length === 0 && cleanToken) {
+      if (!userId) {
+        try {
+          const valRes = await fetch('https://id.twitch.tv/oauth2/validate', {
+            headers: { 'Authorization': `OAuth ${cleanToken}` }
+          });
+          if (valRes.ok) {
+            const valData = await valRes.json();
+            userId = valData.user_id;
+            clientId = valData.client_id || clientId;
+            twitchCfg.userId = userId;
+            twitchCfg.clientId = clientId;
+            localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twitchCfg));
           }
-        });
-        if (helixRes.ok) {
-          const helixData = await helixRes.json();
-          twRewards = helixData.data || [];
-        }
-      } catch (e) { }
+        } catch (e) { }
+      }
+
+      if (userId) {
+        try {
+          const helixRes = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${userId}`, {
+            headers: {
+              'Client-Id': clientId,
+              'Authorization': `Bearer ${cleanToken}`
+            }
+          });
+          if (helixRes.ok) {
+            const helixData = await helixRes.json();
+            twRewards = helixData.data || [];
+          } else if (helixRes.status === 403) {
+            showToast('ℹ️ Tu canal debe ser Afiliado o Partner de Twitch para consultar Puntos de Canal.', 'warn');
+            return;
+          }
+        } catch (e) { }
+      }
     }
 
     if (twRewards.length > 0) {
@@ -2541,7 +2591,14 @@ async function syncTwitchRewardsUI() {
       }
 
       // Sincronizar automáticamente IDs de las recompensas ya configuradas
-      const localRewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+      let localRewards = [];
+      try {
+        localRewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+      } catch (e) { }
+      if (!Array.isArray(localRewards) || localRewards.length === 0) {
+        localRewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
+      }
+
       let updated = false;
       localRewards.forEach(r => {
         const match = twRewards.find(tr => tr.title.trim().toLowerCase() === r.rewardName.trim().toLowerCase());
@@ -2552,17 +2609,20 @@ async function syncTwitchRewardsUI() {
       });
 
       if (updated) {
-        await fetch('/api/rewards', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(localRewards)
-        });
+        try {
+          await fetch('/api/rewards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(localRewards)
+          });
+        } catch (e) { }
+        localStorage.setItem('orbibot_rewards', JSON.stringify(localRewards));
         renderRewards(localRewards);
       }
 
-      showToast(`¡${twRewards.length} recompensas de Twitch vinculadas correctamente!`, 'success');
+      showToast(`¡${twRewards.length} recompensas de Twitch encontradas y listas para mapear!`, 'success');
     } else {
-      showToast('No se encontraron recompensas en Twitch o el bot no está autenticado.', 'warn');
+      showToast('No se encontraron recompensas personalizadas creadas en tu Twitch Creator Dashboard.', 'warn');
     }
   } catch (err) {
     showToast(`Error al sincronizar: ${err.message}`, 'error');
@@ -2692,7 +2752,14 @@ async function saveRewardUI() {
     return;
   }
 
-  const rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  let rewards = [];
+  try {
+    rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  } catch (e) { }
+  if (!Array.isArray(rewards) || rewards.length === 0) {
+    rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
+  }
+
   const newReward = {
     id: editId || `reward-${Date.now()}`,
     rewardName: name,
@@ -2708,11 +2775,28 @@ async function saveRewardUI() {
     rewards.push(newReward);
   }
 
-  await fetch('/api/rewards', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(rewards)
-  });
+  try {
+    await fetch('/api/rewards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rewards)
+    });
+  } catch (e) { }
+
+  localStorage.setItem('orbibot_rewards', JSON.stringify(rewards));
+
+  if (supabaseClient) {
+    try {
+      const session = getUserSession();
+      const streamerId = (appConfig?.twitch?.channel || session?.email || 'default').toLowerCase().replace(/^#/, '');
+      await supabaseClient.from('orbibot_settings').upsert({
+        streamer_id: streamerId,
+        key: 'channel_points',
+        value: rewards,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'streamer_id,key' });
+    } catch (e) { }
+  }
 
   renderRewards(rewards);
   toggleRewardForm(false);
@@ -2722,7 +2806,13 @@ async function saveRewardUI() {
 }
 
 async function editReward(rewardId) {
-  const rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  let rewards = [];
+  try {
+    rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  } catch (e) { }
+  if (!Array.isArray(rewards) || rewards.length === 0) {
+    rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
+  }
   const r = rewards.find(item => item.id === rewardId);
   if (!r) return;
 
@@ -2737,15 +2827,40 @@ async function editReward(rewardId) {
 }
 
 async function deleteReward(rewardId) {
-  const rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  let rewards = [];
+  try {
+    rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  } catch (e) { }
+  if (!Array.isArray(rewards) || rewards.length === 0) {
+    rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
+  }
   const filtered = rewards.filter(r => r.id !== rewardId);
-  await fetch('/api/rewards', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(filtered)
-  });
+
+  try {
+    await fetch('/api/rewards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(filtered)
+    });
+  } catch (e) { }
+
+  localStorage.setItem('orbibot_rewards', JSON.stringify(filtered));
+
+  if (supabaseClient) {
+    try {
+      const session = getUserSession();
+      const streamerId = (appConfig?.twitch?.channel || session?.email || 'default').toLowerCase().replace(/^#/, '');
+      await supabaseClient.from('orbibot_settings').upsert({
+        streamer_id: streamerId,
+        key: 'channel_points',
+        value: filtered,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'streamer_id,key' });
+    } catch (e) { }
+  }
+
   renderRewards(filtered);
-  showToast('Recompensa eliminada');
+  showToast('Recompensa eliminada', 'success');
 }
 
 async function testReward(rewardId) {
@@ -3086,21 +3201,25 @@ function setupEventListeners() {
     let displayName = user.display_name || user.login || '';
     let avatarUrl = user.profile_image_url || '';
     let channelName = (user.login || user.channel || (displayName ? displayName.toLowerCase() : '') || '').replace(/^#/, '');
+    let userId = user.user_id || user.id || '';
+    let clientId = user.client_id || 'yw1vr664ichms8an2x5lhji58v7ozk';
 
-    // If channelName or displayName is missing, validate token directly with Twitch
-    if ((!channelName || !displayName) && token) {
+    // If channelName or displayName or userId is missing, validate token directly with Twitch
+    if ((!channelName || !displayName || !userId) && token) {
       try {
         const valRes = await fetch('https://id.twitch.tv/oauth2/validate', {
           headers: { 'Authorization': `OAuth ${token}` }
         });
         if (valRes.ok) {
           const valData = await valRes.json();
+          userId = valData.user_id || userId;
+          clientId = valData.client_id || clientId;
           channelName = valData.login || channelName;
           displayName = displayName || valData.login;
-          if (!avatarUrl) {
+          if (!avatarUrl && userId) {
             try {
-              const uRes = await fetch(`https://api.twitch.tv/helix/users?id=${valData.user_id}`, {
-                headers: { 'Client-Id': valData.client_id, 'Authorization': `Bearer ${token}` }
+              const uRes = await fetch(`https://api.twitch.tv/helix/users?id=${userId}`, {
+                headers: { 'Client-Id': clientId, 'Authorization': `Bearer ${token}` }
               });
               if (uRes.ok) {
                 const uData = await uRes.json();
@@ -3123,10 +3242,10 @@ function setupEventListeners() {
       channel: channelName,
       botUsername: channelName,
       oauthToken: token,
-      clientId: 'yw1vr664ichms8an2x5lhji58v7ozk',
+      clientId,
       displayName: displayName || channelName,
       profileImage: avatarUrl || 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png',
-      userId: user.user_id || '',
+      userId: userId || '',
       connected: true
     };
 

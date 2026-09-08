@@ -657,20 +657,52 @@ app.get('/api/rewards/twitch', async (req, res) => {
   try {
     const config = storage.getConfig();
     const twitchCfg = config.twitch || {};
-    if (!twitchCfg.oauthToken || !twitchCfg.userId || !twitchCfg.clientId) {
-      return res.status(400).json({ success: false, message: 'Twitch no está autenticado o falta User ID.' });
+    if (!twitchCfg.oauthToken) {
+      return res.status(400).json({ success: false, message: 'Twitch no está autenticado.' });
     }
+
     const cleanToken = twitchCfg.oauthToken.replace(/^oauth:/i, '').trim();
-    const helixRes = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchCfg.userId}`, {
+    let userId = twitchCfg.userId;
+    let clientId = twitchCfg.clientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
+
+    // Si falta userId, validarlo directamente con la API de Twitch
+    if (!userId) {
+      try {
+        const valRes = await fetch('https://id.twitch.tv/oauth2/validate', {
+          headers: { 'Authorization': `OAuth ${cleanToken}` }
+        });
+        if (valRes.ok) {
+          const valData = await valRes.json();
+          userId = valData.user_id;
+          clientId = valData.client_id || clientId;
+          storage.saveConfig({ twitch: { ...twitchCfg, userId, clientId } });
+        }
+      } catch (e) { }
+    }
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'No se pudo obtener el User ID de Twitch.' });
+    }
+
+    const helixRes = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${userId}`, {
       headers: {
-        'Client-Id': twitchCfg.clientId,
+        'Client-Id': clientId,
         'Authorization': `Bearer ${cleanToken}`
       }
     });
+
     if (!helixRes.ok) {
       const err = await helixRes.json().catch(() => ({}));
+      if (helixRes.status === 403) {
+        return res.status(403).json({
+          success: false,
+          isAffiliateError: true,
+          message: 'Tu canal de Twitch debe tener estado de Afiliado o Partner para acceder a los Puntos de Canal oficiales de Twitch.'
+        });
+      }
       return res.status(helixRes.status).json({ success: false, message: err.message || 'Error al obtener recompensas de Twitch.' });
     }
+
     const data = await helixRes.json();
     return res.json({ success: true, rewards: data.data || [] });
   } catch (err) {

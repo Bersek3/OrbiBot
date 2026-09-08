@@ -524,13 +524,13 @@ class StorageService {
   }
 
   getRewards() {
-    return readJSON('channel_points.json', DEFAULT_REWARDS);
+    return readJSON('channel_points.json', []);
   }
 
   saveRewards(rewards) {
-    writeJSON('channel_points.json', rewards);
-    this.syncToSupabase('channel_points', rewards);
-    return rewards;
+    writeJSON('channel_points.json', rewards || []);
+    this.syncToSupabase('channel_points', rewards || []);
+    return rewards || [];
   }
 
   getUsers() {
