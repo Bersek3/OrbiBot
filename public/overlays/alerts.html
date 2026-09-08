@@ -135,7 +135,11 @@
       sub: { enabled: true, title: '¡Nueva Suscripción!', message: '¡{user} se ha suscrito al canal!', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHF4bWpna2JpcXpiZWhqZXE1aXF3MHp4eGpoMXE1bmRhNDVvNXppZSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/IwAZ6dvvvaNN6/giphy.gif' },
       bits: { enabled: true, title: '¡Donación de Bits!', message: '{user} envió {amount} bits {message}', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJ3eG5obHRwZjcxNHNlNW56dzd2dXB1NmJhcWlnM3c5enIydTFoYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LdOyjZ7io5MFUvcKs2/giphy.gif' },
       raid: { enabled: true, title: '¡Raid Entrante!', message: '¡{user} ha llegado con {viewers} espectadores!', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2Z0dTh1Z3E0cW51ZnRtdnExNmRwbTN4eWxnd2ZtN213MWg5bmk0eCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/blSTtZehjAZ8I/giphy.gif' },
-      channel_points: { enabled: true, title: '¡Recompensa Canjeada!', message: '{user} canjeó {reward}', duration: 5, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOW11aWRqZG56YWNka2R3N3N6M2cydDV0OW15bmw0NWJ1ZW51bnd4eiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif' }
+      channel_points: { enabled: true, title: '¡Recompensa Canjeada!', message: '{user} canjeó {reward}', duration: 5, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOW11aWRqZG56YWNka2R3N3N6M2cydDV0OW15bmw0NWJ1ZW51bnd4eiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif' },
+      kick_follower: { enabled: true, title: '¡Nuevo Seguidor de Kick! 🟢', message: '{user} ahora sigue en Kick', duration: 5, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif' },
+      kick_sub: { enabled: true, title: '¡Nueva Suscripción de Kick! 🟢', message: '¡{user} se ha suscrito en Kick!', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHF4bWpna2JpcXpiZWhqZXE1aXF3MHp4eGpoMXE1bmRhNDVvNXppZSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/IwAZ6dvvvaNN6/giphy.gif' },
+      kick_gift: { enabled: true, title: '¡Suscripciones Regaladas! 🎁', message: '{user} regaló {amount} subs en Kick!', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJ3eG5obHRwZjcxNHNlNW56dzd2dXB1NmJhcWlnM3c5enIydTFoYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LdOyjZ7io5MFUvcKs2/giphy.gif' },
+      kick_raid: { enabled: true, title: '¡Raid de Kick! 🚀', message: '¡{user} ha llegado con {viewers} espectadores desde Kick!', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2Z0dTh1Z3E0cW51ZnRtdnExNmRwbTN4eWxnd2ZtN213MWg5bmk0eCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/blSTtZehjAZ8I/giphy.gif' }
     };
 
     // Load configs from server if available
@@ -257,6 +261,9 @@
           wsInstance = new WebSocket(url);
           wsInstance.onopen = () => {
             showStatusBadge('🟢 Conectado a Servidor Local (WebSocket)', 3500);
+            if (channel || token) {
+              wsInstance.send(JSON.stringify({ action: 'join', room: channel || token }));
+            }
           };
           wsInstance.onmessage = (event) => {
             try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
@@ -290,6 +297,12 @@
       if (typeof BroadcastChannel !== 'undefined') {
         const bc = new BroadcastChannel('orbibot_stream_channel');
         bc.onmessage = (e) => handleIncomingMessage(e.data);
+        if (channel) {
+          try {
+            const scopedBc = new BroadcastChannel('orbyxbot_stream_' + channel);
+            scopedBc.onmessage = (e) => handleIncomingMessage(e.data);
+          } catch(e) {}
+        }
       }
 
       window.addEventListener('storage', (e) => {

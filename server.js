@@ -34,6 +34,16 @@ const clients = new Set();
 
 wss.on('connection', (ws, req) => {
   clients.add(ws);
+  ws.room = 'default';
+
+  // Extract room/channel from connection query if available
+  try {
+    const parsedUrl = new URL(req.url, 'http://localhost');
+    const roomParam = parsedUrl.searchParams.get('room') || parsedUrl.searchParams.get('channel');
+    if (roomParam) {
+      ws.room = roomParam.toLowerCase().replace(/^#/, '').trim();
+    }
+  } catch (e) { }
 
   // Send initial state to newly connected client
   const initialState = {
@@ -50,6 +60,9 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
+      if (data.action === 'join' && (data.room || data.channel)) {
+        ws.room = (data.room || data.channel).toLowerCase().replace(/^#/, '').trim();
+      }
       handleClientMessage(ws, data);
     } catch (err) {
       console.error('Invalid WebSocket message received:', err);
@@ -61,11 +74,14 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-function broadcast(event, data) {
-  const payload = JSON.stringify({ event, data, timestamp: Date.now() });
+function broadcast(event, data, targetRoom) {
+  const payload = JSON.stringify({ event, data, room: targetRoom || 'default', timestamp: Date.now() });
+  const cleanTarget = targetRoom ? targetRoom.toLowerCase().replace(/^#/, '').trim() : null;
   for (const client of clients) {
     if (client.readyState === 1) { // OPEN
-      client.send(payload);
+      if (!cleanTarget || cleanTarget === 'default' || !client.room || client.room === 'default' || client.room === cleanTarget) {
+        client.send(payload);
+      }
     }
   }
 }
@@ -764,9 +780,12 @@ app.post('/api/tts/test', (req, res) => {
   res.json(result);
 });
 
-// Test Alert Trigger (Follow, Sub, Bits, Raid, Points)
+// Test Alert Trigger (Follow, Sub, Bits, Raid, Points, Kick Events)
 app.post('/api/alert/test', (req, res) => {
-  const { type, user, amount, viewers, message, tier, reward } = req.body;
+  const { type, user, amount, viewers, message, tier, reward, room, channel } = req.body;
+  const config = storage.getConfig();
+  const activeRoom = (room || channel || config?.twitch?.channel || config?.kick?.channel || 'default').toLowerCase().replace(/^#/, '').trim();
+
   const alertData = {
     type: type || 'follower',
     user: user || 'UsuarioDePrueba',
@@ -777,7 +796,7 @@ app.post('/api/alert/test', (req, res) => {
     message: message || '¡Un saludo enorme para el mejor stream!'
   };
 
-  broadcast('alert', alertData);
+  broadcast('alert', alertData, activeRoom);
 
   // If testing TTS through points or bits
   if (type === 'bits' || type === 'channel_points') {
@@ -789,7 +808,7 @@ app.post('/api/alert/test', (req, res) => {
     });
   }
 
-  res.json({ success: true, alert: alertData });
+  res.json({ success: true, alert: alertData, room: activeRoom });
 });
 
 // Alerts API

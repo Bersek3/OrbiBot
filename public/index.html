@@ -969,13 +969,15 @@
                 Prueba tus overlays de OBS Studio en vivo sin necesidad de esperar un evento real:
               </p>
 
-              <div style="display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Twitch Tests -->
+                <div style="font-size: 11px; font-weight: 700; color: #a78bfa; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Twitch Events</div>
                 <div style="display: flex; gap: 10px;">
                   <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('follower')">
                     👤 Test Follower
                   </button>
                   <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('sub')">
-                    ⭐ Test Suscripción
+                    ⭐ Test Sub
                   </button>
                 </div>
                 <div style="display: flex; gap: 10px;">
@@ -983,22 +985,44 @@
                     💎 Test 500 Bits
                   </button>
                   <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('raid')">
-                    🚀 Test Raid (50 viewers)
+                    🚀 Test Raid (50)
                   </button>
                 </div>
                 <div style="display: flex; gap: 10px;">
                   <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('channel_points')">
                     🎟️ Test Puntos de Canal
                   </button>
-                  <button class="btn btn-primary" style="flex:1" onclick="triggerTestTTS()">
-                    🗣️ Test Mensaje TTS
+                </div>
+
+                <!-- Kick Tests -->
+                <div style="font-size: 11px; font-weight: 700; color: #53fc18; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">Kick Events</div>
+                <div style="display: flex; gap: 10px;">
+                  <button class="btn btn-secondary" style="flex:1; border-color: rgba(83, 252, 24, 0.4); color: #53fc18; background: rgba(83, 252, 24, 0.08);" onclick="triggerTestAlert('kick_follower')">
+                    🟢 Test Follower
+                  </button>
+                  <button class="btn btn-secondary" style="flex:1; border-color: rgba(83, 252, 24, 0.4); color: #53fc18; background: rgba(83, 252, 24, 0.08);" onclick="triggerTestAlert('kick_sub')">
+                    🟢 Test Sub
                   </button>
                 </div>
                 <div style="display: flex; gap: 10px;">
+                  <button class="btn btn-secondary" style="flex:1; border-color: rgba(83, 252, 24, 0.4); color: #53fc18; background: rgba(83, 252, 24, 0.08);" onclick="triggerTestAlert('kick_gift')">
+                    🎁 Test 5 Subs Gift
+                  </button>
+                  <button class="btn btn-secondary" style="flex:1; border-color: rgba(83, 252, 24, 0.4); color: #53fc18; background: rgba(83, 252, 24, 0.08);" onclick="triggerTestAlert('kick_raid')">
+                    🚀 Test Raid (Kick)
+                  </button>
+                </div>
+
+                <!-- Studio Tools -->
+                <div style="font-size: 11px; font-weight: 700; color: #00f2fe; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">Audio & Chat</div>
+                <div style="display: flex; gap: 10px;">
+                  <button class="btn btn-primary" style="flex:1" onclick="triggerTestTTS()">
+                    🗣️ Test Mensaje TTS
+                  </button>
                   <button class="btn btn-secondary"
                     style="flex:1; border-color: var(--primary-purple); color: #fff; background: rgba(145, 70, 255, 0.15);"
                     onclick="triggerTestChat()">
-                    💬 Test Chat & Emblemas Originales
+                    💬 Test Chat
                   </button>
                 </div>
               </div>

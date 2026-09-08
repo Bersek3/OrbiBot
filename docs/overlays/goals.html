@@ -6,6 +6,9 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>OBS Goal Widget Overlay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bangers&family=Bebas+Neue&family=Chakra+Petch:wght@400;700&family=Cinzel:wght@700&family=Creepster&family=Fredoka:wght@500;700&family=Inter:wght@400;700&family=Luckiest+Guy&family=Montserrat:wght@500;700;900&family=Orbitron:wght@600;900&family=Outfit:wght@400;600;800&family=Permanent+Marker&family=Poppins:wght@400;600;800&family=Press+Start+2P&family=Righteous&family=Roboto:wght@400;700&family=Rubik:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/overlays.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 </head>
@@ -28,6 +31,27 @@
   </div>
 
   <script>
+    // Load custom widget styles from streamer config
+    (async function loadCustomStyles() {
+      try {
+        const res = await fetch('/api/widget-styles');
+        const data = await res.json();
+        if (data.goals) {
+          if (data.goals.finalCSS || data.goals.generatedCSS) {
+            const style = document.createElement('style');
+            style.id = 'orbibot-custom-styles';
+            style.textContent = data.goals.finalCSS || data.goals.generatedCSS;
+            document.head.appendChild(style);
+          }
+          if (data.goals.customJS) {
+            const s = document.createElement('script');
+            s.textContent = data.goals.customJS;
+            document.body.appendChild(s);
+          }
+        }
+      } catch(e) { /* Overlay running without backend */ }
+    })();
+
     const urlParams = new URLSearchParams(window.location.search);
     const goalType = urlParams.get('type') || 'subs';
     const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
@@ -136,7 +160,7 @@
         if (typeof Paho !== 'undefined') {
           if (mqttReconnectTimeout) clearTimeout(mqttReconnectTimeout);
 
-          const relayChannel = channel || 'general';
+          if (!channel) return;
           const clientId = 'orbi_goal_' + Math.random().toString(36).substring(2, 9);
           try {
             mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
@@ -155,10 +179,10 @@
               timeout: 6,
               keepAliveInterval: 30,
               onSuccess: () => {
-                if (token && relayChannel !== 'general') {
-                  mqttClient.subscribe(`orbibot/${relayChannel}_${token}/events`);
+                if (token) {
+                  mqttClient.subscribe(`orbibot/${channel}_${token}/events`);
                 }
-                mqttClient.subscribe(`orbibot/${relayChannel}/events`);
+                mqttClient.subscribe(`orbibot/${channel}/events`);
               },
               onFailure: (e) => {
                 console.warn('MQTT connect failed, retrying in 4s...', e);

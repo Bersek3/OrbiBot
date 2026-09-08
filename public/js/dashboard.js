@@ -960,14 +960,28 @@ let dashboardMqttClient = null;
 let isMqttConnected = false;
 
 function isStreamerLoggedIn() {
-  const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
-  const isConn = (appConfig?.twitch?.connected || Boolean(localStorage.getItem('orbibot_twitch_auth'))) && Boolean(channel);
-  return isConn;
+  const session = getUserSession();
+  const twitchChannel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
+  const kickChannel = (appConfig?.kick?.channel || '').toLowerCase().replace(/^#/, '');
+  const hasTwitch = (appConfig?.twitch?.connected || Boolean(localStorage.getItem('orbibot_twitch_auth'))) && Boolean(twitchChannel);
+  const hasKick = (appConfig?.kick?.connected || Boolean(localStorage.getItem('orbibot_kick_auth'))) && Boolean(kickChannel);
+  const hasUserSession = Boolean(session && session.email);
+  return hasTwitch || hasKick || hasUserSession;
+}
+
+function getActiveStreamerRoom() {
+  const twitchChannel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
+  const kickChannel = (appConfig?.kick?.channel || '').toLowerCase().replace(/^#/, '');
+  const session = getUserSession();
+  if (twitchChannel) return twitchChannel;
+  if (kickChannel) return kickChannel;
+  if (session && session.email) return session.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+  return 'streamer';
 }
 
 function initDashboardMqtt() {
   if (typeof Paho === 'undefined') return;
-  const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
+  const channel = (appConfig?.twitch?.channel || appConfig?.kick?.channel || getActiveStreamerRoom()).toLowerCase().replace(/^#/, '');
   const isConn = isStreamerLoggedIn();
 
   if (!isConn || !channel) {
@@ -995,7 +1009,7 @@ function initDashboardMqtt() {
       keepAliveInterval: 30,
       onSuccess: () => {
         isMqttConnected = true;
-        console.log(`🟢 OrbiBot Dashboard conectado a Cloud Relay MQTT (#${channel})`);
+        console.log(`🟢 OrbyxBot Dashboard conectado a Cloud Relay MQTT (#${channel})`);
       },
       onFailure: (err) => {
         isMqttConnected = false;
@@ -1009,21 +1023,27 @@ function initDashboardMqtt() {
 }
 
 function broadcastEvent(event, data) {
-  const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
+  const room = getActiveStreamerRoom();
+  const channel = (appConfig?.twitch?.channel || appConfig?.kick?.channel || room).toLowerCase().replace(/^#/, '');
   const isConn = isStreamerLoggedIn();
 
-  // Si no hay sesión iniciada, no enviar eventos a OBS
-  if (!isConn || !channel) {
-    console.warn('[Broadcast] Sesión cerrada o canal no configurado. Evento no transmitido.');
+  // Si no hay sesión iniciada, no transmitir
+  if (!isConn) {
+    console.warn('[Broadcast] Sesión cerrada. Evento no transmitido.');
     return;
   }
 
-  const payload = { event, data, channel, timestamp: Date.now() };
+  const payload = { event, data, channel, room, timestamp: Date.now() };
 
   // 1. BroadcastChannel (para pestañas del mismo navegador)
   if (broadcastChannel) {
     try { broadcastChannel.postMessage(payload); } catch (e) { }
   }
+  try {
+    const scopedBc = new BroadcastChannel('orbyxbot_stream_' + room);
+    scopedBc.postMessage(payload);
+    scopedBc.close();
+  } catch (e) { }
 
   // 2. Storage event
   try {
@@ -1069,10 +1089,23 @@ function connectWebSocket() {
           handleAuthSuccess(e.data);
           return;
         }
+        if (e.data.type === 'KICK_AUTH_SUCCESS') {
+          handleKickAuthSuccess(e.data);
+          return;
+        }
         handleSocketMessage(e.data);
       }
     };
   }
+
+  // Scoped BroadcastChannel listener
+  try {
+    const room = getActiveStreamerRoom();
+    const scopedBc = new BroadcastChannel('orbyxbot_stream_' + room);
+    scopedBc.onmessage = (e) => {
+      if (e.data) handleSocketMessage(e.data);
+    };
+  } catch (e) { }
 
   // Storage event listener
   window.addEventListener('storage', (e) => {
@@ -1085,6 +1118,12 @@ function connectWebSocket() {
         handleAuthSuccess(payload);
       } catch (err) { }
     }
+    if (e.key === 'orbibot_kick_auth_event' && e.newValue) {
+      try {
+        const payload = JSON.parse(e.newValue);
+        handleKickAuthSuccess(payload);
+      } catch (err) { }
+    }
   });
 
   // WebSocket for backend (works on Render, localhost, or any custom domain; skips only static github.io)
@@ -1095,7 +1134,9 @@ function connectWebSocket() {
       socket = new WebSocket(`${protocol}//${location.host}`);
 
       socket.onopen = () => {
-        console.log('Connected to StreamBot Server WebSocket');
+        console.log('Connected to OrbyxBot Server WebSocket');
+        const room = getActiveStreamerRoom();
+        socket.send(JSON.stringify({ action: 'join', room }));
       };
 
       socket.onmessage = (event) => {
@@ -1115,11 +1156,29 @@ function connectWebSocket() {
 }
 
 function handleSocketMessage(msg) {
-  const { event, data } = msg;
+  if (!msg) return;
+  const { event, data, room, channel } = msg;
+
+  // IMPORTANT: Never display toasts or execute stream alert audio on the landing page!
+  const landingView = document.getElementById('landingView');
+  const isLandingActive = landingView && landingView.style.display !== 'none';
+  if (isLandingActive) {
+    if (event === 'init_state' || event === 'bot_status') {
+      if (data?.botStatus) updateBotStatusUI(data.botStatus);
+      else if (data) updateBotStatusUI(data);
+    }
+    return;
+  }
+
+  // Room verification
+  const myRoom = getActiveStreamerRoom();
+  if (room && room !== 'default' && room !== myRoom && channel && channel !== myRoom) {
+    return;
+  }
 
   if (event === 'init_state') {
-    updateBotStatusUI(data.botStatus);
-    updateSongRequestUI(data.srState);
+    if (data.botStatus) updateBotStatusUI(data.botStatus);
+    if (data.srState) updateSongRequestUI(data.srState);
   } else if (event === 'bot_status') {
     updateBotStatusUI(data);
   } else if (event === 'chat_message') {
@@ -1130,9 +1189,10 @@ function handleSocketMessage(msg) {
       playYouTubeSong(data.data.videoId);
     }
   } else if (event === 'alert') {
-    showToast(`Alerta recibida: ${data.type?.toUpperCase()} de ${data.user}`, 'success');
+    const alertType = data.type ? data.type.toUpperCase().replace('_', ' ') : 'EVENTO';
+    showToast(`🔔 Alerta en OBS: ${alertType} de ${data.user || 'Espectador'}`, 'info');
   } else if (event === 'tts') {
-    console.log('TTS triggered:', data);
+    console.log('TTS triggered in dashboard:', data);
   }
 }
 
@@ -2290,35 +2350,38 @@ window.toggleWidgetUrlVisibility = toggleWidgetUrlVisibility;
 // ================= EVENT TESTS =================
 async function triggerTestAlert(type) {
   if (!isStreamerLoggedIn()) {
-    showToast('⚠️ Debes iniciar sesión con tu cuenta de Twitch para probar las alertas en OBS Studio.', 'warn');
+    showToast('⚠️ Debes iniciar sesión o vincular un canal para probar las alertas en OBS.', 'warn');
     return;
   }
+  const isKick = type.startsWith('kick_');
   const payload = {
     type,
-    user: 'EspectadorPro',
-    amount: type === 'bits' ? 500 : 1,
+    user: isKick ? 'KickGamer_2026' : 'StreamerPro',
+    amount: type === 'bits' ? 500 : (type === 'kick_gift' ? 5 : 1),
     viewers: 45,
     tier: '1',
     reward: 'Saludo en Directo',
-    message: '¡Excelente directo, crack! Saludos a todos.'
+    message: isKick ? '¡Apoyando con todo en Kick! 🚀' : '¡Excelente directo, crack! Saludos a toda la comunidad.',
+    platform: isKick ? 'kick' : 'twitch'
   };
 
   // Immediate multi-channel broadcast (for OBS Studio & browser)
   broadcastEvent('alert', payload);
-  showToast(`¡Alerta de ${type.toUpperCase()} enviada a OBS Studio!`, 'success');
+  showToast(`¡Alerta de ${type.toUpperCase().replace('_', ' ')} enviada a OBS Studio!`, 'success');
 
   try {
+    const room = getActiveStreamerRoom();
     await fetch('/api/alert/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ ...payload, room })
     });
   } catch (e) { }
 }
 
 async function triggerTestTTS() {
   if (!isStreamerLoggedIn()) {
-    showToast('⚠️ Debes iniciar sesión con tu cuenta de Twitch para probar TTS en OBS Studio.', 'warn');
+    showToast('⚠️ Debes iniciar sesión o vincular un canal para probar TTS en OBS Studio.', 'warn');
     return;
   }
   const input = document.getElementById('testTtsInput');
@@ -2355,10 +2418,11 @@ async function triggerTestTTS() {
   }
 
   try {
+    const room = getActiveStreamerRoom();
     await fetch('/api/tts/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, user: 'StreamerTest', voice })
+      body: JSON.stringify({ text, user: 'StreamerTest', voice, room })
     });
   } catch (e) { }
 }

@@ -9,6 +9,8 @@ let socket = null;
 
 // ================= INITIALIZATION =================
 document.addEventListener('DOMContentLoaded', async () => {
+  initSupabaseAuth();
+  initLandingPage();
   setupNavigation();
   setupRangeInputs();
   setupEventListeners();
@@ -18,7 +20,881 @@ document.addEventListener('DOMContentLoaded', async () => {
   populateWidgetUrls();
   connectWebSocket();
   initDashboardMqtt();
+  updatePlatformLinkingUI();
 });
+
+// ================= SUPABASE AUTH & CONFIGURATION =================
+const SUPABASE_URL = 'https://pzrlfuzjkwkrnmqkoaue.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_L6kzW0ZtGyfl6mvKevDX0Q_6G0DCGDP';
+let supabaseClient = null;
+
+function initSupabaseAuth() {
+  if (typeof supabase !== 'undefined' && supabase.createClient) {
+    try {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      console.log('🟢 [Supabase Client] Inicializado en el frontend.');
+
+      // 1. Escuchar cambios de autenticación (ej: regreso exitoso de Google OAuth o Login)
+      supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        console.log('🔐 [Supabase Auth Event]:', event, session?.user?.email);
+        if (session && session.user) {
+          const userObj = {
+            id: session.user.id,
+            email: session.user.email,
+            username: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email.split('@')[0],
+            avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || '',
+            provider: session.user.app_metadata?.provider || 'supabase',
+            loggedInAt: Date.now()
+          };
+          setUserSession(userObj);
+          closeAuthModal();
+
+          // Redirigir automáticamente al dashboard
+          showDashboardView('tab-dashboard');
+          updatePlatformLinkingUI();
+
+          // Limpiar hash de tokens de la URL si venimos de Google OAuth
+          if (window.location.hash && window.location.hash.includes('access_token')) {
+            try {
+              history.replaceState(null, document.title, window.location.pathname + window.location.search);
+            } catch (e) { }
+          }
+        } else if (event === 'SIGNED_OUT') {
+          clearUserSession();
+          showLandingView();
+        }
+      });
+
+      // 2. Verificar sesión actual al cargar
+      supabaseClient.auth.getSession().then(({ data: { session } }) => {
+        if (session && session.user) {
+          const userObj = {
+            id: session.user.id,
+            email: session.user.email,
+            username: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email.split('@')[0],
+            avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || '',
+            provider: session.user.app_metadata?.provider || 'supabase',
+            loggedInAt: Date.now()
+          };
+          setUserSession(userObj);
+          showDashboardView('tab-dashboard');
+          updatePlatformLinkingUI();
+        }
+      });
+    } catch (e) {
+      console.warn('⚠️ [Supabase Client] Error al inicializar:', e);
+    }
+  }
+}
+
+// ================= USER AUTHENTICATION & SESSION MANAGEMENT =================
+function getUserSession() {
+  try {
+    const raw = localStorage.getItem('orbibot_user_session');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
+function setUserSession(user) {
+  try {
+    localStorage.setItem('orbibot_user_session', JSON.stringify(user));
+    updateAuthUI();
+  } catch (e) {
+    console.error('Error saving user session:', e);
+  }
+}
+
+function clearUserSession() {
+  localStorage.removeItem('orbibot_user_session');
+  updateAuthUI();
+}
+
+function updateAuthUI() {
+  const session = getUserSession();
+  const authAccountPill = document.getElementById('authAccountPill');
+  const authAccountEmail = document.getElementById('authAccountEmail');
+
+  if (session && session.email) {
+    if (authAccountPill) authAccountPill.style.display = 'inline-flex';
+    if (authAccountEmail) authAccountEmail.textContent = session.email;
+  } else {
+    if (authAccountPill) authAccountPill.style.display = 'none';
+  }
+}
+
+// Open Auth Modal
+function openAuthModal(initialTab = 'login') {
+  const modal = document.getElementById('authModal');
+  if (!modal) return;
+
+  // Clear any existing alert
+  const alertBox = document.getElementById('authAlertBox');
+  if (alertBox) {
+    alertBox.style.display = 'none';
+    alertBox.innerHTML = '';
+  }
+
+  modal.style.display = 'flex';
+  switchAuthTab(initialTab);
+
+  // Close when clicking overlay backdrop
+  modal.onclick = function (e) {
+    if (e.target === modal) {
+      closeAuthModal();
+    }
+  };
+}
+
+// Close Auth Modal
+function closeAuthModal() {
+  const modal = document.getElementById('authModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Switch between Login and Register Tabs
+function switchAuthTab(tab) {
+  const loginBtn = document.getElementById('authTabLoginBtn');
+  const registerBtn = document.getElementById('authTabRegisterBtn');
+  const loginForm = document.getElementById('authLoginForm');
+  const registerForm = document.getElementById('authRegisterForm');
+  const mainTitle = document.getElementById('authModalMainTitle');
+  const subtitle = document.getElementById('authModalSubtitle');
+  const alertBox = document.getElementById('authAlertBox');
+
+  if (alertBox) {
+    alertBox.style.display = 'none';
+    alertBox.innerHTML = '';
+  }
+
+  if (tab === 'register') {
+    if (loginBtn) loginBtn.classList.remove('active');
+    if (registerBtn) registerBtn.classList.add('active');
+    if (loginForm) loginForm.style.display = 'none';
+    if (registerForm) registerForm.style.display = 'flex';
+    if (mainTitle) mainTitle.textContent = 'Crear Cuenta';
+    if (subtitle) subtitle.textContent = 'Crea tu cuenta gratis en Supabase para acceder al panel.';
+    const emailInput = document.getElementById('authRegEmail');
+    if (emailInput) setTimeout(() => emailInput.focus(), 50);
+  } else {
+    if (registerBtn) registerBtn.classList.remove('active');
+    if (loginBtn) loginBtn.classList.add('active');
+    if (registerForm) registerForm.style.display = 'none';
+    if (loginForm) loginForm.style.display = 'flex';
+    if (mainTitle) mainTitle.textContent = 'Iniciar Sesión';
+    if (subtitle) subtitle.textContent = 'Accede a tu panel de control, widgets y overlays en la nube.';
+    const emailInput = document.getElementById('authLoginEmail');
+    if (emailInput) setTimeout(() => emailInput.focus(), 50);
+  }
+}
+
+// Show alert message in Auth Modal
+function showAuthAlert(type, message) {
+  const alertBox = document.getElementById('authAlertBox');
+  if (!alertBox) return;
+  alertBox.className = `auth-alert-box ${type}`;
+  alertBox.innerHTML = (type === 'error' ? '⚠️ ' : (type === 'info' ? 'ℹ️ ' : '✅ ')) + message;
+  alertBox.style.display = 'block';
+}
+
+// Google Sign-In with Supabase
+async function signInWithGoogle() {
+  showAuthAlert('info', 'Redirigiendo a Google OAuth...');
+  if (!supabaseClient) {
+    initSupabaseAuth();
+  }
+  if (!supabaseClient) {
+    showAuthAlert('error', 'El cliente de Supabase no está listo. Verifica tu conexión.');
+    return;
+  }
+
+  try {
+    const cleanOrigin = window.location.origin;
+    const cleanPath = window.location.pathname.replace(/\/index\.html$/i, '').replace(/\/$/, '');
+    const redirectUrl = `${cleanOrigin}${cleanPath}/`;
+
+    const { data, error } = await supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl
+      }
+    });
+
+    if (error) {
+      throw error;
+    }
+    if (data && data.url) {
+      window.location.href = data.url;
+    }
+  } catch (err) {
+    console.error('Error al conectar con Google:', err);
+    showAuthAlert('error', 'Error con Google OAuth: ' + (err.message || 'Verifica la configuración del proveedor Google en Supabase.'));
+  }
+}
+
+// Handler for when user clicks "Panel de Control"
+function handleDashboardNavClick(targetTab = 'tab-dashboard') {
+  const session = getUserSession();
+  if (session && session.email) {
+    // User already authenticated -> direct access to dashboard
+    showDashboardView(targetTab);
+  } else {
+    // User not authenticated -> open login modal
+    openAuthModal('login');
+  }
+}
+
+// Handle Register Form Submission with Supabase
+async function handleAuthRegisterSubmit(event) {
+  event.preventDefault();
+  const emailInput = document.getElementById('authRegEmail');
+  const emailConfirmInput = document.getElementById('authRegEmailConfirm');
+  const passwordInput = document.getElementById('authRegPassword');
+  const passwordConfirmInput = document.getElementById('authRegPasswordConfirm');
+  const submitBtn = document.getElementById('authRegSubmitBtn');
+
+  const email = emailInput ? emailInput.value.trim() : '';
+  const emailConfirm = emailConfirmInput ? emailConfirmInput.value.trim() : '';
+  const password = passwordInput ? passwordInput.value : '';
+  const passwordConfirm = passwordConfirmInput ? passwordConfirmInput.value : '';
+
+  // 1. Validate fields presence
+  if (!email || !emailConfirm || !password || !passwordConfirm) {
+    showAuthAlert('error', 'Por favor completa todos los campos del formulario.');
+    return;
+  }
+
+  // 2. Validate Email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    showAuthAlert('error', 'Por favor ingresa un correo electrónico válido.');
+    return;
+  }
+
+  // 3. Validate Email Double Matching (2 veces)
+  if (email.toLowerCase() !== emailConfirm.toLowerCase()) {
+    showAuthAlert('error', 'Los correos electrónicos ingresados no coinciden. Por favor verifícalos.');
+    if (emailConfirmInput) emailConfirmInput.focus();
+    return;
+  }
+
+  // 4. Validate Password length
+  if (password.length < 6) {
+    showAuthAlert('error', 'La contraseña debe tener un mínimo de 6 caracteres.');
+    if (passwordInput) passwordInput.focus();
+    return;
+  }
+
+  // 5. Validate Password Double Matching (2 veces)
+  if (password !== passwordConfirm) {
+    showAuthAlert('error', 'Las contraseñas ingresadas no coinciden. Por favor verifícalas.');
+    if (passwordConfirmInput) passwordConfirmInput.focus();
+    return;
+  }
+
+  // Disable button and show spinner
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    const spinner = submitBtn.querySelector('.auth-btn-spinner');
+    if (spinner) spinner.style.display = 'inline-block';
+  }
+
+  try {
+    if (supabaseClient) {
+      const { data, error } = await supabaseClient.auth.signUp({
+        email: email.toLowerCase(),
+        password: password
+      });
+
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('already') || msg.includes('exists') || msg.includes('registered') || msg.includes('identity')) {
+          throw new Error('Este correo ya está registrado (posiblemente iniciado con Google). Por favor inicia sesión con Google o usa tu contraseña.');
+        }
+        throw error;
+      }
+
+      // Check if identities are empty (Supabase returns empty identities array when user already exists)
+      if (data?.user?.identities && data.user.identities.length === 0) {
+        throw new Error('Este correo ya se encuentra registrado (iniciado previamente con Google o contraseña). Por favor inicia sesión.');
+      }
+
+      // Reset register form
+      if (emailInput) emailInput.value = '';
+      if (emailConfirmInput) emailConfirmInput.value = '';
+      if (passwordInput) passwordInput.value = '';
+      if (passwordConfirmInput) passwordConfirmInput.value = '';
+
+      showAuthAlert('success', '¡Cuenta creada exitosamente en Supabase! Ya puedes iniciar sesión.');
+
+      setTimeout(() => {
+        switchAuthTab('login');
+        const loginEmailInput = document.getElementById('authLoginEmail');
+        if (loginEmailInput) {
+          loginEmailInput.value = email;
+          const loginPassInput = document.getElementById('authLoginPassword');
+          if (loginPassInput) setTimeout(() => loginPassInput.focus(), 100);
+        }
+      }, 1200);
+    } else {
+      // Backend fallback
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Error al registrar.');
+
+      showAuthAlert('success', '¡Cuenta creada exitosamente! Ya puedes iniciar sesión.');
+      setTimeout(() => switchAuthTab('login'), 1200);
+    }
+  } catch (err) {
+    showAuthAlert('error', err.message || 'Ocurrió un error al registrar.');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      const spinner = submitBtn.querySelector('.auth-btn-spinner');
+      if (spinner) spinner.style.display = 'none';
+    }
+  }
+}
+
+// Handle Login Form Submission with Supabase
+async function handleAuthLoginSubmit(event) {
+  event.preventDefault();
+  const emailInput = document.getElementById('authLoginEmail');
+  const passwordInput = document.getElementById('authLoginPassword');
+  const submitBtn = document.getElementById('authLoginSubmitBtn');
+
+  const email = emailInput ? emailInput.value.trim() : '';
+  const password = passwordInput ? passwordInput.value : '';
+
+  if (!email || !password) {
+    showAuthAlert('error', 'Por favor ingresa tu correo y contraseña.');
+    return;
+  }
+
+  // Disable button and show spinner
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    const spinner = submitBtn.querySelector('.auth-btn-spinner');
+    if (spinner) spinner.style.display = 'inline-block';
+  }
+
+  try {
+    if (supabaseClient) {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: email.toLowerCase(),
+        password: password
+      });
+
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('invalid') || msg.includes('credentials')) {
+          throw new Error('Credenciales inválidas. Si te registraste con Google, pulsa el botón "Continuar con Google".');
+        }
+        throw error;
+      }
+
+      const sessionData = {
+        id: data.user.id,
+        email: data.user.email,
+        username: data.user.user_metadata?.full_name || data.user.user_metadata?.name || data.user.email.split('@')[0],
+        avatar: data.user.user_metadata?.avatar_url || '',
+        provider: 'supabase',
+        loggedInAt: Date.now()
+      };
+      setUserSession(sessionData);
+
+      showAuthAlert('success', `¡Bienvenido ${sessionData.username}!`);
+      setTimeout(() => {
+        closeAuthModal();
+        showDashboardView('tab-dashboard');
+      }, 500);
+    } else {
+      // Backend fallback
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Credenciales inválidas.');
+
+      setUserSession(data.user);
+      showAuthAlert('success', `¡Bienvenido!`);
+      setTimeout(() => {
+        closeAuthModal();
+        showDashboardView('tab-dashboard');
+      }, 500);
+    }
+  } catch (err) {
+    showAuthAlert('error', err.message || 'Error al iniciar sesión.');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      const spinner = submitBtn.querySelector('.auth-btn-spinner');
+      if (spinner) spinner.style.display = 'none';
+    }
+  }
+}
+
+// Handle Logout
+async function handleAuthLogout() {
+  if (supabaseClient) {
+    try {
+      await supabaseClient.auth.signOut({ scope: 'local' });
+    } catch (e) {
+      console.warn('Error signing out of Supabase:', e);
+    }
+  }
+  clearUserSession();
+
+  // Limpiar tokens y claves de sesión local
+  try {
+    localStorage.removeItem('orbibot_user_session');
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('sb-') && k.endsWith('-auth-token')) {
+        localStorage.removeItem(k);
+      }
+    });
+  } catch (e) { }
+
+  showToast('Has cerrado tu sesión de OrbyxBot Cloud.', 'info');
+  showLandingView();
+  updateAuthUI();
+}
+
+// ================= PLATFORM LINKING (TWITCH & KICK IN DASHBOARD) =================
+function updatePlatformLinkingUI() {
+  const session = getUserSession();
+  const userLoggedInEmail = document.getElementById('userLoggedInEmail');
+  if (userLoggedInEmail && session) {
+    userLoggedInEmail.textContent = session.email || session.username || 'Sesión activa';
+  }
+
+  // 1. Twitch Status
+  const isTwitchConn = isStreamerLoggedIn();
+  const twitchChannel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
+  const twitchStatusText = document.getElementById('dashTwitchStatusText');
+  const twitchStatusBadge = document.getElementById('dashTwitchStatusBadge');
+  const twitchDiscView = document.getElementById('dashTwitchDisconnectedView');
+  const twitchConnView = document.getElementById('dashTwitchConnectedView');
+  const dashUserName = document.getElementById('dashUserName');
+  const dashUserAvatar = document.getElementById('dashUserAvatar');
+
+  if (isTwitchConn && twitchChannel) {
+    if (twitchStatusText) twitchStatusText.textContent = `@${twitchChannel} sincronizado`;
+    if (twitchStatusBadge) {
+      twitchStatusBadge.textContent = '● Conectado';
+      twitchStatusBadge.style.background = 'rgba(145, 70, 255, 0.2)';
+      twitchStatusBadge.style.color = '#c4b5fd';
+      twitchStatusBadge.style.border = '1px solid rgba(145, 70, 255, 0.4)';
+    }
+    if (twitchDiscView) twitchDiscView.style.display = 'none';
+    if (twitchConnView) twitchConnView.style.display = 'flex';
+    if (dashUserName) dashUserName.textContent = `@${twitchChannel}`;
+
+    // Get stored avatar if available
+    const authData = localStorage.getItem('orbibot_twitch_auth');
+    if (authData && dashUserAvatar) {
+      try {
+        const parsed = JSON.parse(authData);
+        if (parsed.profile_image_url) dashUserAvatar.src = parsed.profile_image_url;
+      } catch (e) { }
+    }
+  } else {
+    if (twitchStatusText) twitchStatusText.textContent = 'No conectado';
+    if (twitchStatusBadge) {
+      twitchStatusBadge.textContent = '● Desconectado';
+      twitchStatusBadge.style.background = 'rgba(255,255,255,0.08)';
+      twitchStatusBadge.style.color = '#94a3b8';
+      twitchStatusBadge.style.border = 'none';
+    }
+    if (twitchDiscView) twitchDiscView.style.display = 'flex';
+    if (twitchConnView) twitchConnView.style.display = 'none';
+  }
+
+  // 2. Kick Status
+  const kickConfig = appConfig?.kick || (() => {
+    try { return JSON.parse(localStorage.getItem('orbibot_kick_auth') || '{}'); } catch (e) { return {}; }
+  })();
+  const kickChannel = (kickConfig.channel || kickConfig.username || localStorage.getItem('orbibot_kick_channel') || '').toLowerCase().replace(/^@/, '').trim();
+  const isKickConn = Boolean(kickChannel && (kickConfig.connected !== false));
+  const kickDisplayName = kickConfig.username || kickChannel;
+  const kickAvatar = kickConfig.profile_picture || '';
+
+  const kickStatusText = document.getElementById('dashKickStatusText');
+  const kickStatusBadge = document.getElementById('dashKickStatusBadge');
+  const kickDiscView = document.getElementById('dashKickDisconnectedView');
+  const kickConnView = document.getElementById('dashKickConnectedView');
+  const dashKickChannelName = document.getElementById('dashKickChannelName');
+  const dashKickAvatar = document.getElementById('dashKickAvatar');
+
+  if (isKickConn && kickChannel) {
+    if (kickStatusText) kickStatusText.textContent = `@${kickDisplayName || kickChannel} vinculado`;
+    if (kickStatusBadge) {
+      kickStatusBadge.textContent = '● Conectado';
+      kickStatusBadge.style.background = 'rgba(83, 252, 24, 0.2)';
+      kickStatusBadge.style.color = '#53fc18';
+      kickStatusBadge.style.border = '1px solid rgba(83, 252, 24, 0.4)';
+    }
+    if (kickDiscView) kickDiscView.style.display = 'none';
+    if (kickConnView) kickConnView.style.display = 'flex';
+    if (dashKickChannelName) dashKickChannelName.textContent = `@${kickDisplayName || kickChannel}`;
+    if (dashKickAvatar) {
+      if (kickAvatar) {
+        dashKickAvatar.src = kickAvatar;
+        dashKickAvatar.style.display = 'inline-block';
+      } else {
+        dashKickAvatar.style.display = 'none';
+      }
+    }
+  } else {
+    if (kickStatusText) kickStatusText.textContent = 'No conectado';
+    if (kickStatusBadge) {
+      kickStatusBadge.textContent = '● Desconectado';
+      kickStatusBadge.style.background = 'rgba(255,255,255,0.08)';
+      kickStatusBadge.style.color = '#94a3b8';
+      kickStatusBadge.style.border = 'none';
+    }
+    if (kickDiscView) kickDiscView.style.display = 'flex';
+    if (kickConnView) kickConnView.style.display = 'none';
+    if (dashKickAvatar) dashKickAvatar.style.display = 'none';
+  }
+
+  // 3. Multi-Chat Platform Toggles & Status
+  let chatPlatforms = appConfig?.chatPlatforms || (() => {
+    try { return JSON.parse(localStorage.getItem('orbibot_chat_platforms') || '{"twitch":true,"kick":true}'); } catch (e) { return { twitch: true, kick: true }; }
+  })();
+
+  const toggleTwitch = document.getElementById('toggleChatTwitch');
+  const toggleKick = document.getElementById('toggleChatKick');
+  if (toggleTwitch) toggleTwitch.checked = chatPlatforms.twitch !== false;
+  if (toggleKick) toggleKick.checked = chatPlatforms.kick !== false;
+
+  const twitchActive = isTwitchConn && (chatPlatforms.twitch !== false);
+  const kickActive = isKickConn && (chatPlatforms.kick !== false);
+
+  const multiChatBadge = document.getElementById('multiChatIndicatorBadge');
+  const multiChatIcon = document.getElementById('multiChatIcon');
+  const multiChatText = document.getElementById('multiChatText');
+
+  if (multiChatBadge && multiChatText) {
+    if (twitchActive && kickActive) {
+      multiChatBadge.style.display = 'inline-flex';
+      multiChatBadge.style.background = 'linear-gradient(90deg, rgba(145, 70, 255, 0.25), rgba(83, 252, 24, 0.25))';
+      multiChatBadge.style.border = '1px solid rgba(83, 252, 24, 0.5)';
+      multiChatBadge.style.color = '#fff';
+    } else if (twitchActive) {
+      multiChatBadge.style.display = 'inline-flex';
+      multiChatBadge.style.background = 'rgba(145, 70, 255, 0.15)';
+      multiChatBadge.style.border = '1px solid rgba(145, 70, 255, 0.4)';
+      multiChatBadge.style.color = '#c4b5fd';
+      if (multiChatIcon) multiChatIcon.textContent = '🟣';
+      multiChatText.textContent = 'Chat OBS: Solo Twitch';
+    } else if (kickActive) {
+      multiChatBadge.style.display = 'inline-flex';
+      multiChatBadge.style.background = 'rgba(83, 252, 24, 0.15)';
+      multiChatBadge.style.border = '1px solid rgba(83, 252, 24, 0.4)';
+      multiChatBadge.style.color = '#53fc18';
+      if (multiChatIcon) multiChatIcon.textContent = '🟢';
+      multiChatText.textContent = 'Chat OBS: Solo Kick';
+    } else {
+      multiChatBadge.style.display = 'none';
+    }
+  }
+}
+
+// ================= MULTI-PLATFORM CHAT TOGGLES =================
+function handleChatPlatformToggle(platform, enabled) {
+  if (!appConfig) appConfig = {};
+  if (!appConfig.chatPlatforms) appConfig.chatPlatforms = { twitch: true, kick: true };
+  appConfig.chatPlatforms[platform] = enabled;
+
+  try {
+    localStorage.setItem('orbibot_chat_platforms', JSON.stringify(appConfig.chatPlatforms));
+  } catch (e) { }
+
+  fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatPlatforms: appConfig.chatPlatforms })
+  }).catch(() => { });
+
+  broadcastEvent('chat_platform_toggle', appConfig.chatPlatforms);
+
+  updatePlatformLinkingUI();
+  populateWidgetUrls();
+
+  const platName = platform === 'kick' ? 'Kick' : 'Twitch';
+  showToast(enabled ? `🟢 Chat de ${platName} activado en OBS` : `⚪ Chat de ${platName} pausado en OBS`, 'info');
+}
+
+// Helper: Check if both platforms are enabled
+function areBothPlatformsEnabledInDash() {
+  const twitchConn = Boolean(appConfig?.twitch?.connected || localStorage.getItem('orbibot_twitch_auth'));
+  const kickConn = Boolean(appConfig?.kick?.connected || localStorage.getItem('orbibot_kick_auth'));
+  const platforms = appConfig?.chatPlatforms || { twitch: true, kick: true };
+  return Boolean(twitchConn && kickConn && (platforms.twitch !== false) && (platforms.kick !== false));
+}
+
+// Helper: Render Kick Badges
+function renderKickBadges(badges) {
+  if (!badges || !Array.isArray(badges) || badges.length === 0) return '';
+  let html = '';
+  badges.forEach(b => {
+    const type = b.type || '';
+    if (type === 'broadcaster') {
+      html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#53fc18; color:#000; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">HOST</span>`;
+    } else if (type === 'moderator') {
+      html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#10b981; color:#fff; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">MOD</span>`;
+    } else if (type === 'subscriber') {
+      html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#3b82f6; color:#fff; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">SUB</span>`;
+    } else if (type === 'vip') {
+      html += `<span class="kick-badge" style="display:inline-block; padding:1px 5px; background:#ec4899; color:#fff; font-size:10px; font-weight:800; border-radius:3px; margin-right:4px; vertical-align:middle; line-height:1.2;">VIP</span>`;
+    }
+  });
+  return html;
+}
+
+// ================= KICK OAUTH 2.0 FRONTEND LOGIC =================
+let activeKickAuthPopup = null;
+
+function triggerKickOAuthLogin() {
+  const width = 560, height = 750;
+  const left = Math.max(0, (window.innerWidth - width) / 2 + window.screenX);
+  const top = Math.max(0, (window.innerHeight - height) / 2 + window.screenY);
+
+  showToast('Abriendo ventana segura de inicio de sesión con Kick...', 'info');
+
+  // Clean any prior auth event or error
+  localStorage.removeItem('orbibot_kick_auth_event');
+  localStorage.removeItem('orbibot_kick_auth_error');
+
+  const kickAuthUrl = '/api/auth/kick/login';
+  activeKickAuthPopup = window.open(kickAuthUrl, 'KickOAuthLogin', `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no,scrollbars=yes`);
+
+  if (!activeKickAuthPopup || activeKickAuthPopup.closed || typeof activeKickAuthPopup.closed === 'undefined') {
+    window.location.href = kickAuthUrl;
+    return;
+  }
+
+  let pollCount = 0;
+  const authPollInterval = setInterval(async () => {
+    pollCount++;
+
+    // 1. Check for success
+    const rawEvent = localStorage.getItem('orbibot_kick_auth_event');
+    if (rawEvent) {
+      clearInterval(authPollInterval);
+      localStorage.removeItem('orbibot_kick_auth_event');
+      try {
+        if (activeKickAuthPopup && !activeKickAuthPopup.closed) activeKickAuthPopup.close();
+      } catch (e) { }
+      activeKickAuthPopup = null;
+
+      try {
+        const payload = JSON.parse(rawEvent);
+        await handleKickAuthSuccess(payload);
+      } catch (err) {
+        console.error('Error handling Kick auth success payload:', err);
+      }
+      return;
+    }
+
+    // 2. Check for error
+    const rawError = localStorage.getItem('orbibot_kick_auth_error');
+    if (rawError) {
+      clearInterval(authPollInterval);
+      localStorage.removeItem('orbibot_kick_auth_error');
+      try {
+        const errData = JSON.parse(rawError);
+        showToast(`⚠️ Kick: ${errData.desc || errData.error}`, 'error');
+      } catch (e) { }
+      return;
+    }
+
+    if (pollCount > 600) {
+      clearInterval(authPollInterval);
+    }
+  }, 300);
+}
+
+async function handleKickAuthSuccess(payload) {
+  if (activeKickAuthPopup) {
+    try { activeKickAuthPopup.close(); } catch (e) { }
+    activeKickAuthPopup = null;
+  }
+  try { window.focus(); } catch (e) { }
+
+  const kick = payload.kick || payload;
+  const channel = (kick.channel || kick.username || '').toLowerCase();
+  const displayName = kick.username || kick.name || channel;
+  const profilePicture = kick.profile_picture || kick.avatar || '';
+
+  if (!appConfig) appConfig = {};
+  appConfig.kick = {
+    channel,
+    username: displayName,
+    profile_picture: profilePicture,
+    userId: kick.userId || '',
+    accessToken: kick.accessToken || '',
+    refreshToken: kick.refreshToken || '',
+    clientId: kick.clientId || '01M0VT0JC58YQEVGRHM8JFXQX3',
+    connected: true
+  };
+
+  localStorage.setItem('orbibot_kick_auth', JSON.stringify(appConfig.kick));
+  localStorage.setItem('orbibot_kick_channel', channel);
+
+  showToast(`🟢 ¡Kick vinculado con éxito! Conectado como @${displayName || channel}`, 'success');
+
+  connectInBrowserKickBot(appConfig.kick);
+  updatePlatformLinkingUI();
+  populateWidgetUrls();
+}
+
+async function disconnectKickAccount() {
+  if (browserKickWs) {
+    try { browserKickWs.close(); } catch (e) { }
+    browserKickWs = null;
+  }
+
+  try {
+    await fetch('/api/auth/kick/disconnect', { method: 'POST' });
+  } catch (e) { }
+
+  localStorage.removeItem('orbibot_kick_auth');
+  localStorage.removeItem('orbibot_kick_channel');
+  localStorage.removeItem('orbibot_kick_auth_event');
+  localStorage.removeItem('orbibot_kick_auth_error');
+
+  if (!appConfig) appConfig = {};
+  appConfig.kick = {
+    channel: '',
+    username: '',
+    profile_picture: '',
+    userId: '',
+    accessToken: '',
+    refreshToken: '',
+    clientId: '01M0VT0JC58YQEVGRHM8JFXQX3',
+    connected: false
+  };
+
+  showToast('Canal de Kick desvinculado.', 'info');
+  updatePlatformLinkingUI();
+  populateWidgetUrls();
+}
+
+// Export auth functions to window
+window.initSupabaseAuth = initSupabaseAuth;
+window.signInWithGoogle = signInWithGoogle;
+window.openAuthModal = openAuthModal;
+window.closeAuthModal = closeAuthModal;
+window.switchAuthTab = switchAuthTab;
+window.handleDashboardNavClick = handleDashboardNavClick;
+window.handleAuthRegisterSubmit = handleAuthRegisterSubmit;
+window.handleAuthLoginSubmit = handleAuthLoginSubmit;
+window.handleAuthLogout = handleAuthLogout;
+window.getUserSession = getUserSession;
+window.updatePlatformLinkingUI = updatePlatformLinkingUI;
+window.handleChatPlatformToggle = handleChatPlatformToggle;
+window.triggerKickOAuthLogin = triggerKickOAuthLogin;
+window.handleKickAuthSuccess = handleKickAuthSuccess;
+window.disconnectKickAccount = disconnectKickAccount;
+
+// ================= VIEW SWITCHER (LANDING VS DASHBOARD) =================
+function showLandingView() {
+  const landingView = document.getElementById('landingView');
+  const dashboardView = document.getElementById('dashboardAppView');
+  if (landingView) landingView.style.display = 'flex';
+  if (dashboardView) dashboardView.style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showDashboardView(targetTab = 'tab-dashboard') {
+  const session = getUserSession();
+  if (!session || !session.email) {
+    showLandingView();
+    openAuthModal('login');
+    showToast('Debes iniciar sesión para acceder al Panel de Control.', 'warn');
+    return;
+  }
+
+  const landingView = document.getElementById('landingView');
+  const dashboardView = document.getElementById('dashboardAppView');
+  if (landingView) landingView.style.display = 'none';
+  if (dashboardView) dashboardView.style.display = 'flex';
+  if (targetTab) {
+    switchTab(targetTab);
+  }
+  updateAuthUI();
+  updatePlatformLinkingUI();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+window.showLandingView = showLandingView;
+window.showDashboardView = showDashboardView;
+
+function initLandingPage() {
+  updateAuthUI();
+
+  // Navigation & CTA buttons on Landing
+  const landingNavDashboardBtn = document.getElementById('landingNavDashboardBtn');
+  if (landingNavDashboardBtn) {
+    landingNavDashboardBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleDashboardNavClick('tab-dashboard');
+    });
+  }
+
+  const landingNavLoginBtn = document.getElementById('landingNavLoginBtn');
+  if (landingNavLoginBtn) landingNavLoginBtn.addEventListener('click', () => openAuthModal('login'));
+
+  const landingHeroLoginBtn = document.getElementById('landingHeroLoginBtn');
+  if (landingHeroLoginBtn) landingHeroLoginBtn.addEventListener('click', triggerTwitchOAuthLogin);
+
+  const landingHeroDashboardBtn = document.getElementById('landingHeroDashboardBtn');
+  if (landingHeroDashboardBtn) {
+    landingHeroDashboardBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleDashboardNavClick('tab-dashboard');
+    });
+  }
+
+  const landingBottomLoginBtn = document.getElementById('landingBottomLoginBtn');
+  if (landingBottomLoginBtn) landingBottomLoginBtn.addEventListener('click', () => openAuthModal('login'));
+
+  // Return to Home Buttons
+  const sidebarGoHomeBtn = document.getElementById('sidebarGoHomeBtn');
+  if (sidebarGoHomeBtn) sidebarGoHomeBtn.addEventListener('click', showLandingView);
+
+  const topGoHomeBtn = document.getElementById('topGoHomeBtn');
+  if (topGoHomeBtn) topGoHomeBtn.addEventListener('click', showLandingView);
+
+  // FAQ Accordion
+  document.querySelectorAll('.landing-faq-question').forEach(q => {
+    q.addEventListener('click', () => {
+      const item = q.parentElement;
+      const isActive = item.classList.contains('active');
+      document.querySelectorAll('.landing-faq-item').forEach(i => i.classList.remove('active'));
+      if (!isActive) item.classList.add('active');
+    });
+  });
+
+  // Check session on load
+  const hash = window.location.hash;
+  const session = getUserSession();
+  if (session && session.email) {
+    const tabName = (hash && hash.startsWith('#tab-')) ? hash.substring(1) : 'tab-dashboard';
+    showDashboardView(tabName);
+  } else {
+    showLandingView();
+  }
+}
 
 // ================= NAVIGATION =================
 function setupNavigation() {
@@ -60,7 +936,7 @@ function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
   const toast = document.createElement('div');
   toast.className = 'toast';
-  
+
   let icon = 'ℹ️';
   if (type === 'success') icon = '✅';
   if (type === 'error') icon = '❌';
@@ -83,13 +959,44 @@ const broadcastChannel = typeof BroadcastChannel !== 'undefined' ? new Broadcast
 let dashboardMqttClient = null;
 let isMqttConnected = false;
 
+function isStreamerLoggedIn() {
+  const session = getUserSession();
+  const twitchChannel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
+  const kickChannel = (appConfig?.kick?.channel || '').toLowerCase().replace(/^#/, '');
+  const hasTwitch = (appConfig?.twitch?.connected || Boolean(localStorage.getItem('orbibot_twitch_auth'))) && Boolean(twitchChannel);
+  const hasKick = (appConfig?.kick?.connected || Boolean(localStorage.getItem('orbibot_kick_auth'))) && Boolean(kickChannel);
+  const hasUserSession = Boolean(session && session.email);
+  return hasTwitch || hasKick || hasUserSession;
+}
+
+function getActiveStreamerRoom() {
+  const twitchChannel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
+  const kickChannel = (appConfig?.kick?.channel || '').toLowerCase().replace(/^#/, '');
+  const session = getUserSession();
+  if (twitchChannel) return twitchChannel;
+  if (kickChannel) return kickChannel;
+  if (session && session.email) return session.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+  return 'streamer';
+}
+
 function initDashboardMqtt() {
   if (typeof Paho === 'undefined') return;
-  const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '') || 'general';
+  const channel = (appConfig?.twitch?.channel || appConfig?.kick?.channel || getActiveStreamerRoom()).toLowerCase().replace(/^#/, '');
+  const isConn = isStreamerLoggedIn();
+
+  if (!isConn || !channel) {
+    if (dashboardMqttClient) {
+      try { dashboardMqttClient.disconnect(); } catch (e) { }
+      dashboardMqttClient = null;
+    }
+    isMqttConnected = false;
+    return;
+  }
+
   const clientId = 'orbi_dash_' + Math.random().toString(36).substring(2, 9);
   try {
     if (dashboardMqttClient) {
-      try { dashboardMqttClient.disconnect(); } catch(e) {}
+      try { dashboardMqttClient.disconnect(); } catch (e) { }
     }
     dashboardMqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
     dashboardMqttClient.onConnectionLost = () => {
@@ -102,7 +1009,7 @@ function initDashboardMqtt() {
       keepAliveInterval: 30,
       onSuccess: () => {
         isMqttConnected = true;
-        console.log('OrbiBot Dashboard conectado a Cloud Relay MQTT (OBS Ready)');
+        console.log(`🟢 OrbyxBot Dashboard conectado a Cloud Relay MQTT (#${channel})`);
       },
       onFailure: (err) => {
         isMqttConnected = false;
@@ -110,49 +1017,57 @@ function initDashboardMqtt() {
         setTimeout(initDashboardMqtt, 6000);
       }
     });
-  } catch(e) {
+  } catch (e) {
     console.warn('Error creating MQTT client:', e);
   }
 }
 
 function broadcastEvent(event, data) {
-  const payload = { event, data, timestamp: Date.now() };
+  const room = getActiveStreamerRoom();
+  const channel = (appConfig?.twitch?.channel || appConfig?.kick?.channel || room).toLowerCase().replace(/^#/, '');
+  const isConn = isStreamerLoggedIn();
+
+  // Si no hay sesión iniciada, no transmitir
+  if (!isConn) {
+    console.warn('[Broadcast] Sesión cerrada. Evento no transmitido.');
+    return;
+  }
+
+  const payload = { event, data, channel, room, timestamp: Date.now() };
 
   // 1. BroadcastChannel (para pestañas del mismo navegador)
   if (broadcastChannel) {
-    try { broadcastChannel.postMessage(payload); } catch(e) {}
+    try { broadcastChannel.postMessage(payload); } catch (e) { }
   }
+  try {
+    const scopedBc = new BroadcastChannel('orbyxbot_stream_' + room);
+    scopedBc.postMessage(payload);
+    scopedBc.close();
+  } catch (e) { }
 
   // 2. Storage event
   try {
     localStorage.setItem('orbibot_last_event', JSON.stringify(payload));
-  } catch(e) {}
+  } catch (e) { }
 
-  // 3. Cloud MQTT Relay (para fuentes de navegador OBS Studio)
+  // 3. Cloud MQTT Relay (para OBS Studio del streamer específico)
   if (dashboardMqttClient && isMqttConnected) {
     try {
-      const channel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '') || 'general';
       const token = getEffectiveWidgetToken();
       const msgStr = JSON.stringify(payload);
-      
+
       // Publicar en tópico privado protegido con token secreto
-      if (channel !== 'general' && token) {
+      if (token) {
         const msgPriv = new Paho.MQTT.Message(msgStr);
         msgPriv.destinationName = `orbibot/${channel}_${token}/events`;
         dashboardMqttClient.send(msgPriv);
       }
 
-      // Publicar también en tópico estándar para compatibilidad
+      // Publicar en tópico del canal
       const msg1 = new Paho.MQTT.Message(msgStr);
       msg1.destinationName = `orbibot/${channel}/events`;
       dashboardMqttClient.send(msg1);
-
-      if (channel !== 'general') {
-        const msg2 = new Paho.MQTT.Message(msgStr);
-        msg2.destinationName = 'orbibot/general/events';
-        dashboardMqttClient.send(msg2);
-      }
-    } catch(e) {
+    } catch (e) {
       console.warn('Error publishing to MQTT relay:', e);
     }
   }
@@ -161,7 +1076,7 @@ function broadcastEvent(event, data) {
   if (socket && socket.readyState === WebSocket.OPEN) {
     try {
       socket.send(JSON.stringify(payload));
-    } catch(e) {}
+    } catch (e) { }
   }
 }
 
@@ -174,21 +1089,40 @@ function connectWebSocket() {
           handleAuthSuccess(e.data);
           return;
         }
+        if (e.data.type === 'KICK_AUTH_SUCCESS') {
+          handleKickAuthSuccess(e.data);
+          return;
+        }
         handleSocketMessage(e.data);
       }
     };
   }
 
+  // Scoped BroadcastChannel listener
+  try {
+    const room = getActiveStreamerRoom();
+    const scopedBc = new BroadcastChannel('orbyxbot_stream_' + room);
+    scopedBc.onmessage = (e) => {
+      if (e.data) handleSocketMessage(e.data);
+    };
+  } catch (e) { }
+
   // Storage event listener
   window.addEventListener('storage', (e) => {
     if (e.key === 'orbibot_last_event' && e.newValue) {
-      try { handleSocketMessage(JSON.parse(e.newValue)); } catch(err) {}
+      try { handleSocketMessage(JSON.parse(e.newValue)); } catch (err) { }
     }
     if (e.key === 'orbibot_twitch_auth_event' && e.newValue) {
       try {
         const payload = JSON.parse(e.newValue);
         handleAuthSuccess(payload);
-      } catch(err) {}
+      } catch (err) { }
+    }
+    if (e.key === 'orbibot_kick_auth_event' && e.newValue) {
+      try {
+        const payload = JSON.parse(e.newValue);
+        handleKickAuthSuccess(payload);
+      } catch (err) { }
     }
   });
 
@@ -200,7 +1134,9 @@ function connectWebSocket() {
       socket = new WebSocket(`${protocol}//${location.host}`);
 
       socket.onopen = () => {
-        console.log('Connected to StreamBot Server WebSocket');
+        console.log('Connected to OrbyxBot Server WebSocket');
+        const room = getActiveStreamerRoom();
+        socket.send(JSON.stringify({ action: 'join', room }));
       };
 
       socket.onmessage = (event) => {
@@ -215,16 +1151,34 @@ function connectWebSocket() {
       socket.onclose = () => {
         setTimeout(connectWebSocket, 3000);
       };
-    } catch(e) {}
+    } catch (e) { }
   }
 }
 
 function handleSocketMessage(msg) {
-  const { event, data } = msg;
+  if (!msg) return;
+  const { event, data, room, channel } = msg;
+
+  // IMPORTANT: Never display toasts or execute stream alert audio on the landing page!
+  const landingView = document.getElementById('landingView');
+  const isLandingActive = landingView && landingView.style.display !== 'none';
+  if (isLandingActive) {
+    if (event === 'init_state' || event === 'bot_status') {
+      if (data?.botStatus) updateBotStatusUI(data.botStatus);
+      else if (data) updateBotStatusUI(data);
+    }
+    return;
+  }
+
+  // Room verification
+  const myRoom = getActiveStreamerRoom();
+  if (room && room !== 'default' && room !== myRoom && channel && channel !== myRoom) {
+    return;
+  }
 
   if (event === 'init_state') {
-    updateBotStatusUI(data.botStatus);
-    updateSongRequestUI(data.srState);
+    if (data.botStatus) updateBotStatusUI(data.botStatus);
+    if (data.srState) updateSongRequestUI(data.srState);
   } else if (event === 'bot_status') {
     updateBotStatusUI(data);
   } else if (event === 'chat_message') {
@@ -235,9 +1189,10 @@ function handleSocketMessage(msg) {
       playYouTubeSong(data.data.videoId);
     }
   } else if (event === 'alert') {
-    showToast(`Alerta recibida: ${data.type?.toUpperCase()} de ${data.user}`, 'success');
+    const alertType = data.type ? data.type.toUpperCase().replace('_', ' ') : 'EVENTO';
+    showToast(`🔔 Alerta en OBS: ${alertType} de ${data.user || 'Espectador'}`, 'info');
   } else if (event === 'tts') {
-    console.log('TTS triggered:', data);
+    console.log('TTS triggered in dashboard:', data);
   }
 }
 
@@ -268,10 +1223,10 @@ async function loadInitialData() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ token: parsed.oauthToken, channel: chan })
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
-      } catch(e) {}
+      } catch (e) { }
     }
 
     appConfig = cfgRes;
@@ -285,7 +1240,7 @@ async function loadInitialData() {
     }
   } catch (err) {
     console.warn('Backend API not reachable. Running in standalone / GitHub Pages mode:', err);
-    
+
     // Load from localStorage or defaults
     const localTwitch = localStorage.getItem('orbibot_twitch_auth');
     const localCfg = localStorage.getItem('orbibot_config');
@@ -350,7 +1305,7 @@ function connectInBrowserTwitchBot(twitchData) {
   if (!channel) return;
 
   if (browserTmiClient) {
-    try { browserTmiClient.disconnect(); } catch(e) {}
+    try { browserTmiClient.disconnect(); } catch (e) { }
   }
 
   const opts = {
@@ -428,10 +1383,78 @@ function connectInBrowserTwitchBot(twitchData) {
       browserTmiClient.connect().catch(err => {
         updateBotStatusUI({ status: 'connected', channel });
       });
-    } catch(err) {
+    } catch (err) {
       updateBotStatusUI({ status: 'connected', channel });
     }
   });
+}
+
+// ================= IN-BROWSER KICK CHAT LISTENER =================
+let browserKickWs = null;
+
+function connectInBrowserKickBot(kickData) {
+  const channel = (kickData?.channel || kickData?.username || localStorage.getItem('orbibot_kick_channel') || '').toLowerCase().replace(/^@/, '').trim();
+  if (!channel) return;
+
+  if (browserKickWs) {
+    try { browserKickWs.close(); } catch (e) { }
+    browserKickWs = null;
+  }
+
+  const pusherUrl = 'wss://ws-us2.pusher.com/app/eb1d5f283081ab659038?protocol=7&client=js&version=7.6.0&flash=false';
+
+  async function startKickSocket() {
+    let chatroomId = null;
+    try {
+      const res = await fetch(`/api/kick/chatroom/${channel}`);
+      if (res.ok) {
+        const d = await res.json();
+        chatroomId = d.chatroomId;
+      }
+    } catch (e) { }
+
+    const targetRoom = chatroomId || channel;
+    try {
+      browserKickWs = new WebSocket(pusherUrl);
+      browserKickWs.onopen = () => {
+        browserKickWs.send(JSON.stringify({
+          event: 'pusher:subscribe',
+          data: { auth: '', channel: `chatrooms.${targetRoom}.v2` }
+        }));
+        console.log(`🟢 [Dashboard] Conectado al chat de Kick @${channel}`);
+      };
+      browserKickWs.onmessage = (ev) => {
+        try {
+          const pkt = JSON.parse(ev.data);
+          if (pkt.event === 'App\\Events\\ChatMessageEvent' || pkt.event === 'ChatMessageEvent') {
+            const msgData = typeof pkt.data === 'string' ? JSON.parse(pkt.data) : pkt.data;
+            const sender = msgData.sender || {};
+            const badges = sender.identity?.badges || [];
+            const chatData = {
+              id: msgData.id || `kick-${Date.now()}`,
+              platform: 'kick',
+              user: sender.username || sender.slug || 'KickUser',
+              color: sender.identity?.color || '#53fc18',
+              message: msgData.content || '',
+              isMod: badges.some(b => b.type === 'moderator' || b.type === 'broadcaster'),
+              isSub: badges.some(b => b.type === 'subscriber'),
+              badges,
+              emotes: null
+            };
+            appendChatMessage(chatData);
+            broadcastEvent('chat_message', chatData);
+          }
+        } catch (e) { }
+      };
+      browserKickWs.onclose = () => {
+        const isConn = (appConfig?.kick?.connected !== false) && Boolean(localStorage.getItem('orbibot_kick_auth') || localStorage.getItem('orbibot_kick_channel'));
+        if (isConn) {
+          setTimeout(startKickSocket, 6000);
+        }
+      };
+    } catch (e) { }
+  }
+  startKickSocket();
 }
 
 // ================= UI BINDING =================
@@ -441,7 +1464,7 @@ function bindConfigToUI(cfg) {
     try {
       const local = localStorage.getItem('orbibot_twitch_auth');
       if (local) cfg.twitch = JSON.parse(local);
-    } catch(e) {}
+    } catch (e) { }
   }
 
   // Twitch Profile & Connection
@@ -451,7 +1474,7 @@ function bindConfigToUI(cfg) {
       cfg.twitch.channel = channel;
     }
     const isConn = (cfg.twitch.connected || Boolean(cfg.twitch.oauthToken) || Boolean(channel)) && Boolean(channel);
-    
+
     // Header elements
     const topTwitchLoginBtn = document.getElementById('topTwitchLoginBtn');
     const topUserPill = document.getElementById('topUserPill');
@@ -581,12 +1604,13 @@ function updateBotStatusUI(botStatus) {
         const p = JSON.parse(local);
         currentChannel = (p.channel || p.login || (p.displayName ? p.displayName.toLowerCase() : '') || '').replace(/^#/, '');
       }
-    } catch(e) {}
+    } catch (e) { }
   }
 
-  let status = botStatus?.status || 'disconnected';
-  if ((status === 'disconnected' || !status) && currentChannel && (browserTmiClient || appConfig?.twitch?.connected || localStorage.getItem('orbibot_twitch_auth'))) {
-    status = 'connected';
+  const isConnected = Boolean(currentChannel && (appConfig?.twitch?.connected || browserTmiClient || localStorage.getItem('orbibot_twitch_auth')));
+  let status = botStatus?.status || (isConnected ? 'connected' : 'disconnected');
+  if (!isConnected) {
+    status = 'disconnected';
   }
 
   if (dot) dot.className = `status-dot ${status}`;
@@ -601,7 +1625,10 @@ function updateBotStatusUI(botStatus) {
       statText.innerText = 'En Línea';
       statText.style.color = 'var(--green-success)';
     }
-    if (quickBtn) quickBtn.innerText = 'Desconectar';
+    if (quickBtn) {
+      quickBtn.innerText = 'Desconectar';
+      quickBtn.className = 'btn btn-danger btn-sm';
+    }
     if (statChan && currentChannel) statChan.innerText = `#${currentChannel}`;
   } else if (status === 'connecting') {
     if (badge) {
@@ -612,7 +1639,11 @@ function updateBotStatusUI(botStatus) {
       statText.innerText = 'Conectando';
       statText.style.color = 'var(--yellow-warn)';
     }
-    if (quickBtn) quickBtn.innerText = 'Conectando...';
+    if (quickBtn) {
+      quickBtn.innerText = 'Conectando...';
+      quickBtn.className = 'btn btn-secondary btn-sm';
+    }
+    if (statChan) statChan.innerText = currentChannel ? `#${currentChannel}` : 'Ninguno';
   } else {
     if (badge) {
       badge.className = 'btn btn-sm btn-danger';
@@ -622,7 +1653,11 @@ function updateBotStatusUI(botStatus) {
       statText.innerText = 'Inactivo';
       statText.style.color = 'var(--red-danger)';
     }
-    if (quickBtn) quickBtn.innerText = 'Conectar';
+    if (quickBtn) {
+      quickBtn.innerText = 'Iniciar Sesión';
+      quickBtn.className = 'btn btn-primary btn-sm';
+    }
+    if (statChan) statChan.innerText = 'Ninguno';
   }
 }
 
@@ -720,7 +1755,7 @@ async function loadChannelBadges(channelIdOrName) {
         });
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function getTwitchBadgeInfo(setId, version) {
@@ -828,7 +1863,11 @@ function formatTwitchEmotes(message, emotes) {
 // ================= CHAT LIVE LOG =================
 function appendChatMessage(data) {
   const container = document.getElementById('liveChatMessages');
-  if (!container) return;
+  if (!container || !data || !data.message) return;
+
+  const platform = data.platform || 'twitch';
+  const platforms = appConfig?.chatPlatforms || { twitch: true, kick: true };
+  if (platforms[platform] === false) return;
 
   // Clear initial placeholder notice if present
   const placeholder = container.querySelector('em');
@@ -836,19 +1875,40 @@ function appendChatMessage(data) {
     container.innerHTML = '';
   }
 
-  if (data.roomId) {
+  if (data.roomId && platform === 'twitch') {
     loadChannelBadges(data.roomId);
   }
 
   const row = document.createElement('div');
-  row.className = 'chat-msg-row';
+  row.className = `chat-msg-row chat-platform-${platform}`;
 
-  const badgeHtml = renderTwitchBadges(data.badges || data.badgesRaw, data.isMod, data.isSub);
-  const formattedText = formatTwitchEmotes(data.message, data.emotes);
+  // Check if both platforms are enabled and active
+  const bothActive = areBothPlatformsEnabledInDash();
+  let platformBadge = '';
+  if (bothActive) {
+    if (platform === 'kick') {
+      platformBadge = `
+        <span title="Kick" style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; background:#53fc18; border-radius:3px; margin-right:5px; vertical-align:middle; box-shadow: 0 0 5px rgba(83,252,24,0.4);">
+          <svg viewBox="0 0 32 32" width="10" height="10" fill="#000"><path d="M4 2h8v8h3V6h3V2h10v10h-3v3h-3v2h3v3h3v10H18v-4h-3v-3h-3v-2H9v9H4V2z"/></svg>
+        </span>
+      `;
+    } else {
+      platformBadge = `
+        <span title="Twitch" style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; background:#9146ff; border-radius:3px; margin-right:5px; vertical-align:middle; box-shadow: 0 0 5px rgba(145,70,255,0.4);">
+          <svg viewBox="0 0 24 24" width="10" height="10" fill="#fff"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+        </span>
+      `;
+    }
+  }
+
+  const badgeHtml = platform === 'kick' ? renderKickBadges(data.badges) : renderTwitchBadges(data.badges || data.badgesRaw, data.isMod, data.isSub);
+  const formattedText = platform === 'twitch' ? formatTwitchEmotes(data.message, data.emotes) : escapeHtml(data.message);
+  const userColor = data.color || (platform === 'kick' ? '#53fc18' : '#9146ff');
 
   row.innerHTML = `
+    ${platformBadge}
     <span class="chat-badges">${badgeHtml}</span>
-    <span class="chat-user" style="color: ${data.color || '#9146ff'}">${escapeHtml(data.user)}:</span>
+    <span class="chat-user" style="color: ${userColor}">${escapeHtml(data.user)}:</span>
     <span class="chat-text">${formattedText}</span>
   `;
 
@@ -862,19 +1922,34 @@ function escapeHtml(str) {
 }
 
 function triggerTestChat() {
-  const channel = (appConfig?.twitch?.channel || 'StreamerMaster').replace(/^#/, '');
+  const twitchChan = (appConfig?.twitch?.channel || 'StreamerMaster').replace(/^#/, '');
+  const kickChan = (appConfig?.kick?.channel || appConfig?.kick?.username || 'KickStreamer').replace(/^@/, '');
+  const bothActive = areBothPlatformsEnabledInDash();
+
   const sampleMessages = [
     {
-      user: channel,
+      platform: 'twitch',
+      user: twitchChan,
       color: '#ff007f',
-      message: '¡Hola a todos! Bienvenidos al directo Kappa Keepo',
+      message: '¡Hola a todos en Twitch! Bienvenidos al directo Kappa Keepo',
       badges: { broadcaster: '1', subscriber: '12' },
       isMod: true,
       isSub: true,
-      emotes: { '25': ['36-40'], '1902': ['42-46'] }
+      emotes: { '25': ['42-46'], '1902': ['48-52'] }
     },
     {
-      user: 'Moderador_Pro',
+      platform: 'kick',
+      user: kickChan,
+      color: '#53fc18',
+      message: '¡Y un saludo gigante a toda la comunidad de Kick activa en el chat!',
+      badges: [{ type: 'broadcaster' }, { type: 'subscriber' }],
+      isMod: true,
+      isSub: true,
+      emotes: null
+    },
+    {
+      platform: 'twitch',
+      user: 'Moderador_Twitch',
       color: '#00f2fe',
       message: 'Recuerden respetar las reglas del chat y pasarla bien PogChamp',
       badges: { moderator: '1', partner: '1' },
@@ -883,22 +1958,14 @@ function triggerTestChat() {
       emotes: { '88': ['52-59'] }
     },
     {
-      user: 'SuperVIP_Fan',
-      color: '#ffd700',
-      message: '¡Aquí apoyando con suscripción de regalo! <3 LUL',
-      badges: { vip: '1', premium: '1', 'sub-gifter': '5' },
+      platform: 'kick',
+      user: 'KickViewerVIP',
+      color: '#38bdf8',
+      message: '¡Multi-chat funcionando perfecto en Kick y Twitch al mismo tiempo! 🔥',
+      badges: [{ type: 'vip' }, { type: 'subscriber' }],
       isMod: false,
       isSub: true,
-      emotes: { '425618': ['45-47'] }
-    },
-    {
-      user: 'FundadorTier3',
-      color: '#a855f7',
-      message: '¡Esa canción está brutal! VoHiYo',
-      badges: { founder: '0', turbo: '1', 'artist-badge': '1' },
-      isMod: false,
-      isSub: true,
-      emotes: { '81274': ['26-31'] }
+      emotes: null
     }
   ];
 
@@ -908,7 +1975,7 @@ function triggerTestChat() {
       broadcastEvent('chat_message', msg);
     }, idx * 600);
   });
-  showToast('💬 Mensajes de prueba con emblemas originales enviados a OBS y Chat', 'success');
+  showToast(bothActive ? '💬 Mensajes de prueba con logos Multi-Chat (Twitch + Kick) enviados a OBS' : '💬 Mensajes de prueba enviados a OBS', 'success');
 }
 window.triggerTestChat = triggerTestChat;
 
@@ -988,7 +2055,7 @@ function updateSongRequestUI(state) {
 }
 
 // YouTube Player Integration
-window.onYouTubeIframeAPIReady = function() {
+window.onYouTubeIframeAPIReady = function () {
   ytApiReady = true;
   ytPlayer = new YT.Player('youtubePlayerContainer', {
     height: '100%',
@@ -1140,7 +2207,7 @@ async function regenerateWidgetTokenUI() {
         appConfig.security.widgetToken = newToken;
       }
     }
-  } catch(e) {}
+  } catch (e) { }
 
   if (!newToken) {
     if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
@@ -1177,13 +2244,30 @@ function populateWidgetUrls() {
         const parsed = JSON.parse(localTwitch);
         if (parsed.channel) channel = parsed.channel.trim().toLowerCase().replace(/^#/, '');
       }
-    } catch(e) {}
+    } catch (e) { }
   }
   if (!channel) {
     const inputCh = document.getElementById('cfgTwitchChannel');
     if (inputCh && inputCh.value) {
       channel = inputCh.value.trim().toLowerCase().replace(/^#/, '');
     }
+  }
+
+  let kickChannel = '';
+  if (appConfig && appConfig.kick) {
+    kickChannel = (appConfig.kick.channel || appConfig.kick.username || '').trim().toLowerCase().replace(/^@/, '');
+  }
+  if (!kickChannel) {
+    try {
+      const localKick = localStorage.getItem('orbibot_kick_auth');
+      if (localKick) {
+        const parsed = JSON.parse(localKick);
+        if (parsed.channel || parsed.username) kickChannel = (parsed.channel || parsed.username).trim().toLowerCase().replace(/^@/, '');
+      }
+    } catch (e) { }
+  }
+  if (!kickChannel) {
+    kickChannel = (localStorage.getItem('orbibot_kick_channel') || '').trim().toLowerCase().replace(/^@/, '');
   }
 
   const token = getEffectiveWidgetToken();
@@ -1193,6 +2277,7 @@ function populateWidgetUrls() {
   }
 
   const channelParam = channel ? `channel=${encodeURIComponent(channel)}` : '';
+  const kickParam = kickChannel ? `kick=${encodeURIComponent(kickChannel)}` : '';
   const tokenParam = token ? `token=${encodeURIComponent(token)}` : '';
 
   const params = [channelParam, tokenParam].filter(Boolean).join('&');
@@ -1200,12 +2285,15 @@ function populateWidgetUrls() {
   const goalParams = [channelParam, 'type=subs', tokenParam].filter(Boolean).join('&');
   const goalQs = goalParams ? `?${goalParams}` : '?type=subs';
 
+  const chatParams = [channelParam, kickParam, tokenParam].filter(Boolean).join('&');
+  const chatQs = chatParams ? `?${chatParams}` : '';
+
   const alertsUrl = `${baseUrl}/overlays/alerts.html${qs}`;
   const npUrl = `${baseUrl}/overlays/nowplaying.html${qs}`;
   const goalUrl = `${baseUrl}/overlays/goals.html${goalQs}`;
   const musicPlayerUrl = `${baseUrl}/overlays/music_player.html${qs}`;
   const ttsUrl = `${baseUrl}/overlays/tts.html${qs}`;
-  const chatUrl = `${baseUrl}/overlays/chat.html${qs}`;
+  const chatUrl = `${baseUrl}/overlays/chat.html${chatQs}`;
 
   if (document.getElementById('urlAlertsWidget')) document.getElementById('urlAlertsWidget').value = alertsUrl;
   if (document.getElementById('urlNowPlayingWidget')) document.getElementById('urlNowPlayingWidget').value = npUrl;
@@ -1219,6 +2307,8 @@ function populateWidgetUrls() {
   if (document.getElementById('btnPreviewNowPlaying')) document.getElementById('btnPreviewNowPlaying').href = npUrl;
   if (document.getElementById('btnPreviewGoal')) document.getElementById('btnPreviewGoal').href = goalUrl;
   if (document.getElementById('btnPreviewMusicPlayer')) document.getElementById('btnPreviewMusicPlayer').href = musicPlayerUrl;
+  if (document.getElementById('btnPreviewTts')) document.getElementById('btnPreviewTts').href = ttsUrl;
+  if (document.getElementById('btnPreviewChat')) document.getElementById('btnPreviewChat').href = chatUrl;
   if (document.getElementById('btnPreviewTts')) document.getElementById('btnPreviewTts').href = ttsUrl;
   if (document.getElementById('btnPreviewChat')) document.getElementById('btnPreviewChat').href = chatUrl;
 
@@ -1259,36 +2349,47 @@ window.toggleWidgetUrlVisibility = toggleWidgetUrlVisibility;
 
 // ================= EVENT TESTS =================
 async function triggerTestAlert(type) {
+  if (!isStreamerLoggedIn()) {
+    showToast('⚠️ Debes iniciar sesión o vincular un canal para probar las alertas en OBS.', 'warn');
+    return;
+  }
+  const isKick = type.startsWith('kick_');
   const payload = {
     type,
-    user: 'EspectadorPro',
-    amount: type === 'bits' ? 500 : 1,
+    user: isKick ? 'KickGamer_2026' : 'StreamerPro',
+    amount: type === 'bits' ? 500 : (type === 'kick_gift' ? 5 : 1),
     viewers: 45,
     tier: '1',
     reward: 'Saludo en Directo',
-    message: '¡Excelente directo, crack! Saludos a todos.'
+    message: isKick ? '¡Apoyando con todo en Kick! 🚀' : '¡Excelente directo, crack! Saludos a toda la comunidad.',
+    platform: isKick ? 'kick' : 'twitch'
   };
 
   // Immediate multi-channel broadcast (for OBS Studio & browser)
   broadcastEvent('alert', payload);
-  showToast(`¡Alerta de ${type.toUpperCase()} enviada a OBS!`, 'success');
+  showToast(`¡Alerta de ${type.toUpperCase().replace('_', ' ')} enviada a OBS Studio!`, 'success');
 
   try {
+    const room = getActiveStreamerRoom();
     await fetch('/api/alert/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ ...payload, room })
     });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 async function triggerTestTTS() {
+  if (!isStreamerLoggedIn()) {
+    showToast('⚠️ Debes iniciar sesión o vincular un canal para probar TTS en OBS Studio.', 'warn');
+    return;
+  }
   const input = document.getElementById('testTtsInput');
-  const text = input.value.trim() || '¡Hola streamer! Este es un mensaje de prueba con Text to Speech en OBS.';
-  const voice = document.getElementById('cfgTtsVoice').value;
-  const volume = Number(document.getElementById('cfgTtsVolume').value) / 100;
-  const rate = Number(document.getElementById('cfgTtsRate').value);
-  const pitch = Number(document.getElementById('cfgTtsPitch').value);
+  const text = (input ? input.value.trim() : '') || '¡Hola streamer! Este es un mensaje de prueba con Text to Speech en OBS.';
+  const voice = document.getElementById('cfgTtsVoice')?.value || 'es_001';
+  const volume = Number(document.getElementById('cfgTtsVolume')?.value || 90) / 100;
+  const rate = Number(document.getElementById('cfgTtsRate')?.value || 1.0);
+  const pitch = Number(document.getElementById('cfgTtsPitch')?.value || 1.0);
 
   const ttsData = {
     user: 'StreamerTest',
@@ -1313,16 +2414,17 @@ async function triggerTestTTS() {
       u.rate = rate;
       u.pitch = pitch;
       window.speechSynthesis.speak(u);
-    } catch(e) {}
+    } catch (e) { }
   }
 
   try {
+    const room = getActiveStreamerRoom();
     await fetch('/api/tts/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, user: 'StreamerTest', voice })
+      body: JSON.stringify({ text, user: 'StreamerTest', voice, room })
     });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // ================= GOALS UPDATE =================
@@ -1352,7 +2454,7 @@ async function saveGoalValues(type) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, title, current, target })
     });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // ================= COMMANDS =================
@@ -1365,7 +2467,7 @@ function renderCommands(commands) {
   commands.forEach(cmd => {
     const tr = document.createElement('tr');
     const isZero = cmd.cooldown === 0 || cmd.cooldown === '0';
-    const cooldownBadge = isZero 
+    const cooldownBadge = isZero
       ? `<span class="btn btn-sm" style="font-size:11px; background: rgba(0, 242, 254, 0.2); color: var(--cyan-accent); border: 1px solid var(--cyan-accent);">Sin Cooldown (0s)</span>`
       : `<span class="btn btn-secondary btn-sm" style="font-size:11px;">${cmd.cooldown !== undefined ? cmd.cooldown : 10}s</span>`;
 
@@ -1416,7 +2518,7 @@ async function editCommand(cmdId) {
 
     document.getElementById('newCmdName').focus();
     showToast(`Editando comando ${cmd.name}`, 'info');
-  } catch(e) {}
+  } catch (e) { }
 }
 
 function cancelEditCommand() {
@@ -1502,7 +2604,7 @@ async function syncTwitchRewardsUI() {
         showToast('ℹ️ Tu canal de Twitch debe tener estado de Afiliado o Partner para usar Puntos de Canal.', 'warn');
         return;
       }
-    } catch(e) {}
+    } catch (e) { }
 
     // 2. Si no hubo backend o estamos en frontend directo, consultar Twitch Helix
     if (twRewards.length === 0 && cleanToken) {
@@ -1519,7 +2621,7 @@ async function syncTwitchRewardsUI() {
             twitchCfg.clientId = clientId;
             localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twitchCfg));
           }
-        } catch(e) {}
+        } catch (e) { }
       }
 
       if (userId) {
@@ -1537,7 +2639,7 @@ async function syncTwitchRewardsUI() {
             showToast('ℹ️ Tu canal debe ser Afiliado o Partner de Twitch para consultar Puntos de Canal.', 'warn');
             return;
           }
-        } catch(e) {}
+        } catch (e) { }
       }
     }
 
@@ -1556,7 +2658,7 @@ async function syncTwitchRewardsUI() {
       let localRewards = [];
       try {
         localRewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
-      } catch(e) {}
+      } catch (e) { }
       if (!Array.isArray(localRewards) || localRewards.length === 0) {
         localRewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
       }
@@ -1577,7 +2679,7 @@ async function syncTwitchRewardsUI() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(localRewards)
           });
-        } catch(e) {}
+        } catch (e) { }
         localStorage.setItem('orbibot_rewards', JSON.stringify(localRewards));
         renderRewards(localRewards);
       }
@@ -1662,7 +2764,7 @@ function previewSound(url) {
   try {
     const a = new Audio(url);
     a.play().catch(e => showToast('Error al reproducir audio: ' + e.message, 'error'));
-  } catch(e) {}
+  } catch (e) { }
 }
 
 async function handleSoundFileUpload(input) {
@@ -1695,7 +2797,7 @@ async function handleSoundFileUpload(input) {
       } else {
         showToast(`Error: ${data.message || 'No se pudo subir'}`, 'error');
       }
-    } catch(err) {
+    } catch (err) {
       showToast(`Error al subir sonido: ${err.message}`, 'error');
     }
   };
@@ -1717,7 +2819,7 @@ async function saveRewardUI() {
   let rewards = [];
   try {
     rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
-  } catch(e) {}
+  } catch (e) { }
   if (!Array.isArray(rewards) || rewards.length === 0) {
     rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
   }
@@ -1743,9 +2845,22 @@ async function saveRewardUI() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(rewards)
     });
-  } catch(e) {}
+  } catch (e) { }
 
   localStorage.setItem('orbibot_rewards', JSON.stringify(rewards));
+
+  if (supabaseClient) {
+    try {
+      const session = getUserSession();
+      const streamerId = (appConfig?.twitch?.channel || session?.email || 'default').toLowerCase().replace(/^#/, '');
+      await supabaseClient.from('orbibot_settings').upsert({
+        streamer_id: streamerId,
+        key: 'channel_points',
+        value: rewards,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'streamer_id,key' });
+    } catch (e) { }
+  }
 
   renderRewards(rewards);
   toggleRewardForm(false);
@@ -1758,7 +2873,7 @@ async function editReward(rewardId) {
   let rewards = [];
   try {
     rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
-  } catch(e) {}
+  } catch (e) { }
   if (!Array.isArray(rewards) || rewards.length === 0) {
     rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
   }
@@ -1779,7 +2894,7 @@ async function deleteReward(rewardId) {
   let rewards = [];
   try {
     rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
-  } catch(e) {}
+  } catch (e) { }
   if (!Array.isArray(rewards) || rewards.length === 0) {
     rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
   }
@@ -1791,9 +2906,22 @@ async function deleteReward(rewardId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(filtered)
     });
-  } catch(e) {}
+  } catch (e) { }
 
   localStorage.setItem('orbibot_rewards', JSON.stringify(filtered));
+
+  if (supabaseClient) {
+    try {
+      const session = getUserSession();
+      const streamerId = (appConfig?.twitch?.channel || session?.email || 'default').toLowerCase().replace(/^#/, '');
+      await supabaseClient.from('orbibot_settings').upsert({
+        streamer_id: streamerId,
+        key: 'channel_points',
+        value: filtered,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'streamer_id,key' });
+    } catch (e) { }
+  }
 
   renderRewards(filtered);
   showToast('Recompensa eliminada', 'success');
@@ -1824,7 +2952,7 @@ async function testReward(rewardId) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: 'Daft Punk One More Time', requester: 'VisorVIP' })
-    }).catch(() => {});
+    }).catch(() => { });
     showToast('Canción añadida con prioridad VIP a la cola', 'success');
   } else if (r.action === 'sound') {
     broadcastEvent('alert', {
@@ -1975,7 +3103,7 @@ async function saveAllConfig(showNotification = true) {
       twAuth.oauthToken = payload.twitch.oauthToken;
       localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twAuth));
     }
-  } catch(e) {}
+  } catch (e) { }
 
   populateWidgetUrls();
   initDashboardMqtt();
@@ -2044,14 +3172,8 @@ function setupEventListeners() {
 
   const btnDisconnectTwitch = document.getElementById('btnDisconnectTwitch');
   if (btnDisconnectTwitch) {
-    btnDisconnectTwitch.addEventListener('click', async () => {
-      try {
-        const res = await fetch('/api/bot/disconnect', { method: 'POST' });
-        const data = await res.json();
-        showToast(data.message);
-      } catch (e) {
-        showToast('Error al desconectar', 'error');
-      }
+    btnDisconnectTwitch.addEventListener('click', () => {
+      openLogoutModal();
     });
   }
 
@@ -2100,13 +3222,13 @@ function setupEventListeners() {
         localStorage.removeItem('orbibot_twitch_auth_event');
         try {
           if (activeAuthPopup && !activeAuthPopup.closed) activeAuthPopup.close();
-        } catch(e) {}
+        } catch (e) { }
         activeAuthPopup = null;
 
         try {
           const payload = JSON.parse(rawEvent);
           await handleAuthSuccess(payload);
-        } catch(err) {
+        } catch (err) {
           console.error('Error handling auth success payload:', err);
         }
         return;
@@ -2120,7 +3242,7 @@ function setupEventListeners() {
         try {
           const errData = JSON.parse(rawError);
           showToast(`⚠️ Twitch: ${errData.desc || errData.error}`, 'error');
-        } catch(e) {}
+        } catch (e) { }
         return;
       }
 
@@ -2133,10 +3255,10 @@ function setupEventListeners() {
   // Handle successful OAuth event
   async function handleAuthSuccess(payload) {
     if (activeAuthPopup) {
-      try { activeAuthPopup.close(); } catch(e) {}
+      try { activeAuthPopup.close(); } catch (e) { }
       activeAuthPopup = null;
     }
-    try { window.focus(); } catch(e) {}
+    try { window.focus(); } catch (e) { }
 
     let user = payload.user || payload.data?.user || {};
     const token = (payload.token || payload.oauthToken || '').replace(/^oauth:/i, '').trim();
@@ -2170,10 +3292,10 @@ function setupEventListeners() {
                   avatarUrl = uData.data[0].profile_image_url || avatarUrl;
                 }
               }
-            } catch(e) {}
+            } catch (e) { }
           }
         }
-      } catch(e) {}
+      } catch (e) { }
     }
 
     if (!channelName && displayName) {
@@ -2196,7 +3318,7 @@ function setupEventListeners() {
       let cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
       cfg.twitch = { ...(cfg.twitch || {}), ...twitchCfg };
       localStorage.setItem('orbibot_config', JSON.stringify(cfg));
-    } catch(e) {}
+    } catch (e) { }
 
     if (appConfig) {
       appConfig.twitch = { ...(appConfig.twitch || {}), ...twitchCfg };
@@ -2206,59 +3328,194 @@ function setupEventListeners() {
 
     showToast(`🎉 ¡Sesión iniciada con éxito! Bienvenido, @${displayName || channelName}`, 'success');
 
-    // Submit token to backend if available
+    // Submit token to backend if available and resync from DB
     if (token) {
       try {
-        await fetch('/api/auth/twitch-token', {
+        const authRes = await fetch('/api/auth/twitch-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token, channel: channelName })
         });
-      } catch (e) {}
+        if (authRes.ok) {
+          const authData = await authRes.json();
+          if (authData.config) {
+            appConfig = authData.config;
+          }
+        }
+      } catch (e) { }
     }
 
+    await loadInitialData();
     bindConfigToUI(appConfig);
+    showDashboardView('tab-dashboard');
     populateWidgetUrls();
     initDashboardMqtt();
+    if (typeof initWidgetCustomization === 'function') initWidgetCustomization();
 
     if (channelName && window.tmi) {
       connectInBrowserTwitchBot(twitchCfg);
     }
   }
 
-  // Twitch Disconnect Account
-  async function disconnectTwitchAccount() {
-    if (!confirm('¿Deseas cerrar sesión de Twitch y desconectar el bot?')) return;
+  // ================= LOGOUT CONFIRMATION MODAL & EXECUTION =================
+  const logoutConfirmModal = document.getElementById('logoutConfirmModal');
+  const logoutModalBackdrop = document.getElementById('logoutModalBackdrop');
+  const btnCancelLogout = document.getElementById('btnCancelLogout');
+  const btnConfirmLogout = document.getElementById('btnConfirmLogout');
+  const logoutModalUser = document.getElementById('logoutModalUser');
+  const logoutModalAvatar = document.getElementById('logoutModalAvatar');
+  const logoutModalDisplayName = document.getElementById('logoutModalDisplayName');
+
+  function openLogoutModal() {
+    let currentChannel = (appConfig?.twitch?.channel || '').replace(/^#/, '');
+    let currentDisplayName = appConfig?.twitch?.displayName || currentChannel || 'Streamer';
+    let currentAvatar = appConfig?.twitch?.profileImage || 'https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb60-aee8f1560db5-profile_image-300x300.png';
+
+    if (!currentChannel) {
+      try {
+        const local = localStorage.getItem('orbibot_twitch_auth');
+        if (local) {
+          const p = JSON.parse(local);
+          currentChannel = (p.channel || p.login || '').replace(/^#/, '');
+          currentDisplayName = p.displayName || currentChannel || 'Streamer';
+          currentAvatar = p.profileImage || currentAvatar;
+        }
+      } catch (e) { }
+    }
+
+    if (logoutModalUser) logoutModalUser.innerText = `@${currentChannel || currentDisplayName || 'streamer'}`;
+    if (logoutModalDisplayName) logoutModalDisplayName.innerText = currentDisplayName || 'Streamer';
+    if (logoutModalAvatar) logoutModalAvatar.src = currentAvatar;
+
+    if (logoutConfirmModal) {
+      logoutConfirmModal.style.display = 'flex';
+    }
+  }
+
+  function closeLogoutModal() {
+    if (logoutConfirmModal) {
+      logoutConfirmModal.style.display = 'none';
+    }
+  }
+
+  async function executeLogout() {
+    closeLogoutModal();
 
     try {
       await fetch('/api/bot/disconnect', { method: 'POST' });
-    } catch (e) {}
-
-    localStorage.removeItem('orbibot_twitch_auth');
-    localStorage.removeItem('orbibot_twitch_auth_event');
+    } catch (e) { }
 
     try {
-      let cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
-      if (cfg.twitch) {
-        cfg.twitch.connected = false;
-        cfg.twitch.channel = '';
-        cfg.twitch.oauthToken = '';
-        cfg.twitch.displayName = '';
-        cfg.twitch.profileImage = '';
-        localStorage.setItem('orbibot_config', JSON.stringify(cfg));
-      }
-    } catch(e) {}
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) { }
+
+    // Clear ALL Twitch credentials & cached settings from localStorage
+    localStorage.removeItem('orbibot_twitch_auth');
+    localStorage.removeItem('orbibot_twitch_auth_event');
+    localStorage.removeItem('orbibot_twitch_auth_error');
+    localStorage.removeItem('orbibot_config');
 
     if (browserTmiClient) {
-      try { browserTmiClient.disconnect(); } catch(e) {}
+      try { browserTmiClient.disconnect(); } catch (e) { }
       browserTmiClient = null;
     }
 
-    showToast('Has cerrado sesión de Twitch.', 'info');
-    await loadInitialData();
+    // Explicitly reset in-memory config state
+    appConfig = {
+      twitch: {
+        channel: '',
+        botUsername: '',
+        oauthToken: '',
+        clientId: 'yw1vr664ichms8an2x5lhji58v7ozk',
+        connected: false,
+        displayName: '',
+        profileImage: '',
+        userId: ''
+      },
+      songRequest: { prefix: '!sr', enabled: true, maxDurationMinutes: 8, maxPerUser: 5, userLevel: 'all', volume: 75, autoplay: true },
+      tts: { enabled: true, voice: 'es_001', volume: 90, rate: 1.0, pitch: 1.0, maxLength: 250, bannedWords: [], allowChatCommand: true, chatCommand: '!tts', minBits: 50 },
+      goals: {
+        subs: { title: 'Meta de Suscriptores', current: 0, target: 50, color: '#9146ff' },
+        followers: { title: 'Meta de Seguidores', current: 0, target: 300, color: '#00f2fe' },
+        bits: { title: 'Meta de Bits', current: 0, target: 5000, color: '#f5a623' }
+      }
+    };
+
+    // Reset Top Bar & Header Profile Display
+    const topUserPill = document.getElementById('topUserPill');
+    const topLoginBtn = document.getElementById('topTwitchLoginBtn');
+    const loginHero = document.getElementById('dashboardLoginHero');
+    const connectedHero = document.getElementById('dashboardConnectedHero');
+    const dashUserAvatar = document.getElementById('dashUserAvatar');
+    const dashUserName = document.getElementById('dashUserName');
+    const dashUserTag = document.getElementById('dashUserTag');
+    const topUserAvatar = document.getElementById('topUserAvatar');
+    const topUserName = document.getElementById('topUserName');
+
+    const botStatusDot = document.getElementById('botStatusDot');
+    const botStatusText = document.getElementById('botStatusText');
+    const twitchBadge = document.getElementById('twitchConnectionBadge');
+    const statBotStatus = document.getElementById('statBotStatus');
+    const statChannelName = document.getElementById('statChannelName');
+    const quickConnectBtn = document.getElementById('quickConnectBtn');
+
+    if (topUserPill) topUserPill.style.display = 'none';
+    if (topLoginBtn) topLoginBtn.style.display = 'inline-flex';
+    if (loginHero) loginHero.style.display = 'block';
+    if (connectedHero) connectedHero.style.display = 'none';
+
+    if (topUserAvatar) topUserAvatar.src = '';
+    if (topUserName) topUserName.innerText = '@streamer';
+    if (dashUserAvatar) dashUserAvatar.src = '';
+    if (dashUserName) dashUserName.innerText = 'Streamer';
+    if (dashUserTag) dashUserTag.innerText = '@streamer';
+
+    if (botStatusDot) botStatusDot.className = 'status-dot disconnected';
+    if (botStatusText) botStatusText.innerText = 'Desconectado';
+    if (twitchBadge) {
+      twitchBadge.className = 'btn btn-sm btn-danger';
+      twitchBadge.innerText = '🔴 Desconectado';
+    }
+    if (statBotStatus) {
+      statBotStatus.innerText = 'Inactivo';
+      statBotStatus.style.color = 'var(--red-danger)';
+    }
+    if (statChannelName) statChannelName.innerText = 'Ninguno';
+    if (quickConnectBtn) {
+      quickConnectBtn.innerText = 'Iniciar Sesión';
+      quickConnectBtn.className = 'btn btn-primary btn-sm';
+    }
+
+    const chanInput = document.getElementById('cfgTwitchChannel');
+    const botInput = document.getElementById('cfgTwitchBotUser');
+    const tokenInput = document.getElementById('cfgTwitchToken');
+    if (chanInput) chanInput.value = '';
+    if (botInput) botInput.value = '';
+    if (tokenInput) tokenInput.value = '';
+
+    // Clear chat list
+    const chatList = document.getElementById('chatMessagesList');
+    if (chatList) {
+      chatList.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 40px 20px; font-size: 13px;">Conecta tu canal de Twitch para ver los mensajes del chat en tiempo real.</div>';
+    }
+
+    bindConfigToUI(appConfig);
     populateWidgetUrls();
     initDashboardMqtt();
+    updatePlatformLinkingUI();
+
+    showToast('🔒 Has cerrado sesión de Twitch correctamente.', 'info');
+    switchTab('tab-dashboard');
   }
+
+  function disconnectTwitchAccount() {
+    openLogoutModal();
+  }
+
+  // Modal Buttons
+  if (btnCancelLogout) btnCancelLogout.addEventListener('click', closeLogoutModal);
+  if (logoutModalBackdrop) logoutModalBackdrop.addEventListener('click', closeLogoutModal);
+  if (btnConfirmLogout) btnConfirmLogout.addEventListener('click', executeLogout);
 
   // Twitch Login Buttons
   const topLoginBtn = document.getElementById('topTwitchLoginBtn');
@@ -2269,10 +3526,10 @@ function setupEventListeners() {
 
   // Twitch Logout Buttons
   const topLogoutBtn = document.getElementById('topLogoutBtn');
-  if (topLogoutBtn) topLogoutBtn.addEventListener('click', disconnectTwitchAccount);
+  if (topLogoutBtn) topLogoutBtn.addEventListener('click', openLogoutModal);
 
   const dashLogoutBtn = document.getElementById('dashLogoutBtn');
-  if (dashLogoutBtn) dashLogoutBtn.addEventListener('click', disconnectTwitchAccount);
+  if (dashLogoutBtn) dashLogoutBtn.addEventListener('click', openLogoutModal);
 
   // Dashboard quick actions
   const dashGotoObsBtn = document.getElementById('dashGotoObsBtn');
@@ -2289,15 +3546,18 @@ function setupEventListeners() {
     if (event.data && event.data.type === 'TWITCH_AUTH_SUCCESS') {
       await handleAuthSuccess(event.data);
     }
+    if (event.data && event.data.type === 'KICK_AUTH_SUCCESS') {
+      await handleKickAuthSuccess(event.data);
+    }
   });
 
   // Sidebar Quick Connect Button
   const quickConnectBtn = document.getElementById('quickConnectBtn');
   if (quickConnectBtn) {
     quickConnectBtn.addEventListener('click', async () => {
-      const isConnected = appConfig?.twitch?.connected && appConfig?.twitch?.channel;
+      const isConnected = (appConfig?.twitch?.connected || Boolean(localStorage.getItem('orbibot_twitch_auth'))) && (appConfig?.twitch?.channel || localStorage.getItem('orbibot_twitch_auth'));
       if (isConnected) {
-        disconnectTwitchAccount();
+        openLogoutModal();
       } else {
         triggerTwitchOAuthLogin();
       }
@@ -2306,7 +3566,7 @@ function setupEventListeners() {
 
   // Song Request Controls
   document.getElementById('btnSrSkip').addEventListener('click', skipCurrentSong);
-  
+
   document.getElementById('btnSrClear').addEventListener('click', async () => {
     if (confirm('¿Seguro que deseas vaciar toda la cola de canciones?')) {
       const res = await fetch('/api/sr/clear', { method: 'POST' });
@@ -2360,7 +3620,7 @@ function setupEventListeners() {
     const formattedName = name.startsWith('!') ? name : `!${name}`;
     const commands = await fetch('/api/commands').then(r => r.json());
 
-    const targetIdx = editId 
+    const targetIdx = editId
       ? commands.findIndex(c => c.id === editId)
       : commands.findIndex(c => c.name.toLowerCase() === formattedName.toLowerCase());
 
@@ -2393,3 +3653,816 @@ function setupEventListeners() {
   // Load custom sounds on startup
   loadSounds();
 }
+
+// ================= WIDGET CUSTOMIZATION SYSTEM =================
+let wcCurrentWidget = 'alerts';
+let wcCurrentMode = 'visual';
+let wcActiveAlertEvent = 'follower';
+let wcWidgetStyles = {};
+let wcAlertImages = {
+  follower: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif',
+  sub: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHF4bWpna2JpcXpiZWhqZXE1aXF3MHp4eGpoMXE1bmRhNDVvNXppZSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/IwAZ6dvvvaNN6/giphy.gif',
+  bits: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJ3eG5obHRwZjcxNHNlNW56dzd2dXB1NmJhcWlnM3c5enIydTFoYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LdOyjZ7io5MFUvcKs2/giphy.gif',
+  raid: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2Z0dTh1Z3E0cW51ZnRtdnExNmRwbTN4eWxnd2ZtN213MWg5bmk0eCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/blSTtZehjAZ8I/giphy.gif',
+  channel_points: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOW11aWRqZG56YWNka2R3N3N6M2cydDV0OW15bmw0NWJ1ZW51bnd4eiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif'
+};
+
+let wcAlertSounds = {
+  follower: '/assets/sounds/campana_alerta.wav',
+  sub: '/assets/sounds/campana_alerta.wav',
+  bits: '/assets/sounds/notificacion_puntos.wav',
+  raid: '/assets/sounds/airhorn.mp3',
+  channel_points: '/assets/sounds/notificacion_puntos.wav'
+};
+
+const WC_WIDGET_NAMES = {
+  alerts: 'Alert Box',
+  nowplaying: 'Now Playing',
+  goals: 'Goal Bar',
+  chat: 'Chat Overlay'
+};
+
+const WC_EVENT_NAMES = {
+  follower: 'Seguidor',
+  sub: 'Suscripción',
+  bits: 'Donación de Bits',
+  raid: 'Raid Entrante',
+  channel_points: 'Puntos de Canal'
+};
+
+const WC_EVENT_PREVIEWS = {
+  follower: { badge: 'NUEVO SEGUIDOR', title: '¡StreamerFan123!', msg: 'ahora sigue el canal' },
+  sub: { badge: '¡NUEVA SUSCRIPCIÓN!', title: '¡SubVIP_Gamer!', msg: 'se suscribió al canal (Nivel 1)' },
+  bits: { badge: 'DONACIÓN DE BITS', title: '¡GamerPro99!', msg: 'envió 500 Bits "¡Gran stream!"' },
+  raid: { badge: 'RAID ENTRANTE', title: '¡CapitánRaid!', msg: 'llegó con 45 espectadores' },
+  channel_points: { badge: 'PUNTOS DE CANAL', title: '¡ViewerActivo!', msg: 'canjeó "Mensaje Destacado"' }
+};
+
+const WC_DEFAULT_VALUES = {
+  alerts: { fontFamily: "'Outfit', sans-serif", bgColor: '#0b0e14', bgOpacity: 88, titleColor: '#ffffff', messageColor: '#cbd5e1', accentColor: '#9146ff', titleSize: 32, messageSize: 20, borderRadius: 24, imageSize: 120, customCSS: '', customJS: '' },
+  nowplaying: { fontFamily: "'Outfit', sans-serif", bgColor: '#0f121a', bgOpacity: 90, titleColor: '#ffffff', requesterColor: '#9146ff', titleSize: 16, borderRadius: 18, thumbSize: 64, customCSS: '', customJS: '' },
+  goals: { fontFamily: "'Outfit', sans-serif", barColor: '#9146ff', barColor2: '#00f2fe', bgColor: '#0e121c', bgOpacity: 92, barHeight: 18, fontSize: 15, borderRadius: 18, customCSS: '', customJS: '' },
+  chat: { fontFamily: "'Outfit', sans-serif", bubbleBg: '#0f141e', bgOpacity: 85, usernameColor: '#9146ff', textColor: '#f1f5f9', fontSize: 14, borderRadius: 14, borderLeftWidth: 4, borderLeftColor: '#9146ff', customCSS: '', customJS: '' }
+};
+
+const WC_PRESET_GIFS = {
+  follower: [
+    { name: "Pikachu Saludo", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif" },
+    { name: "Gatito Feliz", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMjRqa2p6N2Z2c2R0b2s5OXF1bXk4bHhqa3p2Z3BhMGYwb283ZDNyOCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/MDJ9IbxxvDUQM/giphy.gif" },
+    { name: "Kirby Baile", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2RtcW9hNnl6OXh0eGg5Z3pxMXdpdW9vODFwcm5tM3g1Y3l4OXVsayZlcD12MV9naWZzX3NlYXJjaCZjdD1n/5gUnOrltPvZzW/giphy.gif" },
+    { name: "Sonic Bienvenida", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmN0d2psNWtwZmRzMGJrdmszM2R2MXd2YWRnOTlvOWV5eHlzMndkayZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif" }
+  ],
+  sub: [
+    { name: "Fiesta Confetti", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHF4bWpna2JpcXpiZWhqZXE1aXF3MHp4eGpoMXE1bmRhNDVvNXppZSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/IwAZ6dvvvaNN6/giphy.gif" },
+    { name: "Minion Festejo", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExaGtpNjA5bTZodjVjdzV6c25lZmt1bGVpNWtseHNld2Qxd2c1NmF1NSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/3o7TKSjRrfIPjeiVyM/giphy.gif" },
+    { name: "Daft Punk Dance", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNWw4djNudDhtYmpxZ2c1M3dzbmJmbmd3eHlzb21mNzhsaXpvczJjOCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l3vRlT2k2L35Cnn5C/giphy.gif" },
+    { name: "Goku Super Saiyan", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmJpcnd4OGM4NXBxaHZqMnZ0aHlxbW50NHl3aXp6Y2NsdG56eTZzMyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/97HXn1oGkn37G/giphy.gif" }
+  ],
+  bits: [
+    { name: "Lluvia de Dinero", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJ3eG5obHRwZjcxNHNlNW56dzd2dXB1NmJhcWlnM3c5enIydTFoYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LdOyjZ7io5MFUvcKs2/giphy.gif" },
+    { name: "Cofre del Tesoro", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExaTJveXprZHdrZzB0MnlxbGtsMDkyaW5pYWt4eGJ5b3hzdG56bmpsdSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/26FPJGjhefSJuaRhu/giphy.gif" },
+    { name: "Diamantes Neón", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExazlraXBtdWdwZXp5M2VvdGphYndjZnphZ3l4eGR4cXd2ZThsYjVveSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l0ExhcMymLxqLRM08/giphy.gif" },
+    { name: "Mario Monedas", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXV0OXhjc3M4eG92aW55azc3NGhrcDJzcnRhYW5ub3oxbXFoaGg5ZiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/12PA1zBdFbKFaY/giphy.gif" }
+  ],
+  raid: [
+    { name: "Ejército Vikingo", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2Z0dTh1Z3E0cW51ZnRtdnExNmRwbTN4eWxnd2ZtN213MWg5bmk0eCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/blSTtZehjAZ8I/giphy.gif" },
+    { name: "Avengers Hype", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdDF1aWFidmtyaGJlMmpldWtpM2FjcW80a2xobzNxbXRucnBmdzNveiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/l41lI4bYmcsPJX9Go/giphy.gif" },
+    { name: "Fuegos Artificiales", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNnd6aTh0dHVxOGdtaXAzbndubnhrbnhxY2Q2b3ZtdnZob2lhaWdhciZlcD12MV9naWZzX3NlYXJjaCZjdD1n/26tPplGWjN0xLybiU/giphy.gif" }
+  ],
+  channel_points: [
+    { name: "Estrella Mágica", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOW11aWRqZG56YWNka2R3N3N6M2cydDV0OW15bmw0NWJ1ZW51bnd4eiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif" },
+    { name: "PogChamp", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdnQ1d211YWFscTFjOXNxc3dxM3lyMTRldzZvbDVjMTd6d3lqN2o1dSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/SLFp6ucA5uZEC8Q7b9/giphy.gif" },
+    { name: "Gato Bailarín", url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmZ1MmhyazBpdWExN3Zma3lna21idW51M3lseG1kNHJ3NDF1ZnJ5NiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/jpbnoe3UIa8TU8LM13/giphy.gif" }
+  ]
+};
+
+function selectCustomizeWidget(widgetKey) {
+  wcCurrentWidget = widgetKey;
+
+  // Update selector cards
+  document.querySelectorAll('.wc-widget-selector').forEach(el => {
+    el.classList.toggle('active', el.dataset.widget === widgetKey);
+  });
+
+  // Show/hide control groups
+  document.querySelectorAll('.wc-controls-group').forEach(el => el.style.display = 'none');
+  const activeGroup = document.getElementById(`wcControls-${widgetKey}`);
+  if (activeGroup) activeGroup.style.display = '';
+
+  // Show/hide previews
+  document.querySelectorAll('.wc-preview-widget').forEach(el => el.style.display = 'none');
+  const activePv = document.getElementById(`wcPreview-${widgetKey}`);
+  if (activePv) activePv.style.display = (widgetKey === 'alerts') ? 'flex' : '';
+
+  // Update titles
+  const name = WC_WIDGET_NAMES[widgetKey] || widgetKey;
+  const visualTitle = document.getElementById('wcVisualTitle');
+  const codeTitle = document.getElementById('wcCodeTitle');
+  if (visualTitle) visualTitle.innerText = `🎛️ Editor Visual — ${name}`;
+  if (codeTitle) codeTitle.innerText = `💻 Editor de Código — ${name}`;
+
+  // Load saved values into controls
+  loadWidgetControlValues(widgetKey);
+
+  // Load code editor content
+  const styles = wcWidgetStyles[widgetKey] || {};
+  const cssEl = document.getElementById('wcCustomCSS');
+  const jsEl = document.getElementById('wcCustomJS');
+  if (cssEl) cssEl.value = styles.customCSS || '';
+  if (jsEl) jsEl.value = styles.customJS || '';
+}
+
+function switchCustomizeMode(mode) {
+  wcCurrentMode = mode;
+  document.querySelectorAll('.wc-mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  const visual = document.getElementById('wcVisualEditor');
+  const code = document.getElementById('wcCodeEditor');
+  if (mode === 'visual') {
+    if (visual) visual.style.display = '';
+    if (code) code.style.display = 'none';
+  } else {
+    if (visual) visual.style.display = 'none';
+    if (code) code.style.display = '';
+  }
+}
+
+function selectAlertEvent(eventKey) {
+  wcActiveAlertEvent = eventKey;
+
+  // Update event pill buttons
+  document.querySelectorAll('.wc-event-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.event === eventKey);
+  });
+
+  // Update media and sound header titles
+  const mediaTitle = document.getElementById('wcAlertMediaTitle');
+  if (mediaTitle) {
+    mediaTitle.innerText = `🖼️ Imagen / GIF de Alerta (${WC_EVENT_NAMES[eventKey] || eventKey})`;
+  }
+
+  const soundTitle = document.getElementById('wcAlertSoundTitle');
+  if (soundTitle) {
+    soundTitle.innerText = `🔊 Sonido de Alerta (${WC_EVENT_NAMES[eventKey] || eventKey})`;
+  }
+
+  // Load current image URL into input
+  const urlInput = document.getElementById('wc-alert-imageUrl');
+  const currentImg = wcAlertImages[eventKey] || WC_DEFAULT_ALERT_IMAGES[eventKey] || '';
+  if (urlInput) urlInput.value = currentImg;
+
+  // Populate GIF Gallery grid
+  renderGifGallery(eventKey);
+
+  // Load sound select
+  const currentSound = wcAlertSounds[eventKey] || '/assets/sounds/campana_alerta.wav';
+  const soundSelect = document.getElementById('wc-alert-soundSelect');
+  const customSoundRow = document.getElementById('wcAlertCustomSoundRow');
+  const customSoundInput = document.getElementById('wc-alert-soundUrl');
+
+  if (soundSelect) {
+    const isStandardOption = Array.from(soundSelect.options).some(o => o.value === currentSound);
+    if (isStandardOption) {
+      soundSelect.value = currentSound;
+      if (customSoundRow) customSoundRow.style.display = 'none';
+    } else {
+      soundSelect.value = 'custom';
+      if (customSoundRow) customSoundRow.style.display = 'block';
+      if (customSoundInput) customSoundInput.value = currentSound;
+    }
+  }
+
+  // Update live preview card content
+  const pvInfo = WC_EVENT_PREVIEWS[eventKey] || { badge: eventKey.toUpperCase(), title: '¡Usuario!', msg: 'ha interactuado' };
+  const badgeEl = document.getElementById('wcPvAlertBadge');
+  const titleEl = document.getElementById('wcPvAlertTitle');
+  const msgEl = document.getElementById('wcPvAlertMsg');
+  const imgEl = document.getElementById('wcPvAlertImg');
+
+  if (badgeEl) badgeEl.innerText = pvInfo.badge;
+  if (titleEl) titleEl.innerText = pvInfo.title;
+  if (msgEl) msgEl.innerText = pvInfo.msg;
+  if (imgEl) imgEl.src = currentImg;
+}
+
+function renderGifGallery(eventKey) {
+  const grid = document.getElementById('wcGifGalleryGrid');
+  if (!grid) return;
+
+  const gifs = WC_PRESET_GIFS[eventKey] || WC_PRESET_GIFS.follower;
+  grid.innerHTML = gifs.map(g => `
+    <div class="wc-gif-card" onclick="selectGalleryGif('${g.url}', '${g.name}')" title="${g.name}">
+      <img src="${g.url}" alt="${g.name}" loading="lazy">
+      <div class="wc-gif-title">${g.name}</div>
+    </div>
+  `).join('');
+}
+
+function toggleGifGallery() {
+  const drawer = document.getElementById('wcGifGalleryDrawer');
+  if (!drawer) return;
+  const isShown = drawer.style.display !== 'none';
+  drawer.style.display = isShown ? 'none' : 'block';
+  if (!isShown) renderGifGallery(wcActiveAlertEvent);
+}
+
+function selectGalleryGif(url, name) {
+  wcAlertImages[wcActiveAlertEvent] = url;
+  const urlInput = document.getElementById('wc-alert-imageUrl');
+  if (urlInput) urlInput.value = url;
+
+  const imgEl = document.getElementById('wcPvAlertImg');
+  if (imgEl) imgEl.src = url;
+
+  showToast(`GIF "${name}" seleccionado para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'info');
+}
+
+function handleAlertUrlInput(url) {
+  const cleanUrl = url.trim();
+  wcAlertImages[wcActiveAlertEvent] = cleanUrl;
+  const imgEl = document.getElementById('wcPvAlertImg');
+  if (imgEl && cleanUrl) imgEl.src = cleanUrl;
+}
+
+function handleAlertFileUpload(input) {
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const dataUrl = e.target.result;
+      wcAlertImages[wcActiveAlertEvent] = dataUrl;
+      const urlInput = document.getElementById('wc-alert-imageUrl');
+      if (urlInput) urlInput.value = dataUrl;
+      const imgEl = document.getElementById('wcPvAlertImg');
+      if (imgEl) imgEl.src = dataUrl;
+      showToast(`Archivo "${file.name}" cargado para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'success');
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+// Sound Management
+function handleAlertSoundSelect(val) {
+  const customRow = document.getElementById('wcAlertCustomSoundRow');
+  if (val === 'custom') {
+    if (customRow) customRow.style.display = 'block';
+  } else {
+    if (customRow) customRow.style.display = 'none';
+    wcAlertSounds[wcActiveAlertEvent] = val;
+    playActiveAlertSound();
+  }
+}
+
+function handleAlertSoundUrlInput(url) {
+  wcAlertSounds[wcActiveAlertEvent] = url.trim();
+}
+
+function handleAlertSoundUpload(input) {
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = async function (e) {
+      const dataUrl = e.target.result;
+
+      // Try uploading to backend /api/sounds/upload
+      try {
+        const res = await fetch('/api/sounds/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: file.name, data: dataUrl })
+        });
+        const data = await res.json();
+        if (data.success && data.url) {
+          wcAlertSounds[wcActiveAlertEvent] = data.url;
+          addSoundOption(data.url, file.name);
+          showToast(`Audio "${file.name}" subido correctamente`, 'success');
+          playActiveAlertSound();
+          return;
+        }
+      } catch (err) { }
+
+      // Fallback: use dataUrl directly
+      wcAlertSounds[wcActiveAlertEvent] = dataUrl;
+      addSoundOption(dataUrl, file.name);
+      showToast(`Audio local "${file.name}" asignado`, 'success');
+      playActiveAlertSound();
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function addSoundOption(url, name) {
+  const sel = document.getElementById('wc-alert-soundSelect');
+  if (!sel) return;
+  const opt = document.createElement('option');
+  opt.value = url;
+  opt.innerText = `🎵 ${name}`;
+  sel.insertBefore(opt, sel.lastElementChild);
+  sel.value = url;
+}
+
+function playActiveAlertSound() {
+  const sound = wcAlertSounds[wcActiveAlertEvent] || '/assets/sounds/campana_alerta.wav';
+  if (sound === 'synthesizer') {
+    playSynthesizedAlertChime(wcActiveAlertEvent);
+    return;
+  }
+  try {
+    const audio = new Audio(sound);
+    audio.play().catch(() => playSynthesizedAlertChime(wcActiveAlertEvent));
+  } catch (e) {
+    playSynthesizedAlertChime(wcActiveAlertEvent);
+  }
+}
+
+function playSynthesizedAlertChime(type) {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    let freqs = [523.25, 659.25, 783.99, 1046.50];
+    if (type === 'bits') freqs = [587.33, 739.99, 880.00, 1174.66];
+    if (type === 'sub') freqs = [440.00, 554.37, 659.25, 880.00];
+    if (type === 'raid') freqs = [493.88, 659.25, 987.77, 1318.51];
+    osc.frequency.setValueAtTime(freqs[0], now);
+    osc.frequency.exponentialRampToValueAtTime(freqs[3], now + 0.35);
+    gain.gain.setValueAtTime(0.01, now);
+    gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.6);
+  } catch (e) { }
+}
+
+function previewAlertAnimation() {
+  const card = document.getElementById('wcPvAlertCard');
+  if (!card) return;
+
+  playActiveAlertSound();
+
+  // Trigger bounce / pulse animation
+  card.style.transform = 'scale(0.85)';
+  card.style.opacity = '0';
+  setTimeout(() => {
+    card.style.transition = 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+    card.style.transform = 'scale(1.05)';
+    card.style.opacity = '1';
+    setTimeout(() => {
+      card.style.transform = 'scale(1)';
+    }, 400);
+  }, 100);
+}
+
+function triggerActiveAlertTest() {
+  const eventKey = wcActiveAlertEvent || 'follower';
+  triggerTestAlert(eventKey);
+}
+
+function loadWidgetControlValues(widgetKey) {
+  const styles = wcWidgetStyles[widgetKey] || WC_DEFAULT_VALUES[widgetKey] || {};
+  const defaults = WC_DEFAULT_VALUES[widgetKey] || {};
+  const merged = { ...defaults, ...styles };
+
+  // For each input and select in the widget's control group, set value
+  const group = document.getElementById(`wcControls-${widgetKey}`);
+  if (!group) return;
+
+  group.querySelectorAll('input, select').forEach(input => {
+    const prop = input.dataset.prop;
+    if (!prop) return;
+    const val = merged[prop];
+    if (val !== undefined) {
+      input.value = val;
+    }
+    // Update range display value
+    if (input.type === 'range') {
+      const valEl = document.getElementById(`${input.id}-val`);
+      if (valEl) {
+        const unit = prop.includes('Opacity') ? '%' : 'px';
+        valEl.innerText = `${input.value}${unit}`;
+      }
+    }
+  });
+
+  // If alerts, also select current alert event
+  if (widgetKey === 'alerts') {
+    selectAlertEvent(wcActiveAlertEvent || 'follower');
+  }
+
+  // Apply to preview
+  updateWidgetPreview(widgetKey, merged);
+}
+
+function getWidgetValues(widgetKey) {
+  const group = document.getElementById(`wcControls-${widgetKey}`);
+  if (!group) return {};
+  const values = {};
+  group.querySelectorAll('input, select').forEach(input => {
+    const prop = input.dataset.prop;
+    if (!prop) return;
+    if (input.type === 'color' || input.tagName === 'SELECT') {
+      values[prop] = input.value;
+    } else {
+      values[prop] = Number(input.value);
+    }
+  });
+  // Include code editor values
+  values.customCSS = document.getElementById('wcCustomCSS')?.value || '';
+  values.customJS = document.getElementById('wcCustomJS')?.value || '';
+  return values;
+}
+
+function updateWidgetPreview(widgetKey, vals) {
+  const font = vals.fontFamily || "'Outfit', sans-serif";
+
+  if (widgetKey === 'alerts') {
+    const card = document.getElementById('wcPvAlertCard');
+    const badge = document.getElementById('wcPvAlertBadge');
+    const title = document.getElementById('wcPvAlertTitle');
+    const msg = document.getElementById('wcPvAlertMsg');
+    const img = document.getElementById('wcPvAlertImg');
+
+    if (card) {
+      card.style.fontFamily = font;
+      const r = Math.round(parseInt(vals.bgColor?.slice(1, 3) || '0b', 16));
+      const g = Math.round(parseInt(vals.bgColor?.slice(3, 5) || '0e', 16));
+      const b = Math.round(parseInt(vals.bgColor?.slice(5, 7) || '14', 16));
+      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity || 88) / 100})`;
+      card.style.borderRadius = `${vals.borderRadius || 24}px`;
+      card.style.borderColor = vals.accentColor || '#9146ff';
+      card.style.boxShadow = `0 10px 40px rgba(0,0,0,0.6), 0 0 35px ${vals.accentColor || '#9146ff'}50`;
+    }
+    if (badge) {
+      badge.style.fontFamily = font;
+      badge.style.background = `linear-gradient(135deg, ${vals.accentColor || '#9146ff'}, #00f2fe)`;
+    }
+    if (title) {
+      title.style.fontFamily = font;
+      title.style.color = vals.titleColor || '#fff';
+      title.style.fontSize = `${vals.titleSize || 32}px`;
+    }
+    if (msg) {
+      msg.style.fontFamily = font;
+      msg.style.color = vals.messageColor || '#cbd5e1';
+      msg.style.fontSize = `${vals.messageSize || 20}px`;
+    }
+    if (img) {
+      img.style.maxHeight = `${vals.imageSize || 120}px`;
+    }
+
+  } else if (widgetKey === 'nowplaying') {
+    const card = document.getElementById('wcPvNpCard');
+    const title = document.getElementById('wcPvNpTitle');
+    const thumb = document.getElementById('wcPvNpThumb');
+    const req = document.getElementById('wcPvNpRequester');
+    if (card) {
+      card.style.fontFamily = font;
+      const r = parseInt(vals.bgColor?.slice(1, 3) || '0f', 16);
+      const g = parseInt(vals.bgColor?.slice(3, 5) || '12', 16);
+      const b = parseInt(vals.bgColor?.slice(5, 7) || '1a', 16);
+      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity || 90) / 100})`;
+      card.style.borderRadius = `${vals.borderRadius || 18}px`;
+    }
+    if (title) {
+      title.style.fontFamily = font;
+      title.style.color = vals.titleColor || '#fff';
+      title.style.fontSize = `${vals.titleSize || 16}px`;
+    }
+    if (thumb) {
+      thumb.style.width = `${vals.thumbSize || 64}px`;
+      thumb.style.height = `${vals.thumbSize || 64}px`;
+    }
+    if (req) {
+      req.style.fontFamily = font;
+      const s = req.querySelector('strong');
+      if (s) s.style.color = vals.requesterColor || '#9146ff';
+    }
+
+  } else if (widgetKey === 'goals') {
+    const card = document.getElementById('wcPvGoalCard');
+    const titleEl = document.getElementById('wcPvGoalTitle');
+    const barBg = card?.querySelector('.wc-pv-goal-bar-bg');
+    const fill = document.getElementById('wcPvGoalFill');
+    if (card) {
+      card.style.fontFamily = font;
+      const r = parseInt(vals.bgColor?.slice(1, 3) || '0e', 16);
+      const g = parseInt(vals.bgColor?.slice(3, 5) || '12', 16);
+      const b = parseInt(vals.bgColor?.slice(5, 7) || '1c', 16);
+      card.style.background = `rgba(${r},${g},${b},${(vals.bgOpacity || 92) / 100})`;
+      card.style.borderRadius = `${vals.borderRadius || 18}px`;
+    }
+    if (titleEl) {
+      titleEl.style.fontFamily = font;
+      titleEl.style.fontSize = `${vals.fontSize || 15}px`;
+    }
+    if (barBg) barBg.style.height = `${vals.barHeight || 18}px`;
+    if (fill) fill.style.background = `linear-gradient(90deg, ${vals.barColor || '#9146ff'}, ${vals.barColor2 || '#00f2fe'})`;
+
+  } else if (widgetKey === 'chat') {
+    const bubbles = document.querySelectorAll('.wc-pv-chat-bubble');
+    const texts = document.querySelectorAll('.wc-pv-chat-text');
+    const users = document.querySelectorAll('.wc-pv-chat-user');
+
+    bubbles.forEach(b => {
+      b.style.fontFamily = font;
+      const r = parseInt(vals.bubbleBg?.slice(1, 3) || '0f', 16);
+      const g = parseInt(vals.bubbleBg?.slice(3, 5) || '14', 16);
+      const bb = parseInt(vals.bubbleBg?.slice(5, 7) || '1e', 16);
+      b.style.background = `rgba(${r},${g},${bb},${(vals.bgOpacity || 85) / 100})`;
+      b.style.borderRadius = `${vals.borderRadius || 14}px`;
+      b.style.borderLeftWidth = `${vals.borderLeftWidth || 4}px`;
+      b.style.borderLeftColor = vals.borderLeftColor || '#9146ff';
+    });
+    users.forEach(u => {
+      u.style.fontFamily = font;
+      u.style.color = vals.usernameColor || '#9146ff';
+    });
+    texts.forEach(t => {
+      t.style.fontFamily = font;
+      t.style.color = vals.textColor || '#f1f5f9';
+      t.style.fontSize = `${vals.fontSize || 14}px`;
+    });
+  }
+}
+
+function generateWidgetCSS(widgetKey, vals) {
+  const font = vals.fontFamily || "'Outfit', sans-serif";
+
+  if (widgetKey === 'alerts') {
+    const r = parseInt(vals.bgColor?.slice(1, 3) || '0b', 16);
+    const g = parseInt(vals.bgColor?.slice(3, 5) || '0e', 16);
+    const b = parseInt(vals.bgColor?.slice(5, 7) || '14', 16);
+    return `/* OrbiBot Custom Styles - Alert Box */
+.alert-card {
+  font-family: ${font} !important;
+  background: rgba(${r},${g},${b},${(vals.bgOpacity || 88) / 100}) !important;
+  border-radius: ${vals.borderRadius || 24}px !important;
+  border-color: ${vals.accentColor || '#9146ff'} !important;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px ${vals.accentColor || '#9146ff'}50 !important;
+}
+.alert-title {
+  font-family: ${font} !important;
+  color: ${vals.titleColor || '#ffffff'} !important;
+  font-size: ${vals.titleSize || 32}px !important;
+}
+.alert-message {
+  font-family: ${font} !important;
+  color: ${vals.messageColor || '#cbd5e1'} !important;
+  font-size: ${vals.messageSize || 20}px !important;
+}
+.alert-badge {
+  font-family: ${font} !important;
+  background: linear-gradient(135deg, ${vals.accentColor || '#9146ff'}, #00f2fe) !important;
+}
+.alert-media {
+  max-height: ${vals.imageSize || 120}px !important;
+}
+`;
+  } else if (widgetKey === 'nowplaying') {
+    const r = parseInt(vals.bgColor?.slice(1, 3) || '0f', 16);
+    const g = parseInt(vals.bgColor?.slice(3, 5) || '12', 16);
+    const b = parseInt(vals.bgColor?.slice(5, 7) || '1a', 16);
+    return `/* OrbiBot Custom Styles - Now Playing */
+.np-card {
+  font-family: ${font} !important;
+  background: rgba(${r},${g},${b},${(vals.bgOpacity || 90) / 100}) !important;
+  border-radius: ${vals.borderRadius || 18}px !important;
+}
+.np-title {
+  font-family: ${font} !important;
+  color: ${vals.titleColor || '#ffffff'} !important;
+  font-size: ${vals.titleSize || 16}px !important;
+}
+.np-requester {
+  font-family: ${font} !important;
+}
+.np-requester strong {
+  color: ${vals.requesterColor || '#9146ff'} !important;
+}
+.np-thumb-wrapper {
+  width: ${vals.thumbSize || 64}px !important;
+  height: ${vals.thumbSize || 64}px !important;
+}
+`;
+  } else if (widgetKey === 'goals') {
+    const r = parseInt(vals.bgColor?.slice(1, 3) || '0e', 16);
+    const g = parseInt(vals.bgColor?.slice(3, 5) || '12', 16);
+    const b = parseInt(vals.bgColor?.slice(5, 7) || '1c', 16);
+    return `/* OrbiBot Custom Styles - Goal Bar */
+.goal-card {
+  font-family: ${font} !important;
+  background: rgba(${r},${g},${b},${(vals.bgOpacity || 92) / 100}) !important;
+  border-radius: ${vals.borderRadius || 18}px !important;
+}
+.goal-title {
+  font-family: ${font} !important;
+  font-size: ${vals.fontSize || 15}px !important;
+}
+.goal-bar-bg {
+  height: ${vals.barHeight || 18}px !important;
+}
+.goal-bar-fill {
+  background: linear-gradient(90deg, ${vals.barColor || '#9146ff'}, ${vals.barColor2 || '#00f2fe'}) !important;
+}
+`;
+  } else if (widgetKey === 'chat') {
+    const r = parseInt(vals.bubbleBg?.slice(1, 3) || '0f', 16);
+    const g = parseInt(vals.bubbleBg?.slice(3, 5) || '14', 16);
+    const b = parseInt(vals.bubbleBg?.slice(5, 7) || '1e', 16);
+    return `/* OrbiBot Custom Styles - Chat Overlay */
+.chat-bubble {
+  font-family: ${font} !important;
+  background: rgba(${r},${g},${b},${(vals.bgOpacity || 85) / 100}) !important;
+  border-radius: ${vals.borderRadius || 14}px !important;
+  border-left-width: ${vals.borderLeftWidth || 4}px !important;
+  border-left-color: ${vals.borderLeftColor || '#9146ff'} !important;
+}
+.chat-bubble .username {
+  font-family: ${font} !important;
+  color: ${vals.usernameColor || '#9146ff'} !important;
+}
+.chat-bubble .text {
+  font-family: ${font} !important;
+  color: ${vals.textColor || '#f1f5f9'} !important;
+  font-size: ${vals.fontSize || 14}px !important;
+}
+`;
+  }
+  return '';
+}
+
+async function saveWidgetStyles() {
+  setAutoSaveStatus('saving');
+
+  // Collect current widget values
+  const vals = getWidgetValues(wcCurrentWidget);
+  // Generate CSS from visual controls
+  const generatedCSS = generateWidgetCSS(wcCurrentWidget, vals);
+
+  // Merge custom CSS from code editor with generated CSS
+  const userCSS = vals.customCSS || '';
+  const finalCSS = userCSS ? `${generatedCSS}\n/* --- CSS Personalizado del Usuario --- */\n${userCSS}` : generatedCSS;
+
+  // Save to widgetStyles
+  wcWidgetStyles[wcCurrentWidget] = {
+    ...vals,
+    generatedCSS: generatedCSS,
+    finalCSS: finalCSS
+  };
+
+  // If alerts widget, also attach custom images and sounds
+  if (wcCurrentWidget === 'alerts') {
+    wcWidgetStyles.alerts.images = wcAlertImages;
+    wcWidgetStyles.alerts.sounds = wcAlertSounds;
+  }
+
+  // Save to config
+  const payload = { widgetStyles: wcWidgetStyles };
+
+  try {
+    // Save to localStorage
+    let cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
+    cfg.widgetStyles = wcWidgetStyles;
+    localStorage.setItem('orbibot_config', JSON.stringify(cfg));
+
+    // Save to backend config (Syncs to Supabase)
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      appConfig = data.config;
+    }
+
+    // Also update /api/alerts (Syncs to Supabase under key='alerts')
+    if (wcCurrentWidget === 'alerts') {
+      try {
+        const currentAlertsRes = await fetch('/api/alerts');
+        const currentAlerts = await currentAlertsRes.json();
+        const updatedAlerts = { ...currentAlerts };
+
+        Object.keys(wcAlertImages).forEach(evKey => {
+          if (!updatedAlerts[evKey]) updatedAlerts[evKey] = {};
+          updatedAlerts[evKey].image = wcAlertImages[evKey];
+        });
+
+        Object.keys(wcAlertSounds).forEach(evKey => {
+          if (!updatedAlerts[evKey]) updatedAlerts[evKey] = {};
+          updatedAlerts[evKey].sound = wcAlertSounds[evKey];
+        });
+
+        await fetch('/api/alerts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedAlerts)
+        });
+      } catch (e) { }
+    }
+
+    setAutoSaveStatus('saved');
+    showToast(`✅ Estilos de "${WC_WIDGET_NAMES[wcCurrentWidget]}" guardados en la nube`, 'success');
+  } catch (e) {
+    setAutoSaveStatus('saved');
+    showToast('Estilos guardados localmente', 'info');
+  }
+}
+
+function resetWidgetStyles() {
+  const defaults = WC_DEFAULT_VALUES[wcCurrentWidget];
+  if (!defaults) return;
+
+  wcWidgetStyles[wcCurrentWidget] = { ...defaults };
+
+  if (wcCurrentWidget === 'alerts') {
+    wcAlertImages = { ...WC_DEFAULT_ALERT_IMAGES };
+    wcAlertSounds = {
+      follower: '/assets/sounds/campana_alerta.wav',
+      sub: '/assets/sounds/campana_alerta.wav',
+      bits: '/assets/sounds/notificacion_puntos.wav',
+      raid: '/assets/sounds/airhorn.mp3',
+      channel_points: '/assets/sounds/notificacion_puntos.wav'
+    };
+  }
+
+  // Reset code editor
+  const cssEl = document.getElementById('wcCustomCSS');
+  const jsEl = document.getElementById('wcCustomJS');
+  if (cssEl) cssEl.value = '';
+  if (jsEl) jsEl.value = '';
+
+  loadWidgetControlValues(wcCurrentWidget);
+  showToast(`🔄 Estilos de "${WC_WIDGET_NAMES[wcCurrentWidget]}" restablecidos`, 'info');
+}
+
+function initWidgetCustomization() {
+  // Load saved widget styles from appConfig
+  if (appConfig && appConfig.widgetStyles) {
+    wcWidgetStyles = appConfig.widgetStyles;
+    if (wcWidgetStyles.alerts) {
+      if (wcWidgetStyles.alerts.images) {
+        wcAlertImages = { ...wcAlertImages, ...wcWidgetStyles.alerts.images };
+      }
+      if (wcWidgetStyles.alerts.sounds) {
+        wcAlertSounds = { ...wcAlertSounds, ...wcWidgetStyles.alerts.sounds };
+      }
+    }
+  }
+
+  // Also fetch saved alert images and sounds from /api/alerts
+  fetch('/api/alerts')
+    .then(r => r.json())
+    .then(data => {
+      if (data && typeof data === 'object') {
+        Object.keys(data).forEach(k => {
+          if (data[k]) {
+            if (data[k].image) wcAlertImages[k] = data[k].image;
+            if (data[k].sound) wcAlertSounds[k] = data[k].sound;
+          }
+        });
+        if (wcCurrentWidget === 'alerts') {
+          selectAlertEvent(wcActiveAlertEvent || 'follower');
+        }
+      }
+    })
+    .catch(() => { });
+
+  // Setup visual controls event listeners for live preview
+  document.querySelectorAll('.wc-controls-group input, .wc-controls-group select').forEach(input => {
+    const handler = () => {
+      const vals = getWidgetValues(wcCurrentWidget);
+      updateWidgetPreview(wcCurrentWidget, vals);
+
+      // Update range display value
+      if (input.type === 'range') {
+        const valEl = document.getElementById(`${input.id}-val`);
+        if (valEl) {
+          const prop = input.dataset.prop || '';
+          const unit = prop.includes('Opacity') ? '%' : 'px';
+          valEl.innerText = `${input.value}${unit}`;
+        }
+      }
+    };
+    input.addEventListener('input', handler);
+    input.addEventListener('change', handler);
+  });
+
+  // Load initial widget
+  selectCustomizeWidget('alerts');
+}
+
+// Initialize widget customization when initial data is loaded
+const _origLoadInitialData = loadInitialData;
+loadInitialData = async function () {
+  await _origLoadInitialData();
+  initWidgetCustomization();
+};
+
+

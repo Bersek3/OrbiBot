@@ -426,6 +426,12 @@
         if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
         try {
           wsInstance = new WebSocket(url);
+          wsInstance.onopen = () => {
+            const targetRoom = channel || kickChannel || token;
+            if (targetRoom) {
+              wsInstance.send(JSON.stringify({ action: 'join', room: targetRoom }));
+            }
+          };
           wsInstance.onmessage = (event) => {
             try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
           };
@@ -482,7 +488,7 @@
                 }
                 mqttClient.subscribe(`orbibot/${targetChan}/events`);
               },
-              onFailure: () => {
+              onFailure: (err) => {
                 scheduleMqttReconnect();
               }
             });
@@ -503,6 +509,13 @@
       if (typeof BroadcastChannel !== 'undefined') {
         const bc = new BroadcastChannel('orbibot_stream_channel');
         bc.onmessage = (e) => handleIncomingMessage(e.data);
+        const targetRoom = channel || kickChannel;
+        if (targetRoom) {
+          try {
+            const scopedBc = new BroadcastChannel('orbyxbot_stream_' + targetRoom);
+            scopedBc.onmessage = (e) => handleIncomingMessage(e.data);
+          } catch(e) {}
+        }
       }
 
       window.addEventListener('storage', (e) => {

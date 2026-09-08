@@ -6,6 +6,9 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>OBS Alert Box Overlay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bangers&family=Bebas+Neue&family=Chakra+Petch:wght@400;700&family=Cinzel:wght@700&family=Creepster&family=Fredoka:wght@500;700&family=Inter:wght@400;700&family=Luckiest+Guy&family=Montserrat:wght@500;700;900&family=Orbitron:wght@600;900&family=Outfit:wght@400;600;800&family=Permanent+Marker&family=Poppins:wght@400;600;800&family=Press+Start+2P&family=Righteous&family=Roboto:wght@400;700&family=Rubik:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/overlays.css">
   <!-- TMI.js for direct Twitch events (Subs, Bits, Raids) -->
   <script src="https://cdn.jsdelivr.net/npm/tmi.js@1.8.5/dist/tmi.min.js"></script>
@@ -30,6 +33,39 @@
   </div>
 
   <script>
+    // Load custom widget styles from streamer config
+    (async function loadCustomStyles() {
+      try {
+        const res = await fetch('/api/widget-styles');
+        const data = await res.json();
+        if (data.alerts) {
+          if (data.alerts.images) {
+            Object.keys(data.alerts.images).forEach(k => {
+              if (!alertsConfig[k]) alertsConfig[k] = {};
+              alertsConfig[k].image = data.alerts.images[k];
+            });
+          }
+          if (data.alerts.sounds) {
+            Object.keys(data.alerts.sounds).forEach(k => {
+              if (!alertsConfig[k]) alertsConfig[k] = {};
+              alertsConfig[k].sound = data.alerts.sounds[k];
+            });
+          }
+          if (data.alerts.finalCSS || data.alerts.generatedCSS) {
+            const style = document.createElement('style');
+            style.id = 'orbibot-custom-styles';
+            style.textContent = data.alerts.finalCSS || data.alerts.generatedCSS;
+            document.head.appendChild(style);
+          }
+          if (data.alerts.customJS) {
+            const script = document.createElement('script');
+            script.textContent = data.alerts.customJS;
+            document.body.appendChild(script);
+          }
+        }
+      } catch(e) { /* Overlay running without backend */ }
+    })();
+
     function showStatusBadge(text, duration = 4000) {
       const badge = document.getElementById('statusBadge');
       if (!badge) return;
@@ -99,7 +135,11 @@
       sub: { enabled: true, title: '¡Nueva Suscripción!', message: '¡{user} se ha suscrito al canal!', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHF4bWpna2JpcXpiZWhqZXE1aXF3MHp4eGpoMXE1bmRhNDVvNXppZSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/IwAZ6dvvvaNN6/giphy.gif' },
       bits: { enabled: true, title: '¡Donación de Bits!', message: '{user} envió {amount} bits {message}', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJ3eG5obHRwZjcxNHNlNW56dzd2dXB1NmJhcWlnM3c5enIydTFoYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LdOyjZ7io5MFUvcKs2/giphy.gif' },
       raid: { enabled: true, title: '¡Raid Entrante!', message: '¡{user} ha llegado con {viewers} espectadores!', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2Z0dTh1Z3E0cW51ZnRtdnExNmRwbTN4eWxnd2ZtN213MWg5bmk0eCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/blSTtZehjAZ8I/giphy.gif' },
-      channel_points: { enabled: true, title: '¡Recompensa Canjeada!', message: '{user} canjeó {reward}', duration: 5, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOW11aWRqZG56YWNka2R3N3N6M2cydDV0OW15bmw0NWJ1ZW51bnd4eiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif' }
+      channel_points: { enabled: true, title: '¡Recompensa Canjeada!', message: '{user} canjeó {reward}', duration: 5, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOW11aWRqZG56YWNka2R3N3N6M2cydDV0OW15bmw0NWJ1ZW51bnd4eiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif' },
+      kick_follower: { enabled: true, title: '¡Nuevo Seguidor de Kick! 🟢', message: '{user} ahora sigue en Kick', duration: 5, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif' },
+      kick_sub: { enabled: true, title: '¡Nueva Suscripción de Kick! 🟢', message: '¡{user} se ha suscrito en Kick!', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHF4bWpna2JpcXpiZWhqZXE1aXF3MHp4eGpoMXE1bmRhNDVvNXppZSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/IwAZ6dvvvaNN6/giphy.gif' },
+      kick_gift: { enabled: true, title: '¡Suscripciones Regaladas! 🎁', message: '{user} regaló {amount} subs en Kick!', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJ3eG5obHRwZjcxNHNlNW56dzd2dXB1NmJhcWlnM3c5enIydTFoYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LdOyjZ7io5MFUvcKs2/giphy.gif' },
+      kick_raid: { enabled: true, title: '¡Raid de Kick! 🚀', message: '¡{user} ha llegado con {viewers} espectadores desde Kick!', duration: 6, image: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2Z0dTh1Z3E0cW51ZnRtdnExNmRwbTN4eWxnd2ZtN213MWg5bmk0eCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/blSTtZehjAZ8I/giphy.gif' }
     };
 
     // Load configs from server if available
@@ -221,6 +261,9 @@
           wsInstance = new WebSocket(url);
           wsInstance.onopen = () => {
             showStatusBadge('🟢 Conectado a Servidor Local (WebSocket)', 3500);
+            if (channel || token) {
+              wsInstance.send(JSON.stringify({ action: 'join', room: channel || token }));
+            }
           };
           wsInstance.onmessage = (event) => {
             try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
@@ -254,6 +297,12 @@
       if (typeof BroadcastChannel !== 'undefined') {
         const bc = new BroadcastChannel('orbibot_stream_channel');
         bc.onmessage = (e) => handleIncomingMessage(e.data);
+        if (channel) {
+          try {
+            const scopedBc = new BroadcastChannel('orbyxbot_stream_' + channel);
+            scopedBc.onmessage = (e) => handleIncomingMessage(e.data);
+          } catch(e) {}
+        }
       }
 
       window.addEventListener('storage', (e) => {
@@ -310,7 +359,11 @@
         if (typeof Paho === 'undefined') return;
         if (mqttReconnectTimeout) clearTimeout(mqttReconnectTimeout);
 
-        const relayChannel = channel || 'general';
+        if (!channel) {
+          showStatusBadge('⚠️ Sin canal en OBS. Copia la URL con ?channel=TU_CANAL desde el panel', 8000);
+          return;
+        }
+
         const clientId = 'orbi_obs_' + Math.random().toString(36).substring(2, 9);
         try {
           mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
@@ -329,11 +382,11 @@
             timeout: 6,
             keepAliveInterval: 30,
             onSuccess: () => {
-              if (token && relayChannel !== 'general') {
-                mqttClient.subscribe(`orbibot/${relayChannel}_${token}/events`);
+              if (token) {
+                mqttClient.subscribe(`orbibot/${channel}_${token}/events`);
               }
-              mqttClient.subscribe(`orbibot/${relayChannel}/events`);
-              showStatusBadge(`🟢 OrbyxBot Listo en OBS (#${relayChannel})`, 4000);
+              mqttClient.subscribe(`orbibot/${channel}/events`);
+              showStatusBadge(`🟢 OrbyxBot Listo en OBS (#${channel})`, 4000);
             },
             onFailure: (e) => {
               console.warn('MQTT connect failed, retrying in 4s...', e);
