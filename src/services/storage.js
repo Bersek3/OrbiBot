@@ -68,40 +68,7 @@ const DEFAULT_CONFIG = {
   }
 };
 
-const DEFAULT_COMMANDS = [
-  {
-    id: 'cmd-1',
-    name: '!discord',
-    response: '¡Únete a nuestra comunidad de Discord oficial! https://discord.gg/streamer',
-    enabled: true,
-    cooldown: 10,
-    userLevel: 'all'
-  },
-  {
-    id: 'cmd-2',
-    name: '!redes',
-    response: 'Sígueme en redes sociales: Twitter @streamer | Instagram @streamer | TikTok @streamer',
-    enabled: true,
-    cooldown: 10,
-    userLevel: 'all'
-  },
-  {
-    id: 'cmd-3',
-    name: '!comandos',
-    response: 'Comandos disponibles: !sr <cancion>, !song, !skip, !queue, !redes, !discord, !bot',
-    enabled: true,
-    cooldown: 15,
-    userLevel: 'all'
-  },
-  {
-    id: 'cmd-4',
-    name: '!bot',
-    response: 'Bot de Twitch desarrollado con Antigravity para una experiencia de stream interactiva.',
-    enabled: true,
-    cooldown: 10,
-    userLevel: 'all'
-  }
-];
+const DEFAULT_COMMANDS = [];
 
 const DEFAULT_ALERTS = {
   follower: {
@@ -156,27 +123,7 @@ const DEFAULT_ALERTS = {
   }
 };
 
-const DEFAULT_REWARDS = [
-  {
-    id: 'reward-1',
-    rewardName: 'Mensaje con Voz (TTS)',
-    action: 'tts',
-    enabled: true
-  },
-  {
-    id: 'reward-2',
-    rewardName: 'Pedir Canción',
-    action: 'song_request',
-    enabled: true
-  },
-  {
-    id: 'reward-3',
-    rewardName: 'Sonido Corneta / Airhorn',
-    action: 'sound',
-    soundUrl: '/assets/sounds/airhorn.mp3',
-    enabled: true
-  }
-];
+const DEFAULT_REWARDS = [];
 
 function readJSON(filename, defaultValue) {
   const filePath = path.join(DATA_DIR, filename);

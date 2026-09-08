@@ -1651,37 +1651,50 @@
 
               <!-- Formulario de Recompensa (Oculto / Toggle) -->
               <div id="rewardFormCard"
-                style="display: none; background: rgba(0,0,0,0.3); border: 1px solid rgba(145, 70, 255, 0.3); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
-                <h5 style="color: #fff; margin-bottom: 12px; font-size: 14px;">Vinculación de Recompensa</h5>
+                style="display: none; background: rgba(14, 18, 28, 0.95); border: 2px solid var(--primary-purple); box-shadow: 0 8px 32px rgba(145, 70, 255, 0.25); border-radius: 12px; padding: 20px; margin-bottom: 22px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                  <h5 style="color: #fff; font-size: 15px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 18px;">🎁</span> <span id="rewardFormTitle">Vincular Nueva Recompensa</span>
+                  </h5>
+                  <span style="font-size: 11.5px; color: var(--cyan-accent); background: rgba(0, 242, 254, 0.12); padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(0, 242, 254, 0.3); font-weight: 600;">
+                    Puntos de Canal
+                  </span>
+                </div>
                 <input type="hidden" id="editRewardId" value="">
 
-                <div class="form-group">
-                  <label class="form-label">Nombre exacto de la Recompensa en Twitch</label>
+                <div class="form-group" style="background: rgba(145, 70, 255, 0.08); padding: 14px; border-radius: 8px; border: 1.5px solid rgba(145, 70, 255, 0.35); margin-bottom: 16px;">
+                  <label class="form-label" style="font-size: 13.5px; font-weight: 700; color: #ffffff; display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <span>🏷️ Nombre exacto de la Recompensa en Twitch</span>
+                    <span style="font-size: 11px; font-weight: 600; color: var(--cyan-accent); background: rgba(0, 242, 254, 0.15); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(0, 242, 254, 0.3);">Sensible a mayúsculas</span>
+                  </label>
                   <input type="text" id="rewardNameInput" list="twitchRewardsDatalist" class="form-control"
-                    placeholder="ej: CANCION, Mensaje con Voz (TTS)">
+                    style="font-size: 14.5px; font-weight: 600; color: #ffffff; background: #090d16; border: 1.5px solid var(--primary-purple); padding: 10px 14px;"
+                    placeholder="Escribe o selecciona el nombre exacto de Twitch (ej: Canción VIP, Voz TTS, Grito)">
                   <datalist id="twitchRewardsDatalist"></datalist>
+                  <small style="display: block; color: #94a3b8; margin-top: 6px; font-size: 12px; line-height: 1.4;">
+                    💡 <strong>Tip:</strong> Debe coincidir exactamente con el título creado en tu <em>Panel de Control de Twitch → Recompensas de Espectador</em>.
+                  </small>
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Acción en Stream</label>
-                  <select id="rewardActionSelect" class="form-control" onchange="handleRewardActionChange(this.value)">
+                  <label class="form-label" style="font-weight: 600; color: #ffffff;">⚡ Acción a Ejecutar en Stream</label>
+                  <select id="rewardActionSelect" class="form-control" onchange="handleRewardActionChange(this.value)" style="font-size: 13.5px;">
                     <option value="tts">🗣️ Voz TTS (Lee en voz alta en OBS el texto que escriba el espectador)</option>
-                    <option value="song_request">🎶 Pedir Canción (Prioridad VIP: entra en puesto #1 de la cola)
-                    </option>
-                    <option value="sound">🔊 Efecto de Sonido Personalizado (Reproduce un audio en OBS)</option>
+                    <option value="song_request">🎶 Pedir Canción (Prioridad VIP: entra en puesto #1 de la cola de música)</option>
+                    <option value="sound">🔊 Efecto de Sonido Personalizado (Reproduce un audio en OBS Studio)</option>
                   </select>
                 </div>
 
-                <div class="form-group" id="rewardSoundGroup" style="display: none;">
-                  <label class="form-label">Sonido Asignado</label>
+                <div class="form-group" id="rewardSoundGroup" style="display: none; background: rgba(0,0,0,0.25); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                  <label class="form-label" style="font-weight: 600; color: #ffffff;">🎵 Sonido Asignado para OBS</label>
                   <select id="rewardSoundSelect" class="form-control">
                     <option value="/assets/sounds/airhorn.mp3">airhorn.mp3</option>
                   </select>
                 </div>
 
-                <div style="display: flex; gap: 8px; margin-top: 12px;">
-                  <button class="btn btn-primary btn-sm" onclick="saveRewardUI()">Guardar Recompensa</button>
-                  <button class="btn btn-secondary btn-sm" onclick="toggleRewardForm(false)">Cancelar</button>
+                <div style="display: flex; gap: 10px; margin-top: 16px;">
+                  <button class="btn btn-primary" onclick="saveRewardUI()" style="padding: 8px 18px; font-weight: 700;">💾 Guardar Recompensa</button>
+                  <button class="btn btn-secondary" onclick="toggleRewardForm(false)" style="padding: 8px 16px;">Cancelar</button>
                 </div>
               </div>
 

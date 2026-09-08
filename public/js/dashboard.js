@@ -1329,16 +1329,8 @@ async function loadInitialData() {
     appConfig = cfg;
     bindConfigToUI(cfg);
 
-    const defaultCommands = [
-      { id: '1', name: '!discord', response: '¡Únete a nuestra comunidad de Discord!', cooldown: 10, userLevel: 'all' },
-      { id: '2', name: '!redes', response: 'Sígueme en redes sociales: @streamer', cooldown: 10, userLevel: 'all' },
-      { id: '3', name: '!bot', response: 'Bot de stream creado con OrbyxBot.', cooldown: 10, userLevel: 'all' }
-    ];
-    renderCommands(localCmds ? JSON.parse(localCmds) : defaultCommands);
-
-    const defaultRewards = [];
-    const initialRewards = localRwds !== null ? JSON.parse(localRwds) : defaultRewards;
-    renderRewards(initialRewards);
+    renderCommands(localCmds ? JSON.parse(localCmds) : []);
+    renderRewards(localRwds !== null ? JSON.parse(localRwds) : []);
 
     updateSongRequestUI({ currentSong: null, queue: [], isPlaying: false });
 
@@ -2691,11 +2683,23 @@ async function saveGoalValues(type) {
 }
 
 // ================= COMMANDS =================
-// ================= COMMANDS =================
 function renderCommands(commands) {
   const tbody = document.getElementById('commandsTableBody');
   if (!tbody) return;
   tbody.innerHTML = '';
+
+  if (!commands || commands.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" style="text-align: center; padding: 32px 16px; color: var(--text-secondary);">
+          <div style="font-size: 32px; margin-bottom: 8px;">💬</div>
+          <div style="font-weight: 700; color: #ffffff; font-size: 14px; margin-bottom: 4px;">No tienes comandos personalizados creados</div>
+          <div style="font-size: 12.5px; color: #94a3b8;">Usa el formulario para añadir tus comandos de chat (ej: <code>!discord</code>, <code>!redes</code>, <code>!reglas</code>).</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
 
   commands.forEach(cmd => {
     const tr = document.createElement('tr');
@@ -2705,7 +2709,7 @@ function renderCommands(commands) {
       : `<span class="btn btn-secondary btn-sm" style="font-size:11px;">${cmd.cooldown !== undefined ? cmd.cooldown : 10}s</span>`;
 
     tr.innerHTML = `
-      <td><strong>${escapeHtml(cmd.name)}</strong></td>
+      <td><strong style="color: #ffffff; font-size: 14px;">${escapeHtml(cmd.name)}</strong></td>
       <td style="color: #cbd5e1; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(cmd.response)}</td>
       <td>${cooldownBadge}</td>
       <td style="display: flex; gap: 6px;">
@@ -2787,15 +2791,33 @@ function renderRewards(rewards) {
   if (!tbody) return;
   tbody.innerHTML = '';
 
+  if (!rewards || rewards.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" style="text-align: center; padding: 32px 16px; color: var(--text-secondary);">
+          <div style="font-size: 32px; margin-bottom: 8px;">🎁</div>
+          <div style="font-weight: 700; color: #ffffff; font-size: 14px; margin-bottom: 4px;">No hay recompensas vinculadas todavía</div>
+          <div style="font-size: 12.5px; color: #94a3b8;">Haz clic en <strong>+ Nueva Recompensa</strong> o <strong>🔄 Sincronizar de Twitch</strong> para vincular tus puntos de canal.</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
   rewards.forEach(r => {
     const tr = document.createElement('tr');
     let actionBadge = `<span class="btn btn-secondary btn-sm">${r.action}</span>`;
-    if (r.action === 'tts') actionBadge = `<span class="btn btn-primary btn-sm">🗣️ Voz TTS</span>`;
-    if (r.action === 'song_request') actionBadge = `<span class="btn btn-accent btn-sm">🎶 Canción (VIP)</span>`;
-    if (r.action === 'sound') actionBadge = `<span class="btn btn-sm" style="background:#f5a623; color:#000;">🔊 Sonido (${r.soundUrl ? r.soundUrl.split('/').pop() : 'Default'})</span>`;
+    if (r.action === 'tts') actionBadge = `<span class="btn btn-primary btn-sm" style="font-weight: 600;">🗣️ Voz TTS</span>`;
+    if (r.action === 'song_request') actionBadge = `<span class="btn btn-accent btn-sm" style="font-weight: 600;">🎶 Canción (VIP)</span>`;
+    if (r.action === 'sound') actionBadge = `<span class="btn btn-sm" style="background:#f5a623; color:#000; font-weight: 700;">🔊 Sonido (${r.soundUrl ? r.soundUrl.split('/').pop() : 'Default'})</span>`;
 
     tr.innerHTML = `
-      <td><strong>${escapeHtml(r.rewardName)}</strong></td>
+      <td>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: rgba(145, 70, 255, 0.25); border: 1.5px solid rgba(145, 70, 255, 0.6); color: #c084fc; font-size: 15px; flex-shrink: 0;">🏷️</span>
+          <span style="font-weight: 700; font-size: 14.5px; color: #ffffff; letter-spacing: 0.2px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${escapeHtml(r.rewardName)}</span>
+        </div>
+      </td>
       <td>${actionBadge}</td>
       <td>
         <button class="btn btn-accent btn-sm" onclick="testReward('${r.id}')" title="Probar en vivo">⚡ Probar</button>
@@ -3647,6 +3669,9 @@ function setupEventListeners() {
     localStorage.removeItem('orbibot_twitch_auth_event');
     localStorage.removeItem('orbibot_twitch_auth_error');
     localStorage.removeItem('orbibot_config');
+    localStorage.removeItem('orbibot_commands');
+    localStorage.removeItem('orbibot_rewards');
+    localStorage.removeItem('orbibot_session');
 
     if (browserTmiClient) {
       try { browserTmiClient.disconnect(); } catch (e) { }
@@ -3733,6 +3758,8 @@ function setupEventListeners() {
     }
 
     bindConfigToUI(appConfig);
+    renderCommands([]);
+    renderRewards([]);
     populateWidgetUrls();
     initDashboardMqtt();
     updatePlatformLinkingUI();
