@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Twitch StreamBot & Overlay Toolkit</title>
+  <title>OrbyxBot - El bot #1 para Streamers de Kick & Twitch</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -13,8 +13,7 @@
   <link rel="stylesheet" href="./css/dashboard.css">
   <!-- Supabase JS Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239146FF'><path d='M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z'/></svg>">
+  <link rel="icon" type="image/png" href="./assets/logo.png">
   <script>
     // Intercept OAuth callback if Twitch redirects directly to index.html
     (function () {
@@ -123,11 +122,9 @@
     <!-- Top Modern Navigation Bar -->
     <header class="landing-top-bar">
       <div class="landing-top-bar-inner">
-        <div class="landing-brand-minimal" onclick="showLandingView()">
-          <div class="landing-brand-icon-wrapper">
-            <span class="landing-brand-glow">⚡</span>
-          </div>
-          <span class="landing-brand-title">OrbiBot</span>
+        <div class="landing-brand-minimal" onclick="showLandingView()" style="cursor: pointer; display: flex; align-items: center; gap: 10px;">
+          <img src="./assets/logo.png" alt="OrbyxBot Logo" class="landing-brand-logo-img" style="width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 0 10px rgba(0, 242, 254, 0.4));">
+          <span class="landing-brand-title">OrbyxBot</span>
           <span class="landing-version-tag">v2.5 CLOUD</span>
         </div>
 
@@ -152,14 +149,14 @@
 
       <!-- Subtitle -->
       <p class="landing-hero-subtitle-bold">
-        <strong>OrbiBot</strong> hace que streamear sea <a href="javascript:void(0)" class="hero-link-underline">aún
+        <strong>OrbyxBot</strong> hace que streamear sea <a href="javascript:void(0)" class="hero-link-underline">aún
           mejor</a>
       </p>
 
       <!-- Description Paragraph -->
       <p class="landing-hero-desc-simple">
         Herramienta de streaming en la nube con comandos de chat, overlays en tiempo real, alertas dinámicas,
-        más de 2,500 voces TTS con IA, Song Request interactivo con , ruleta de recompensas,
+        más de 2,500 voces TTS con IA, Song Request interactivo, ruleta de recompensas,
         widgets personalizados y moderación inteligente. 100% gratis, configúralo en segundos.
       </p>
 
@@ -202,7 +199,7 @@
           <span class="title-accent-cyan">Todo</span> lo que tu stream necesita, en un solo bot
         </h2>
         <p class="landing-section-subtitle">
-          No necesitas usar múltiples herramientas, OrbiBot lo hace todo desde la nube.
+          No necesitas usar múltiples herramientas, OrbyxBot lo hace todo desde la nube.
         </p>
       </div>
 
@@ -242,11 +239,11 @@
                 <span class="cmd-text">!discord</span>
               </div>
               <div class="mockup-bot-reply">
-                <div class="bot-reply-header"><span class="bot-icon">⚡</span> <span class="bot-name">OrbiBot</span>
+                <div class="bot-reply-header"><img src="./assets/logo.png" alt="OrbyxBot" style="width: 16px; height: 16px; object-fit: contain;"> <span class="bot-name">OrbyxBot</span>
                   <span class="bot-tag">BOT</span>
                 </div>
                 <div class="bot-reply-body">¡Únete a nuestro servidor de Discord para sorteos y eventos! <span
-                    class="bot-link">https://discord.gg/orbibot</span></div>
+                    class="bot-link">https://discord.gg/orbyxbot</span></div>
               </div>
             </div>
           </div>
@@ -407,9 +404,9 @@
       <div class="landing-footer-grid">
         <!-- Col 1: Brand Info -->
         <div class="footer-col footer-col-brand">
-          <div class="footer-brand-header">
-            <span class="footer-brand-icon">⚡</span>
-            <span class="footer-brand-title">OrbiBot</span>
+          <div class="footer-brand-header" style="display: flex; align-items: center; gap: 8px;">
+            <img src="./assets/logo.png" alt="OrbyxBot Logo" style="width: 24px; height: 24px; object-fit: contain; filter: drop-shadow(0 0 8px rgba(0,242,254,0.3));">
+            <span class="footer-brand-title">OrbyxBot</span>
           </div>
           <div class="footer-brand-slogan">El bot #1 para streamers de Kick y Twitch</div>
           <p class="footer-brand-desc">
@@ -482,10 +479,10 @@
       <!-- Bottom Bar -->
       <div class="landing-footer-bottom-bar">
         <div class="footer-bottom-left">
-          <a href="mailto:soporte@orbibot.com" class="footer-email-link">soporte@orbibot.com</a>
+          <a href="mailto:soporte@orbyxbot.com" class="footer-email-link">soporte@orbyxbot.com</a>
         </div>
         <div class="footer-bottom-right">
-          © 2026 OrbiBot, Inc. Todos los derechos reservados. OrbiBot™ es una marca registrada de OrbiBot, Inc.
+          © 2026 OrbyxBot, Inc. Todos los derechos reservados. OrbyxBot™ es una marca registrada.
         </div>
       </div>
     </footer>
@@ -498,11 +495,9 @@
 
       <!-- Brand & Header -->
       <div class="auth-modal-header">
-        <div class="auth-brand-badge">
-          <div class="auth-brand-icon-wrapper">
-            <span class="auth-brand-glow">⚡</span>
-          </div>
-          <span class="auth-brand-title">OrbiBot Cloud</span>
+        <div class="auth-brand-badge" style="display: inline-flex; align-items: center; gap: 8px;">
+          <img src="./assets/logo.png" alt="OrbyxBot Logo" style="width: 22px; height: 22px; object-fit: contain;">
+          <span class="auth-brand-title">OrbyxBot Cloud</span>
         </div>
         <h2 id="authModalMainTitle" class="auth-modal-title">Iniciar Sesión</h2>
         <p id="authModalSubtitle" class="auth-modal-sub">Accede a tu panel de control, widgets y overlays en la nube.
@@ -648,11 +643,11 @@
   <div id="dashboardAppView" style="display: none; width: 100%; min-height: 100vh;">
     <!-- ================= SIDEBAR ================= -->
     <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-icon">⚡</div>
+      <div class="brand" onclick="showLandingView()" style="cursor: pointer; display: flex; align-items: center; gap: 12px;">
+        <img src="./assets/logo.png" alt="OrbyxBot Logo" class="brand-logo-img" style="width: 36px; height: 36px; object-fit: contain; filter: drop-shadow(0 0 10px rgba(0, 242, 254, 0.4));">
         <div class="brand-text">
-          <h1>StreamBot</h1>
-          <span>Twitch Suite</span>
+          <h1>OrbyxBot</h1>
+          <span>Kick & Twitch</span>
         </div>
       </div>
 

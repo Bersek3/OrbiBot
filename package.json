@@ -1,7 +1,7 @@
 {
-  "name": "twitch",
+  "name": "orbyxbot",
   "version": "1.0.0",
-  "description": "",
+  "description": "OrbyxBot - Streamer Bot Suite & OBS Overlays for Kick and Twitch",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

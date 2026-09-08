@@ -18,7 +18,7 @@
 <body>
   <!-- Temporary status badge on OBS load to confirm active connection -->
   <div id="statusBadge" style="position: fixed; bottom: 12px; right: 12px; background: rgba(10, 13, 20, 0.85); border: 1px solid rgba(0, 242, 254, 0.4); color: #00f2fe; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-family: sans-serif; pointer-events: none; transition: opacity 0.8s ease; opacity: 1; z-index: 99999; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
-    ⚡ Conectando OrbiBot Alert Box...
+    ⚡ Conectando OrbyxBot Alert Box...
   </div>
 
   <div class="alert-container">
@@ -373,7 +373,7 @@
                 mqttClient.subscribe(`orbibot/${channel}_${token}/events`);
               }
               mqttClient.subscribe(`orbibot/${channel}/events`);
-              showStatusBadge(`🟢 OrbiBot Listo en OBS (#${channel})`, 4000);
+              showStatusBadge(`🟢 OrbyxBot Listo en OBS (#${channel})`, 4000);
             },
             onFailure: (e) => {
               console.warn('MQTT connect failed, retrying in 4s...', e);

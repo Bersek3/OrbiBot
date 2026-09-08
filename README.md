@@ -1,6 +1,6 @@
-# ⚡ OrbiBot - Twitch Bot Suite & OBS Overlays
+# ⚡ OrbyxBot - Streamer Bot Suite & OBS Overlays
 
-Plataforma todo-en-uno para streamers de Twitch con panel de control web en tiempo real, cliente IRC para chat, sistema de Song Request con reproductor integrado, Text-to-Speech (TTS) con moderación, puntos de canal y 5 widgets transparentes listos para OBS Studio.
+Plataforma todo-en-uno para streamers de Kick y Twitch con panel de control web en tiempo real, cliente IRC/WebSocket para chat, sistema de Song Request con reproductor integrado, Text-to-Speech (TTS) con IA y moderación, puntos de canal y widgets transparentes listos para OBS Studio.
 
 ![OrbiBot Banner](https://raw.githubusercontent.com/Bersek3/OrbiBot/main/public/assets/preview.png)
 

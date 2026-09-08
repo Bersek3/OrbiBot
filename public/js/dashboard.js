@@ -452,7 +452,7 @@ async function handleAuthLogout() {
     }
   }
   clearUserSession();
-  showToast('Has cerrado tu sesión de OrbiBot Cloud.', 'info');
+  showToast('Has cerrado tu sesión de OrbyxBot Cloud.', 'info');
   showLandingView();
 }
 
@@ -1199,7 +1199,7 @@ async function loadInitialData() {
     const defaultCommands = [
       { id: '1', name: '!discord', response: '¡Únete a nuestra comunidad de Discord!', cooldown: 10, userLevel: 'all' },
       { id: '2', name: '!redes', response: 'Sígueme en redes sociales: @streamer', cooldown: 10, userLevel: 'all' },
-      { id: '3', name: '!bot', response: 'Bot de stream creado con OrbiBot.', cooldown: 10, userLevel: 'all' }
+      { id: '3', name: '!bot', response: 'Bot de stream creado con OrbyxBot.', cooldown: 10, userLevel: 'all' }
     ];
     renderCommands(localCmds ? JSON.parse(localCmds) : defaultCommands);
 
