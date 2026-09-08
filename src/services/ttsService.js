@@ -45,21 +45,47 @@ class TTSService {
     return cleaned;
   }
 
-  generateAudioUrl(text, voiceId = 'es_001') {
+  generateAudioUrl(text, voiceId = 'es_mx_mia') {
     const encoded = encodeURIComponent(text);
     const seVoices = {
+      // Español Latino
+      es_mx_mia: 'Mia',
+      es_us_miguel: 'Miguel',
+      es_us_lupe: 'Lupe',
+      es_us_penelope: 'Penelope',
       es_001: 'Mia',
+      es_female: 'Mia',
+      es_male: 'Miguel',
+      tiktok_es: 'Mia',
+
+      // Español España / Castellano
+      es_es_enrique: 'Enrique',
+      es_es_conchita: 'Conchita',
+      es_es_lucia: 'Lucia',
       es_002: 'Conchita',
-      es_female: 'Penelope',
-      es_male: 'Enrique',
+
+      // English
+      en_brian: 'Brian',
+      en_emma: 'Emma',
+      en_joey: 'Joey',
+      en_matthew: 'Matthew',
+      en_kendra: 'Kendra',
+      en_justin: 'Justin',
+      en_russell: 'Russell',
       en_001: 'Brian',
       en_002: 'Emma',
-      tiktok_es: 'Mia',
-      tiktok_ghostface: 'Brian'
+      tiktok_ghostface: 'Brian',
+
+      // Internacionales
+      pt_cristiano: 'Cristiano',
+      fr_mathieu: 'Mathieu',
+      it_giorgio: 'Giorgio',
+      de_hans: 'Hans',
+      ja_takumi: 'Takumi',
+      ja_mizuki: 'Mizuki'
     };
 
-    const seVoice = seVoices[voiceId] || 'Mia';
-    // StreamElements TTS produces direct MP3 audio supported natively by OBS Browser Source CEF
+    const seVoice = seVoices[voiceId] || seVoices[voiceId.toLowerCase()] || 'Mia';
     return `https://api.streamelements.com/kappa/v2/speech?voice=${seVoice}&text=${encoded}`;
   }
 
@@ -84,7 +110,7 @@ class TTSService {
       return { success: false, reason: 'Texto vacío o inválido' };
     }
 
-    const voice = voiceOverride || config.voice || 'es_001';
+    const voice = voiceOverride || config.voice || 'es_mx_mia';
     const audioUrl = this.generateAudioUrl(cleanText, voice);
     const fallbackUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=es&client=tw-ob`;
 
@@ -115,14 +141,26 @@ class TTSService {
 
   getVoices() {
     return [
-      { id: 'es_001', name: 'Español Latino (Estándar)', lang: 'es-MX' },
-      { id: 'es_002', name: 'Español España (Castellano)', lang: 'es-ES' },
-      { id: 'es_female', name: 'Español Femenino', lang: 'es-ES' },
-      { id: 'es_male', name: 'Español Masculino', lang: 'es-MX' },
-      { id: 'en_001', name: 'English (US Male)', lang: 'en-US' },
-      { id: 'en_002', name: 'English (US Female)', lang: 'en-US' },
-      { id: 'tiktok_es', name: 'TikTok Español', lang: 'es' },
-      { id: 'tiktok_ghostface', name: 'TikTok Ghostface (Voz Scream)', lang: 'en' }
+      { id: 'es_mx_mia', name: 'Mia - Español Latino (Femenino)', lang: 'es-MX' },
+      { id: 'es_us_miguel', name: 'Miguel - Español Latino (Masculino)', lang: 'es-US' },
+      { id: 'es_us_lupe', name: 'Lupe - Español US (Femenino)', lang: 'es-US' },
+      { id: 'es_us_penelope', name: 'Penélope - Español Neutro (Femenino)', lang: 'es-US' },
+      { id: 'es_es_enrique', name: 'Enrique - Castellano (Masculino Pro)', lang: 'es-ES' },
+      { id: 'es_es_conchita', name: 'Conchita - Castellano (Femenino Pro)', lang: 'es-ES' },
+      { id: 'es_es_lucia', name: 'Lucía - Castellano (Natural)', lang: 'es-ES' },
+      { id: 'en_brian', name: 'Brian - English UK (Voz Meme / Classic)', lang: 'en-GB' },
+      { id: 'en_emma', name: 'Emma - English UK (Femenino)', lang: 'en-GB' },
+      { id: 'en_joey', name: 'Joey - English US (Masculino)', lang: 'en-US' },
+      { id: 'en_matthew', name: 'Matthew - English US (Masculino)', lang: 'en-US' },
+      { id: 'en_kendra', name: 'Kendra - English US (Femenino)', lang: 'en-US' },
+      { id: 'en_justin', name: 'Justin - English US (Joven)', lang: 'en-US' },
+      { id: 'en_russell', name: 'Russell - English Australia', lang: 'en-AU' },
+      { id: 'pt_cristiano', name: 'Cristiano - Português', lang: 'pt-BR' },
+      { id: 'fr_mathieu', name: 'Mathieu - Français', lang: 'fr-FR' },
+      { id: 'it_giorgio', name: 'Giorgio - Italiano', lang: 'it-IT' },
+      { id: 'de_hans', name: 'Hans - Deutsch', lang: 'de-DE' },
+      { id: 'ja_takumi', name: 'Takumi - 日本語 (Japonés Anime)', lang: 'ja-JP' },
+      { id: 'ja_mizuki', name: 'Mizuki - 日本語 (Japonés Femenino)', lang: 'ja-JP' }
     ];
   }
 }

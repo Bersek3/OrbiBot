@@ -84,8 +84,43 @@
         finishSpeaking();
       }
 
-      // 1. Prioridad: Audio streaming nativo (StreamElements / Google TTS)
-      const primaryUrl = item.audioUrl || (item.text ? `https://api.streamelements.com/kappa/v2/speech?voice=Mia&text=${encodeURIComponent(item.text)}` : null);
+      const SE_VOICE_MAP = {
+        es_mx_mia: 'Mia',
+        es_us_miguel: 'Miguel',
+        es_us_lupe: 'Lupe',
+        es_us_penelope: 'Penelope',
+        es_es_enrique: 'Enrique',
+        es_es_conchita: 'Conchita',
+        es_es_lucia: 'Lucia',
+        en_brian: 'Brian',
+        en_emma: 'Emma',
+        en_joey: 'Joey',
+        en_matthew: 'Matthew',
+        en_kendra: 'Kendra',
+        en_justin: 'Justin',
+        en_russell: 'Russell',
+        pt_cristiano: 'Cristiano',
+        fr_mathieu: 'Mathieu',
+        it_giorgio: 'Giorgio',
+        de_hans: 'Hans',
+        ja_takumi: 'Takumi',
+        ja_mizuki: 'Mizuki',
+        es_001: 'Mia',
+        es_002: 'Conchita',
+        es_female: 'Mia',
+        es_male: 'Miguel',
+        en_001: 'Brian',
+        en_002: 'Emma'
+      };
+
+      function getVoiceName(vId) {
+        if (!vId) return 'Mia';
+        return SE_VOICE_MAP[vId] || SE_VOICE_MAP[vId.toLowerCase()] || vId;
+      }
+
+      // 1. Prioridad: Audio streaming nativo con la voz exacta (StreamElements / Google TTS)
+      const voiceName = getVoiceName(item.voice);
+      const primaryUrl = item.audioUrl || (item.text ? `https://api.streamelements.com/kappa/v2/speech?voice=${encodeURIComponent(voiceName)}&text=${encodeURIComponent(item.text)}` : null);
       const secondaryUrl = item.fallbackUrl || (item.text ? `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(item.text)}&tl=es&client=tw-ob` : null);
 
       if (primaryUrl) {
@@ -136,9 +171,27 @@
         utterance.pitch = item.pitch || 1.0;
 
         const voices = window.speechSynthesis.getVoices();
-        const spanishVoice = voices.find(v => v.lang.startsWith('es') || v.name.includes('Spanish'));
-        if (spanishVoice) {
-          utterance.voice = spanishVoice;
+        const vKey = (item.voice || '').toLowerCase();
+        let selectedVoice = null;
+
+        if (vKey.includes('miguel') || vKey.includes('enrique') || vKey.includes('male') || vKey.includes('joey') || vKey.includes('brian') || vKey.includes('matthew') || vKey.includes('justin') || vKey.includes('hans') || vKey.includes('takumi') || vKey.includes('cristiano') || vKey.includes('giorgio') || vKey.includes('mathieu')) {
+          selectedVoice = voices.find(v => (v.name.includes('Male') || v.name.includes('David') || v.name.includes('Pablo') || v.name.includes('Alvaro') || v.name.includes('Raul') || v.name.includes('Jorge') || v.name.includes('Enrique') || v.name.includes('Guy') || v.name.includes('Stefan') || v.name.includes('Cosimo') || v.name.includes('Keita')) && (vKey.startsWith('en') ? v.lang.startsWith('en') : v.lang.startsWith('es')));
+        } else {
+          selectedVoice = voices.find(v => (v.name.includes('Female') || v.name.includes('Zira') || v.name.includes('Sabina') || v.name.includes('Helena') || v.name.includes('Laura') || v.name.includes('Monica') || v.name.includes('Mia') || v.name.includes('Lucia') || v.name.includes('Conchita')) && (vKey.startsWith('en') ? v.lang.startsWith('en') : v.lang.startsWith('es')));
+        }
+
+        if (!selectedVoice) {
+          if (vKey.startsWith('en')) selectedVoice = voices.find(v => v.lang.startsWith('en'));
+          else if (vKey.startsWith('pt')) selectedVoice = voices.find(v => v.lang.startsWith('pt'));
+          else if (vKey.startsWith('fr')) selectedVoice = voices.find(v => v.lang.startsWith('fr'));
+          else if (vKey.startsWith('it')) selectedVoice = voices.find(v => v.lang.startsWith('it'));
+          else if (vKey.startsWith('de')) selectedVoice = voices.find(v => v.lang.startsWith('de'));
+          else if (vKey.startsWith('ja')) selectedVoice = voices.find(v => v.lang.startsWith('ja'));
+          else selectedVoice = voices.find(v => v.lang.startsWith('es'));
+        }
+
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
         }
 
         utterance.onend = () => { if (onDone) onDone(); };

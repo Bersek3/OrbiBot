@@ -28,6 +28,54 @@ const SUPABASE_URL = 'https://pzrlfuzjkwkrnmqkoaue.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_L6kzW0ZtGyfl6mvKevDX0Q_6G0DCGDP';
 let supabaseClient = null;
 
+async function loadUserDataFromSupabase(userEmail) {
+  if (!supabaseClient || !userEmail) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from('orbibot_settings')
+      .select('*')
+      .eq('streamer_id', userEmail);
+
+    if (!error && data && data.length > 0) {
+      console.log(`☁️ [Supabase Cloud] ${data.length} ajustes sincronizados para ${userEmail}.`);
+      data.forEach(item => {
+        if (item.key === 'config' && item.value) {
+          appConfig = { ...(appConfig || {}), ...item.value };
+          localStorage.setItem('orbibot_config', JSON.stringify(appConfig));
+          bindConfigToUI(appConfig);
+        }
+        if (item.key === 'widgetStyles' && item.value) {
+          if (typeof wcWidgetStyles !== 'undefined') {
+            wcWidgetStyles = { ...wcWidgetStyles, ...item.value };
+          }
+        }
+        if (item.key === 'alerts' && item.value) {
+          localStorage.setItem('orbibot_alerts', JSON.stringify(item.value));
+          if (typeof wcAlertImages !== 'undefined' && typeof wcAlertSounds !== 'undefined') {
+            Object.keys(item.value).forEach(k => {
+              if (item.value[k]?.image) wcAlertImages[k] = item.value[k].image;
+              if (item.value[k]?.sound) wcAlertSounds[k] = item.value[k].sound;
+            });
+          }
+        }
+        if (item.key === 'commands' && item.value) {
+          localStorage.setItem('orbibot_commands', JSON.stringify(item.value));
+          renderCommands(item.value);
+        }
+        if (item.key === 'channel_points' && item.value) {
+          localStorage.setItem('orbibot_rewards', JSON.stringify(item.value));
+          renderRewards(item.value);
+        }
+      });
+      if (typeof initWidgetCustomization === 'function') {
+        initWidgetCustomization();
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ [Supabase Cloud] Error al cargar datos del usuario:', err.message);
+  }
+}
+
 function initSupabaseAuth() {
   if (typeof supabase !== 'undefined' && supabase.createClient) {
     try {
@@ -48,6 +96,9 @@ function initSupabaseAuth() {
           };
           setUserSession(userObj);
           closeAuthModal();
+
+          // Sincronizar ajustes guardados en la nube para este usuario
+          loadUserDataFromSupabase(userObj.email);
 
           // Redirigir automáticamente al dashboard
           showDashboardView('tab-dashboard');
@@ -77,6 +128,7 @@ function initSupabaseAuth() {
             loggedInAt: Date.now()
           };
           setUserSession(userObj);
+          loadUserDataFromSupabase(userObj.email);
           showDashboardView('tab-dashboard');
           updatePlatformLinkingUI();
         }
@@ -2380,6 +2432,40 @@ async function triggerTestAlert(type) {
   } catch (e) { }
 }
 
+const SE_VOICE_MAP = {
+  es_mx_mia: 'Mia',
+  es_us_miguel: 'Miguel',
+  es_us_lupe: 'Lupe',
+  es_us_penelope: 'Penelope',
+  es_es_enrique: 'Enrique',
+  es_es_conchita: 'Conchita',
+  es_es_lucia: 'Lucia',
+  en_brian: 'Brian',
+  en_emma: 'Emma',
+  en_joey: 'Joey',
+  en_matthew: 'Matthew',
+  en_kendra: 'Kendra',
+  en_justin: 'Justin',
+  en_russell: 'Russell',
+  pt_cristiano: 'Cristiano',
+  fr_mathieu: 'Mathieu',
+  it_giorgio: 'Giorgio',
+  de_hans: 'Hans',
+  ja_takumi: 'Takumi',
+  ja_mizuki: 'Mizuki',
+  es_001: 'Mia',
+  es_002: 'Conchita',
+  es_female: 'Mia',
+  es_male: 'Miguel',
+  en_001: 'Brian',
+  en_002: 'Emma'
+};
+
+function getTTSAudioUrl(text, voiceId) {
+  const vName = SE_VOICE_MAP[voiceId] || SE_VOICE_MAP[voiceId?.toLowerCase()] || 'Mia';
+  return `https://api.streamelements.com/kappa/v2/speech?voice=${encodeURIComponent(vName)}&text=${encodeURIComponent(text)}`;
+}
+
 async function triggerTestTTS() {
   if (!isStreamerLoggedIn()) {
     showToast('⚠️ Debes iniciar sesión o vincular un canal para probar TTS en OBS Studio.', 'warn');
@@ -2387,43 +2473,56 @@ async function triggerTestTTS() {
   }
   const input = document.getElementById('testTtsInput');
   const text = (input ? input.value.trim() : '') || '¡Hola streamer! Este es un mensaje de prueba con Text to Speech en OBS.';
-  const voice = document.getElementById('cfgTtsVoice')?.value || 'es_001';
+  const voice = document.getElementById('cfgTtsVoice')?.value || 'es_mx_mia';
   const volume = Number(document.getElementById('cfgTtsVolume')?.value || 90) / 100;
   const rate = Number(document.getElementById('cfgTtsRate')?.value || 1.0);
   const pitch = Number(document.getElementById('cfgTtsPitch')?.value || 1.0);
 
+  const ttsAudioUrl = getTTSAudioUrl(text, voice);
+  const eventId = 'tts_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
   const ttsData = {
+    id: eventId,
     user: 'StreamerTest',
     text,
     voice,
     volume,
     rate,
     pitch,
+    audioUrl: ttsAudioUrl,
     timestamp: Date.now()
   };
 
   // Transmitir inmediatamente por MQTT y WebSocket a la fuente de OBS
   broadcastEvent('tts', ttsData);
-  showToast('Mensaje TTS enviado a OBS Studio', 'success');
+  showToast('🗣️ Mensaje TTS enviado a OBS Studio', 'success');
 
-  // Preview local en el navegador
-  if ('speechSynthesis' in window) {
-    try {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.volume = volume;
-      u.rate = rate;
-      u.pitch = pitch;
-      window.speechSynthesis.speak(u);
-    } catch (e) { }
-  }
+  // Preview local directo en el navegador con la voz exacta seleccionada
+  try {
+    const previewAudio = new Audio(ttsAudioUrl);
+    previewAudio.volume = volume;
+    const playPromise = previewAudio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // Fallback WebSpeech en caso de bloqueo de autoplay del navegador
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance(text);
+          u.volume = volume;
+          u.rate = rate;
+          u.pitch = pitch;
+          window.speechSynthesis.speak(u);
+        }
+      });
+    }
+  } catch (e) { }
 
   try {
     const room = getActiveStreamerRoom();
     await fetch('/api/tts/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, user: 'StreamerTest', voice, room })
+      body: JSON.stringify({ id: eventId, text, user: 'StreamerTest', voice, room })
     });
   } catch (e) { }
 }
