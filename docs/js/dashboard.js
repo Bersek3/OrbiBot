@@ -1957,28 +1957,34 @@ function setupEventListeners() {
     });
   }
 
-  // Connect / Disconnect Twitch
-  document.getElementById('btnConnectTwitch').addEventListener('click', async () => {
-    await saveAllConfig(false);
-    showToast('Iniciando conexión con Twitch...', 'info');
-    try {
-      const res = await fetch('/api/bot/connect', { method: 'POST' });
-      const data = await res.json();
-      showToast(data.message, data.success ? 'success' : 'warn');
-    } catch (e) {
-      showToast('Error de conexión', 'error');
-    }
-  });
+  // Connect / Disconnect Twitch (si existen)
+  const btnConnectTwitch = document.getElementById('btnConnectTwitch');
+  if (btnConnectTwitch) {
+    btnConnectTwitch.addEventListener('click', async () => {
+      await saveAllConfig(false);
+      showToast('Iniciando conexión con Twitch...', 'info');
+      try {
+        const res = await fetch('/api/bot/connect', { method: 'POST' });
+        const data = await res.json();
+        showToast(data.message, data.success ? 'success' : 'warn');
+      } catch (e) {
+        showToast('Error de conexión', 'error');
+      }
+    });
+  }
 
-  document.getElementById('btnDisconnectTwitch').addEventListener('click', async () => {
-    try {
-      const res = await fetch('/api/bot/disconnect', { method: 'POST' });
-      const data = await res.json();
-      showToast(data.message);
-    } catch (e) {
-      showToast('Error al desconectar', 'error');
-    }
-  });
+  const btnDisconnectTwitch = document.getElementById('btnDisconnectTwitch');
+  if (btnDisconnectTwitch) {
+    btnDisconnectTwitch.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/bot/disconnect', { method: 'POST' });
+        const data = await res.json();
+        showToast(data.message);
+      } catch (e) {
+        showToast('Error al desconectar', 'error');
+      }
+    });
+  }
 
   // Direct Twitch OAuth Authentication
   let activeAuthPopup = null;

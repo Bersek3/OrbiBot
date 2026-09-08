@@ -340,51 +340,6 @@
             </div>
           </div>
         </div>
-
-        <!-- OPCIONES AVANZADAS / CONFIGURACIÓN MANUAL (Colapsable) -->
-        <details style="margin-top: 24px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px 18px;">
-          <summary style="font-size: 13px; font-weight: 700; color: var(--text-secondary); cursor: pointer; user-select: none;">
-            ⚙️ Opciones Avanzadas / Cuenta Secundaria de Bot (Opcional)
-          </summary>
-          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
-              Si deseas que las respuestas del bot las envíe una cuenta secundaria diferente (ej: <code>MiBotCanal</code>), o configurar un Client ID personalizado de desarrollador:
-            </p>
-            <div class="grid-3" style="gap: 12px;">
-              <div class="form-group" style="margin-bottom: 8px;">
-                <label class="form-label" style="font-size: 11px;">Canal del Streamer</label>
-                <input type="text" id="cfgTwitchChannel" class="form-control" placeholder="tu_canal">
-              </div>
-              <div class="form-group" style="margin-bottom: 8px;">
-                <label class="form-label" style="font-size: 11px;">Usuario Bot</label>
-                <input type="text" id="cfgTwitchBotUser" class="form-control" placeholder="MiCanalBot">
-              </div>
-              <div class="form-group" style="margin-bottom: 8px;">
-                <label class="form-label" style="font-size: 11px;">Token OAuth Bot</label>
-                <input type="password" id="cfgTwitchToken" class="form-control" placeholder="oauth:...">
-              </div>
-            </div>
-            <div class="grid-2" style="margin-top: 8px; gap: 12px;">
-              <div class="form-group">
-                <label class="form-label" style="font-size: 11px;">Twitch Client ID</label>
-                <input type="text" id="cfgTwitchClientId" class="form-control" value="yw1vr664ichms8an2x5lhji58v7ozk">
-              </div>
-              <div class="form-group">
-                <label class="form-label" style="font-size: 11px;">OAuth Redirect URI (Debe coincidir con Twitch Developers)</label>
-                <input type="text" id="cfgTwitchRedirectUri" class="form-control" placeholder="Automático">
-              </div>
-            </div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.5;">
-              💡 <strong>URL de Redirección actual:</strong> <code id="displayRedirectUri" style="color: var(--cyan-accent); background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px;"></code>
-              <button class="btn btn-secondary btn-sm" style="padding: 1px 6px; font-size: 10px; margin-left: 4px;" onclick="copyWidgetUrl('displayRedirectUri')">Copiar</button>
-              <br>Asegúrate de agregar esta URL exacta en tu app de <a href="https://dev.twitch.tv/console/apps" target="_blank" style="color: var(--cyan-accent); text-decoration: underline;">Twitch Developer Console</a>.
-            </div>
-            <div style="display: flex; gap: 10px; margin-top: 12px;">
-              <button id="btnConnectTwitch" class="btn btn-secondary btn-sm">Guardar y Conectar</button>
-              <button id="btnDisconnectTwitch" class="btn btn-danger btn-sm">Desconectar</button>
-            </div>
-          </div>
-        </details>
       </section>
 
       <!-- ================= TAB 3: SONG REQUEST ================= -->
