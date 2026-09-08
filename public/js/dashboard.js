@@ -2831,6 +2831,152 @@ function renderRewards(rewards) {
   });
 }
 
+// ================= REWARDS (TWITCH CHANNEL POINTS) DROPDOWN & LOGIC =================
+let cachedTwitchHelixRewards = [];
+
+function populateTwitchRewardsDropdown(twRewards) {
+  cachedTwitchHelixRewards = Array.isArray(twRewards) ? twRewards : [];
+  const select = document.getElementById('rewardQuickSelect');
+  const datalist = document.getElementById('twitchRewardsDatalist');
+
+  if (datalist) {
+    datalist.innerHTML = '';
+    cachedTwitchHelixRewards.forEach(tr => {
+      const opt = document.createElement('option');
+      opt.value = tr.title;
+      datalist.appendChild(opt);
+    });
+  }
+
+  if (select) {
+    select.innerHTML = '';
+    
+    if (cachedTwitchHelixRewards.length === 0) {
+      select.innerHTML = `
+        <option value="">✨ -- No hay recompensas sincronizadas (Haz clic en Sincronizar) --</option>
+        <option value="__custom__">✏️ Escribir nombre manualmente...</option>
+      `;
+    } else {
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.innerText = `✨ -- Selecciona una recompensa (${cachedTwitchHelixRewards.length} encontradas) --`;
+      select.appendChild(defaultOpt);
+
+      cachedTwitchHelixRewards.forEach(tr => {
+        const opt = document.createElement('option');
+        opt.value = tr.title;
+        const costStr = tr.cost !== undefined ? ` [${Number(tr.cost).toLocaleString()} pts]` : '';
+        opt.innerText = `🎁 ${tr.title}${costStr}`;
+        select.appendChild(opt);
+      });
+
+      const customOpt = document.createElement('option');
+      customOpt.value = '__custom__';
+      customOpt.innerText = '✏️ Escribir otro nombre manualmente...';
+      select.appendChild(customOpt);
+    }
+  }
+}
+
+function onRewardQuickSelectChange(val) {
+  const input = document.getElementById('rewardNameInput');
+  if (!input) return;
+
+  if (val === '__custom__') {
+    input.value = '';
+    input.focus();
+    delete input.dataset.rewardId;
+  } else if (val) {
+    input.value = val;
+    const match = cachedTwitchHelixRewards.find(r => r.title === val);
+    if (match) {
+      input.dataset.rewardId = match.id;
+    } else {
+      delete input.dataset.rewardId;
+    }
+  }
+}
+
+function setupRewardAutocomplete() {
+  const input = document.getElementById('rewardNameInput');
+  const dropdown = document.getElementById('rewardSuggestionsDropdown');
+  const select = document.getElementById('rewardQuickSelect');
+  if (!input || !dropdown) return;
+
+  const showSuggestions = (filterText = '') => {
+    if (!cachedTwitchHelixRewards || cachedTwitchHelixRewards.length === 0) {
+      dropdown.style.display = 'none';
+      return;
+    }
+
+    const query = filterText.toLowerCase().trim();
+    const filtered = query
+      ? cachedTwitchHelixRewards.filter(r => r.title.toLowerCase().includes(query))
+      : cachedTwitchHelixRewards;
+
+    if (filtered.length === 0) {
+      dropdown.style.display = 'none';
+      return;
+    }
+
+    dropdown.innerHTML = '';
+    filtered.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'reward-suggestion-item';
+      div.style.cssText = 'padding: 10px 14px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); transition: background 0.15s;';
+      div.onmouseover = () => { div.style.background = 'rgba(145, 70, 255, 0.25)'; };
+      div.onmouseout = () => { div.style.background = 'transparent'; };
+      
+      const costBadge = item.cost !== undefined ? `<span style="font-size: 11px; font-weight: 700; color: #a855f7; background: rgba(168, 85, 247, 0.15); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(168, 85, 247, 0.3);">${Number(item.cost).toLocaleString()} pts</span>` : '';
+
+      div.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 16px;">🎁</span>
+          <span style="font-weight: 600; color: #ffffff; font-size: 13.5px;">${escapeHtml(item.title)}</span>
+        </div>
+        ${costBadge}
+      `;
+
+      div.addEventListener('click', () => {
+        input.value = item.title;
+        input.dataset.rewardId = item.id;
+        if (select) {
+          select.value = item.title;
+        }
+        dropdown.style.display = 'none';
+      });
+
+      dropdown.appendChild(div);
+    });
+
+    dropdown.style.display = 'block';
+  };
+
+  input.addEventListener('input', (e) => {
+    showSuggestions(e.target.value);
+    if (select) {
+      const match = Array.from(select.options).find(o => o.value.toLowerCase() === e.target.value.toLowerCase());
+      if (match) {
+        select.value = match.value;
+      } else {
+        select.value = '__custom__';
+      }
+    }
+  });
+
+  input.addEventListener('focus', () => {
+    if (cachedTwitchHelixRewards.length > 0 && !input.value.trim()) {
+      showSuggestions('');
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
+}
+
 async function syncTwitchRewardsUI() {
   showToast('Obteniendo recompensas de tu canal de Twitch...', 'info');
   try {
@@ -2898,17 +3044,9 @@ async function syncTwitchRewardsUI() {
       }
     }
 
-    if (twRewards.length > 0) {
-      const datalist = document.getElementById('twitchRewardsDatalist');
-      if (datalist) {
-        datalist.innerHTML = '';
-        twRewards.forEach(tr => {
-          const opt = document.createElement('option');
-          opt.value = tr.title;
-          datalist.appendChild(opt);
-        });
-      }
+    populateTwitchRewardsDropdown(twRewards);
 
+    if (twRewards.length > 0) {
       // Sincronizar automáticamente IDs de las recompensas ya configuradas
       let localRewards = [];
       try {
@@ -2939,7 +3077,7 @@ async function syncTwitchRewardsUI() {
         renderRewards(localRewards);
       }
 
-      showToast(`¡${twRewards.length} recompensas de Twitch encontradas y listas para mapear!`, 'success');
+      showToast(`¡${twRewards.length} recompensas de Twitch encontradas y listas para seleccionar!`, 'success');
     } else {
       showToast('No se encontraron recompensas personalizadas creadas en tu Twitch Creator Dashboard.', 'warn');
     }
@@ -2958,6 +3096,7 @@ function toggleRewardForm(show) {
   }
   if (form.style.display === 'block') {
     loadSounds();
+    setupRewardAutocomplete();
     syncTwitchRewardsUI();
   }
 }
@@ -3061,15 +3200,19 @@ async function handleSoundFileUpload(input) {
 }
 
 async function saveRewardUI() {
-  const name = document.getElementById('rewardNameInput').value.trim();
+  const inputEl = document.getElementById('rewardNameInput');
+  const name = (inputEl?.value || '').trim();
   const action = document.getElementById('rewardActionSelect').value;
   const soundUrl = document.getElementById('rewardSoundSelect')?.value || '/assets/sounds/airhorn.mp3';
   const editId = document.getElementById('editRewardId').value;
 
   if (!name) {
-    showToast('Ingresa el nombre de la recompensa en Twitch', 'warn');
+    showToast('Ingresa o selecciona el nombre de la recompensa en Twitch', 'warn');
     return;
   }
+
+  const matchedTwitch = cachedTwitchHelixRewards.find(tr => tr.title.trim().toLowerCase() === name.toLowerCase());
+  const rewardIdFromHelix = inputEl?.dataset?.rewardId || (matchedTwitch ? matchedTwitch.id : null);
 
   let rewards = [];
   try {
@@ -3081,6 +3224,7 @@ async function saveRewardUI() {
 
   const newReward = {
     id: editId || `reward-${Date.now()}`,
+    rewardId: rewardIdFromHelix,
     rewardName: name,
     action,
     soundUrl: action === 'sound' ? soundUrl : null,
@@ -3120,7 +3264,13 @@ async function saveRewardUI() {
   renderRewards(rewards);
   toggleRewardForm(false);
   document.getElementById('editRewardId').value = '';
-  document.getElementById('rewardNameInput').value = '';
+  if (inputEl) {
+    inputEl.value = '';
+    delete inputEl.dataset.rewardId;
+  }
+  const quickSel = document.getElementById('rewardQuickSelect');
+  if (quickSel) quickSel.value = '';
+
   showToast(`Recompensa "${name}" guardada`, 'success');
 }
 
@@ -3136,7 +3286,22 @@ async function editReward(rewardId) {
   if (!r) return;
 
   document.getElementById('editRewardId').value = r.id;
-  document.getElementById('rewardNameInput').value = r.rewardName;
+  const inputEl = document.getElementById('rewardNameInput');
+  if (inputEl) {
+    inputEl.value = r.rewardName;
+    if (r.rewardId) inputEl.dataset.rewardId = r.rewardId;
+  }
+
+  const quickSel = document.getElementById('rewardQuickSelect');
+  if (quickSel) {
+    const match = Array.from(quickSel.options).find(o => o.value.trim().toLowerCase() === r.rewardName.trim().toLowerCase());
+    if (match) {
+      quickSel.value = match.value;
+    } else {
+      quickSel.value = '__custom__';
+    }
+  }
+
   document.getElementById('rewardActionSelect').value = r.action;
   handleRewardActionChange(r.action);
   if (r.soundUrl && document.getElementById('rewardSoundSelect')) {
@@ -4718,11 +4883,15 @@ function initWidgetCustomization() {
   selectCustomizeWidget('alerts');
 }
 
-// Initialize widget customization when initial data is loaded
+// Initialize widget customization & reward autocomplete when initial data is loaded
 const _origLoadInitialData = loadInitialData;
 loadInitialData = async function () {
   await _origLoadInitialData();
   initWidgetCustomization();
+  if (typeof setupRewardAutocomplete === 'function') {
+    setupRewardAutocomplete();
+  }
 };
+
 
 
