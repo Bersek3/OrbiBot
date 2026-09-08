@@ -28,16 +28,32 @@ const SUPABASE_URL = 'https://pzrlfuzjkwkrnmqkoaue.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_L6kzW0ZtGyfl6mvKevDX0Q_6G0DCGDP';
 let supabaseClient = null;
 
-async function loadUserDataFromSupabase(userEmail) {
-  if (!supabaseClient || !userEmail) return;
+async function loadUserDataFromSupabase(userIdentifier) {
+  if (!supabaseClient || !userIdentifier) return;
   try {
-    const { data, error } = await supabaseClient
+    const cleanId = (userIdentifier || '').toLowerCase().replace(/^#/, '').trim();
+    let { data, error } = await supabaseClient
       .from('orbibot_settings')
       .select('*')
-      .eq('streamer_id', userEmail);
+      .eq('streamer_id', cleanId);
+
+    // Si no encuentra por email, intentar por el canal de Twitch si está configurado
+    if ((!data || data.length === 0) && appConfig?.twitch?.channel) {
+      const channelId = appConfig.twitch.channel.toLowerCase().replace(/^#/, '').trim();
+      if (channelId && channelId !== cleanId) {
+        const res = await supabaseClient
+          .from('orbibot_settings')
+          .select('*')
+          .eq('streamer_id', channelId);
+        if (res.data && res.data.length > 0) {
+          data = res.data;
+          error = res.error;
+        }
+      }
+    }
 
     if (!error && data && data.length > 0) {
-      console.log(`☁️ [Supabase Cloud] ${data.length} ajustes sincronizados para ${userEmail}.`);
+      console.log(`☁️ [Supabase Cloud] ${data.length} ajustes sincronizados para "${cleanId}".`);
       data.forEach(item => {
         if (item.key === 'config' && item.value) {
           appConfig = { ...(appConfig || {}), ...item.value };
@@ -47,6 +63,14 @@ async function loadUserDataFromSupabase(userEmail) {
         if (item.key === 'widgetStyles' && item.value) {
           if (typeof wcWidgetStyles !== 'undefined') {
             wcWidgetStyles = { ...wcWidgetStyles, ...item.value };
+            if (wcWidgetStyles.alerts) {
+              if (wcWidgetStyles.alerts.images) {
+                wcAlertImages = { ...wcAlertImages, ...wcWidgetStyles.alerts.images };
+              }
+              if (wcWidgetStyles.alerts.sounds) {
+                wcAlertSounds = { ...wcAlertSounds, ...wcWidgetStyles.alerts.sounds };
+              }
+            }
           }
         }
         if (item.key === 'alerts' && item.value) {
@@ -4292,6 +4316,15 @@ function toggleGifGallery() {
   if (!isShown) renderGifGallery(wcActiveAlertEvent);
 }
 
+let widgetStylesAutoSaveTimer = null;
+function triggerAutoSaveWidgetStyles(delay = 600) {
+  setAutoSaveStatus('saving');
+  if (widgetStylesAutoSaveTimer) clearTimeout(widgetStylesAutoSaveTimer);
+  widgetStylesAutoSaveTimer = setTimeout(() => {
+    saveWidgetStyles();
+  }, delay);
+}
+
 function selectGalleryGif(url, name) {
   wcAlertImages[wcActiveAlertEvent] = url;
   const urlInput = document.getElementById('wc-alert-imageUrl');
@@ -4300,7 +4333,8 @@ function selectGalleryGif(url, name) {
   const imgEl = document.getElementById('wcPvAlertImg');
   if (imgEl) imgEl.src = url;
 
-  showToast(`GIF "${name}" seleccionado para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'info');
+  saveWidgetStyles();
+  showToast(`GIF "${name}" guardado en la base de datos para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'info');
 }
 
 function handleAlertUrlInput(url) {
@@ -4308,22 +4342,50 @@ function handleAlertUrlInput(url) {
   wcAlertImages[wcActiveAlertEvent] = cleanUrl;
   const imgEl = document.getElementById('wcPvAlertImg');
   if (imgEl && cleanUrl) imgEl.src = cleanUrl;
+  triggerAutoSaveWidgetStyles();
 }
 
 function handleAlertFileUpload(input) {
   if (input.files && input.files[0]) {
     const file = input.files[0];
+    if (file.size > 25 * 1024 * 1024) {
+      showToast('El archivo de imagen es demasiado grande (máximo 25MB)', 'error');
+      return;
+    }
+
+    showToast(`Subiendo imagen "${file.name}"...`, 'info');
     const reader = new FileReader();
-    reader.onload = function (e) {
+    reader.onload = async function (e) {
       const dataUrl = e.target.result;
-      wcAlertImages[wcActiveAlertEvent] = dataUrl;
+      let finalUrl = dataUrl;
+
+      // Intentar subir al servidor backend /api/images/upload
+      try {
+        const res = await fetch('/api/images/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: file.name, data: dataUrl })
+        });
+        const data = await res.json();
+        if (data.success && data.url) {
+          finalUrl = data.url;
+        }
+      } catch (err) {
+        console.warn('Backend image upload fallback to DataURL:', err);
+      }
+
+      wcAlertImages[wcActiveAlertEvent] = finalUrl;
       const urlInput = document.getElementById('wc-alert-imageUrl');
-      if (urlInput) urlInput.value = dataUrl;
+      if (urlInput) urlInput.value = finalUrl;
       const imgEl = document.getElementById('wcPvAlertImg');
-      if (imgEl) imgEl.src = dataUrl;
-      showToast(`Archivo "${file.name}" cargado para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'success');
+      if (imgEl) imgEl.src = finalUrl;
+
+      // Guardar inmediatamente en la base de datos (Supabase + localStorage + backend)
+      await saveWidgetStyles();
+      showToast(`✅ Imagen "${file.name}" guardada en la base de datos para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'success');
     };
     reader.readAsDataURL(file);
+    input.value = '';
   }
 }
 
@@ -4336,21 +4398,30 @@ function handleAlertSoundSelect(val) {
     if (customRow) customRow.style.display = 'none';
     wcAlertSounds[wcActiveAlertEvent] = val;
     playActiveAlertSound();
+    saveWidgetStyles();
   }
 }
 
 function handleAlertSoundUrlInput(url) {
   wcAlertSounds[wcActiveAlertEvent] = url.trim();
+  triggerAutoSaveWidgetStyles();
 }
 
 function handleAlertSoundUpload(input) {
   if (input.files && input.files[0]) {
     const file = input.files[0];
+    if (file.size > 25 * 1024 * 1024) {
+      showToast('El archivo de audio es demasiado grande (máximo 25MB)', 'error');
+      return;
+    }
+
+    showToast(`Subiendo audio "${file.name}"...`, 'info');
     const reader = new FileReader();
     reader.onload = async function (e) {
       const dataUrl = e.target.result;
+      let finalUrl = dataUrl;
 
-      // Try uploading to backend /api/sounds/upload
+      // Intentar subir al backend /api/sounds/upload
       try {
         const res = await fetch('/api/sounds/upload', {
           method: 'POST',
@@ -4359,21 +4430,22 @@ function handleAlertSoundUpload(input) {
         });
         const data = await res.json();
         if (data.success && data.url) {
-          wcAlertSounds[wcActiveAlertEvent] = data.url;
-          addSoundOption(data.url, file.name);
-          showToast(`Audio "${file.name}" subido correctamente`, 'success');
-          playActiveAlertSound();
-          return;
+          finalUrl = data.url;
         }
-      } catch (err) { }
+      } catch (err) {
+        console.warn('Backend sound upload fallback to DataURL:', err);
+      }
 
-      // Fallback: use dataUrl directly
-      wcAlertSounds[wcActiveAlertEvent] = dataUrl;
-      addSoundOption(dataUrl, file.name);
-      showToast(`Audio local "${file.name}" asignado`, 'success');
+      wcAlertSounds[wcActiveAlertEvent] = finalUrl;
+      addSoundOption(finalUrl, file.name);
       playActiveAlertSound();
+
+      // Guardar inmediatamente en la base de datos (Supabase + localStorage + backend)
+      await saveWidgetStyles();
+      showToast(`✅ Audio "${file.name}" guardado en la base de datos para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'success');
     };
     reader.readAsDataURL(file);
+    input.value = '';
   }
 }
 
@@ -4768,11 +4840,12 @@ async function saveWidgetStyles() {
     }
 
     // Also update /api/alerts (Syncs to Supabase under key='alerts')
+    let updatedAlerts = null;
     if (wcCurrentWidget === 'alerts') {
       try {
         const currentAlertsRes = await fetch('/api/alerts');
         const currentAlerts = await currentAlertsRes.json();
-        const updatedAlerts = { ...currentAlerts };
+        updatedAlerts = { ...currentAlerts };
 
         Object.keys(wcAlertImages).forEach(evKey => {
           if (!updatedAlerts[evKey]) updatedAlerts[evKey] = {};
@@ -4789,11 +4862,51 @@ async function saveWidgetStyles() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedAlerts)
         });
+
+        localStorage.setItem('orbibot_alerts', JSON.stringify(updatedAlerts));
       } catch (e) { }
     }
 
+    // Direct Supabase Cloud Sync
+    if (supabaseClient) {
+      try {
+        const session = getUserSession();
+        const streamerId = (appConfig?.twitch?.channel || session?.email || 'default').toLowerCase().replace(/^#/, '');
+        const upsertPromises = [
+          supabaseClient.from('orbibot_settings').upsert({
+            streamer_id: streamerId,
+            key: 'widgetStyles',
+            value: wcWidgetStyles,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'streamer_id,key' }),
+          supabaseClient.from('orbibot_settings').upsert({
+            streamer_id: streamerId,
+            key: 'config',
+            value: appConfig || cfg,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'streamer_id,key' })
+        ];
+
+        if (updatedAlerts) {
+          upsertPromises.push(
+            supabaseClient.from('orbibot_settings').upsert({
+              streamer_id: streamerId,
+              key: 'alerts',
+              value: updatedAlerts,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'streamer_id,key' })
+          );
+        }
+
+        await Promise.all(upsertPromises);
+        console.log('☁️ [Supabase Cloud] Ajustes multimedia y estilos de widgets guardados.');
+      } catch (e) {
+        console.warn('Error syncing widget styles directly to Supabase:', e);
+      }
+    }
+
     setAutoSaveStatus('saved');
-    showToast(`✅ Estilos de "${WC_WIDGET_NAMES[wcCurrentWidget]}" guardados en la nube`, 'success');
+    showToast(`✅ Configuración y multimedia de "${WC_WIDGET_NAMES[wcCurrentWidget]}" guardados en la nube`, 'success');
   } catch (e) {
     setAutoSaveStatus('saved');
     showToast('Estilos guardados localmente', 'info');
@@ -4828,7 +4941,7 @@ function resetWidgetStyles() {
 }
 
 function initWidgetCustomization() {
-  // Load saved widget styles from appConfig
+  // 1. Load saved widget styles from appConfig
   if (appConfig && appConfig.widgetStyles) {
     wcWidgetStyles = appConfig.widgetStyles;
     if (wcWidgetStyles.alerts) {
@@ -4841,7 +4954,18 @@ function initWidgetCustomization() {
     }
   }
 
-  // Also fetch saved alert images and sounds from /api/alerts
+  // 2. Load alerts from localStorage if present
+  try {
+    const localAlerts = JSON.parse(localStorage.getItem('orbibot_alerts') || '{}');
+    if (localAlerts && typeof localAlerts === 'object') {
+      Object.keys(localAlerts).forEach(k => {
+        if (localAlerts[k]?.image) wcAlertImages[k] = localAlerts[k].image;
+        if (localAlerts[k]?.sound) wcAlertSounds[k] = localAlerts[k].sound;
+      });
+    }
+  } catch (e) { }
+
+  // 3. Also fetch saved alert images and sounds from /api/alerts
   fetch('/api/alerts')
     .then(r => r.json())
     .then(data => {

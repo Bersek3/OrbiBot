@@ -20,8 +20,8 @@ const wss = new WebSocketServer({ server });
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Render Health Check
@@ -647,6 +647,59 @@ app.post('/api/sounds/upload', (req, res) => {
   }
 });
 
+// Image files management (Custom GIFs, PNGs, WebPs for widgets & alerts)
+app.get('/api/images', (req, res) => {
+  try {
+    const imagesDir = path.join(__dirname, 'public', 'assets', 'images', 'custom');
+    if (!fs.existsSync(imagesDir)) {
+      fs.mkdirSync(imagesDir, { recursive: true });
+    }
+    const files = fs.readdirSync(imagesDir)
+      .filter(f => /\.(png|jpg|jpeg|gif|webp|svg|bmp)$/i.test(f))
+      .map(f => ({
+        name: f,
+        url: `/assets/images/custom/${f}`
+      }));
+    res.json(files);
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+app.post('/api/images/upload', (req, res) => {
+  try {
+    const { name, data } = req.body;
+    if (!name || !data) {
+      return res.status(400).json({ success: false, message: 'Falta nombre o archivo de imagen.' });
+    }
+
+    const cleanName = name.replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
+    const imagesDir = path.join(__dirname, 'public', 'assets', 'images', 'custom');
+    if (!fs.existsSync(imagesDir)) {
+      fs.mkdirSync(imagesDir, { recursive: true });
+    }
+
+    const base64Data = data.replace(/^data:image\/\w+;base64,/, '').replace(/^data:application\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const targetPath = path.join(imagesDir, cleanName);
+
+    fs.writeFileSync(targetPath, buffer);
+
+    // Sync to docs if present
+    const docsDir = path.join(__dirname, 'docs', 'assets', 'images', 'custom');
+    if (fs.existsSync(path.join(__dirname, 'docs'))) {
+      if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
+      fs.writeFileSync(path.join(docsDir, cleanName), buffer);
+    }
+
+    const imageUrl = `/assets/images/custom/${cleanName}`;
+    res.json({ success: true, name: cleanName, url: imageUrl });
+  } catch (err) {
+    console.error('Error al subir imagen:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // Alerts
 app.get('/api/alerts', (req, res) => {
   res.json(storage.getAlerts());
@@ -810,17 +863,6 @@ app.post('/api/alert/test', (req, res) => {
   }
 
   res.json({ success: true, alert: alertData, room: activeRoom });
-});
-
-// Alerts API
-app.get('/api/alerts', (req, res) => {
-  res.json(storage.getAlerts());
-});
-
-app.post('/api/alerts', (req, res) => {
-  const alerts = storage.saveAlerts(req.body);
-  broadcast('alerts_updated', alerts);
-  res.json({ success: true, alerts });
 });
 
 // Widget Styles API (used by OBS overlays to load custom styles)
