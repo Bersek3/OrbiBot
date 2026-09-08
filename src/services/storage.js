@@ -49,8 +49,8 @@ const DEFAULT_CONFIG = {
   },
   tts: {
     enabled: true,
-    engine: 'webspeech', // 'webspeech', 'tiktok', 'google'
-    voice: 'es_001',
+    engine: 'streamelements', // 'streamelements', 'webspeech', 'google'
+    voice: 'es_mx_mia',
     volume: 90,
     rate: 1.0,
     pitch: 1.0,

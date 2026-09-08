@@ -45,26 +45,76 @@ class TTSService {
     return cleaned;
   }
 
-  generateAudioUrl(text, voiceId = 'es_mx_mia') {
-    const encoded = encodeURIComponent(text);
-    const seVoices = {
-      // Español Latino
+  normalizeVoice(voiceId) {
+    if (!voiceId) return 'es_mx_mia';
+    const v = voiceId.toString().toLowerCase().trim().replace(/^[-@/]/, '').replace(/^voice:/, '');
+    const aliases = {
+      // Direct names
+      mia: 'es_mx_mia',
+      miguel: 'es_us_miguel',
+      lupe: 'es_us_lupe',
+      penelope: 'es_us_penelope',
+      penélope: 'es_us_penelope',
+      enrique: 'es_es_enrique',
+      conchita: 'es_es_conchita',
+      lucia: 'es_es_lucia',
+      lucía: 'es_es_lucia',
+      brian: 'en_brian',
+      emma: 'en_emma',
+      joey: 'en_joey',
+      matthew: 'en_matthew',
+      kendra: 'en_kendra',
+      justin: 'en_justin',
+      russell: 'en_russell',
+      cristiano: 'pt_cristiano',
+      mathieu: 'fr_mathieu',
+      giorgio: 'it_giorgio',
+      hans: 'de_hans',
+      takumi: 'ja_takumi',
+      mizuki: 'ja_mizuki',
+
+      // Legacy & IDs
+      es_mx_mia: 'es_mx_mia',
+      es_us_miguel: 'es_us_miguel',
+      es_us_lupe: 'es_us_lupe',
+      es_us_penelope: 'es_us_penelope',
+      es_es_enrique: 'es_es_enrique',
+      es_es_conchita: 'es_es_conchita',
+      es_es_lucia: 'es_es_lucia',
+      en_brian: 'en_brian',
+      en_emma: 'en_emma',
+      en_joey: 'en_joey',
+      en_matthew: 'en_matthew',
+      en_kendra: 'en_kendra',
+      en_justin: 'en_justin',
+      en_russell: 'en_russell',
+      pt_cristiano: 'pt_cristiano',
+      fr_mathieu: 'fr_mathieu',
+      it_giorgio: 'it_giorgio',
+      de_hans: 'de_hans',
+      ja_takumi: 'ja_takumi',
+      ja_mizuki: 'ja_mizuki',
+      es_001: 'es_mx_mia',
+      es_female: 'es_mx_mia',
+      es_male: 'es_us_miguel',
+      es_002: 'es_es_conchita',
+      'es-es-standard-a': 'es_es_enrique',
+      en_001: 'en_brian',
+      en_002: 'en_emma'
+    };
+    return aliases[v] || v;
+  }
+
+  getStreamElementsVoiceName(voiceId) {
+    const normalized = this.normalizeVoice(voiceId);
+    const map = {
       es_mx_mia: 'Mia',
       es_us_miguel: 'Miguel',
       es_us_lupe: 'Lupe',
       es_us_penelope: 'Penelope',
-      es_001: 'Mia',
-      es_female: 'Mia',
-      es_male: 'Miguel',
-      tiktok_es: 'Mia',
-
-      // Español España / Castellano
       es_es_enrique: 'Enrique',
       es_es_conchita: 'Conchita',
       es_es_lucia: 'Lucia',
-      es_002: 'Conchita',
-
-      // English
       en_brian: 'Brian',
       en_emma: 'Emma',
       en_joey: 'Joey',
@@ -72,11 +122,6 @@ class TTSService {
       en_kendra: 'Kendra',
       en_justin: 'Justin',
       en_russell: 'Russell',
-      en_001: 'Brian',
-      en_002: 'Emma',
-      tiktok_ghostface: 'Brian',
-
-      // Internacionales
       pt_cristiano: 'Cristiano',
       fr_mathieu: 'Mathieu',
       it_giorgio: 'Giorgio',
@@ -84,9 +129,13 @@ class TTSService {
       ja_takumi: 'Takumi',
       ja_mizuki: 'Mizuki'
     };
+    return map[normalized] || 'Mia';
+  }
 
-    const seVoice = seVoices[voiceId] || seVoices[voiceId.toLowerCase()] || 'Mia';
-    return `https://api.streamelements.com/kappa/v2/speech?voice=${seVoice}&text=${encoded}`;
+  generateAudioUrl(text, voiceId = 'es_mx_mia') {
+    const encoded = encodeURIComponent(text);
+    const seVoice = this.getStreamElementsVoiceName(voiceId);
+    return `https://api.streamelements.com/kappa/v2/speech?voice=${encodeURIComponent(seVoice)}&text=${encoded}`;
   }
 
   processRequest({ user, text, source = 'chat', bits = 0, voiceOverride = null }) {
@@ -105,13 +154,28 @@ class TTSService {
       return { success: false, reason: `Bits insuficientes para TTS (mínimo: ${config.minBits})` };
     }
 
-    const cleanText = this.sanitizeText(text, config);
+    let rawText = (text || '').trim();
+    let selectedVoice = voiceOverride || this.normalizeVoice(config.voice) || 'es_mx_mia';
+
+    // Detección automática de voz en el comando de chat (ej: "!tts miguel Hola streamer" o "!tts enrique Saludos")
+    if (source === 'chat' && rawText) {
+      const parts = rawText.split(/\s+/);
+      const possibleVoiceToken = parts[0].toLowerCase().replace(/^[-@/]/, '').replace(/^voice:/, '');
+      const detectedVoice = this.normalizeVoice(possibleVoiceToken);
+      if (detectedVoice && (detectedVoice.startsWith('es_') || detectedVoice.startsWith('en_') || detectedVoice.startsWith('pt_') || detectedVoice.startsWith('fr_') || detectedVoice.startsWith('it_') || detectedVoice.startsWith('de_') || detectedVoice.startsWith('ja_'))) {
+        if (parts.length > 1) {
+          selectedVoice = detectedVoice;
+          rawText = parts.slice(1).join(' ');
+        }
+      }
+    }
+
+    const cleanText = this.sanitizeText(rawText, config);
     if (!cleanText || cleanText.length < 2) {
       return { success: false, reason: 'Texto vacío o inválido' };
     }
 
-    const voice = voiceOverride || config.voice || 'es_mx_mia';
-    const audioUrl = this.generateAudioUrl(cleanText, voice);
+    const audioUrl = this.generateAudioUrl(cleanText, selectedVoice);
     const fallbackUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=es&client=tw-ob`;
 
     const ttsItem = {
@@ -121,7 +185,7 @@ class TTSService {
       source,
       bits,
       engine: 'audio_stream',
-      voice,
+      voice: selectedVoice,
       volume: (config.volume || 90) / 100,
       rate: config.rate || 1.0,
       pitch: config.pitch || 1.0,

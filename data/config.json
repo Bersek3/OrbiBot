@@ -37,8 +37,8 @@
   },
   "tts": {
     "enabled": true,
-    "engine": "webspeech",
-    "voice": "es_female",
+    "engine": "streamelements",
+    "voice": "es_mx_mia",
     "volume": 90,
     "rate": 1,
     "pitch": 1,

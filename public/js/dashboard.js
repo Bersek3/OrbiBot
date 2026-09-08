@@ -1421,6 +1421,45 @@ function connectInBrowserTwitchBot(twitchData) {
         broadcastEvent('alert', alertData);
         showToast(`¡${username} donó ${bitCount} bits!`, 'success');
       }
+
+      // Procesamiento de comando !tts desde el chat en cliente de navegador
+      try {
+        const currentCfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
+        const ttsCfg = currentCfg.tts || {};
+        const ttsCmd = (ttsCfg.chatCommand || '!tts').toLowerCase();
+        if (ttsCfg.enabled !== false && ttsCfg.allowChatCommand !== false && message.trim().toLowerCase().startsWith(ttsCmd)) {
+          let ttsRaw = message.trim().slice(ttsCmd.length).trim();
+          if (ttsRaw) {
+            let selectedVoice = ttsCfg.voice || 'es_mx_mia';
+            const firstToken = ttsRaw.split(/\s+/)[0].toLowerCase().replace(/^[-@/]/, '').replace(/^voice:/, '');
+            const aliasMap = {
+              mia: 'es_mx_mia', miguel: 'es_us_miguel', lupe: 'es_us_lupe', penelope: 'es_us_penelope', 'penélope': 'es_us_penelope',
+              enrique: 'es_es_enrique', conchita: 'es_es_conchita', lucia: 'es_es_lucia', 'lucía': 'es_es_lucia',
+              brian: 'en_brian', emma: 'en_emma', joey: 'en_joey', matthew: 'en_matthew', kendra: 'en_kendra', justin: 'en_justin', russell: 'en_russell',
+              cristiano: 'pt_cristiano', mathieu: 'fr_mathieu', giorgio: 'it_giorgio', hans: 'de_hans', takumi: 'ja_takumi', mizuki: 'ja_mizuki'
+            };
+            if (aliasMap[firstToken] || SE_VOICE_MAP[firstToken]) {
+              selectedVoice = aliasMap[firstToken] || firstToken;
+              ttsRaw = ttsRaw.slice(ttsRaw.indexOf(' ') + 1).trim();
+            }
+            if (ttsRaw) {
+              const ttsAudioUrl = getTTSAudioUrl(ttsRaw, selectedVoice);
+              const ttsData = {
+                id: 'tts_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+                user: username,
+                text: ttsRaw,
+                voice: selectedVoice,
+                volume: Number(ttsCfg.volume !== undefined ? ttsCfg.volume : 90) / 100,
+                rate: Number(ttsCfg.rate || 1.0),
+                pitch: Number(ttsCfg.pitch || 1.0),
+                audioUrl: ttsAudioUrl,
+                timestamp: Date.now()
+              };
+              broadcastEvent('tts', ttsData);
+            }
+          }
+        }
+      } catch (e) { }
     });
   }
 
@@ -1596,7 +1635,18 @@ function bindConfigToUI(cfg) {
   // TTS
   if (cfg.tts) {
     document.getElementById('cfgTtsEnabled').checked = cfg.tts.enabled !== false;
-    document.getElementById('cfgTtsVoice').value = cfg.tts.voice || 'es_001';
+    let vVal = cfg.tts.voice || 'es_mx_mia';
+    if (vVal === 'es_001' || vVal === 'es_female') vVal = 'es_mx_mia';
+    if (vVal === 'es_male') vVal = 'es_us_miguel';
+    if (vVal === 'es_002') vVal = 'es_es_conchita';
+    if (vVal === 'en_001') vVal = 'en_brian';
+    if (vVal === 'en_002') vVal = 'en_emma';
+    if (vVal === 'es-ES-Standard-A') vVal = 'es_es_enrique';
+    const voiceSelect = document.getElementById('cfgTtsVoice');
+    if (voiceSelect) {
+      voiceSelect.value = vVal;
+      if (!voiceSelect.value) voiceSelect.value = 'es_mx_mia';
+    }
     document.getElementById('cfgTtsVolume').value = cfg.tts.volume !== undefined ? cfg.tts.volume : 90;
     document.getElementById('valTtsVolume').innerText = `${document.getElementById('cfgTtsVolume').value}%`;
     document.getElementById('cfgTtsRate').value = cfg.tts.rate || 1.0;
@@ -2433,36 +2483,69 @@ async function triggerTestAlert(type) {
 }
 
 const SE_VOICE_MAP = {
+  // Español Latino
   es_mx_mia: 'Mia',
+  mia: 'Mia',
   es_us_miguel: 'Miguel',
+  miguel: 'Miguel',
   es_us_lupe: 'Lupe',
+  lupe: 'Lupe',
   es_us_penelope: 'Penelope',
+  penelope: 'Penelope',
+  'penélope': 'Penelope',
+
+  // Español España / Castellano
   es_es_enrique: 'Enrique',
+  enrique: 'Enrique',
   es_es_conchita: 'Conchita',
+  conchita: 'Conchita',
   es_es_lucia: 'Lucia',
+  lucia: 'Lucia',
+  'lucía': 'Lucia',
+
+  // English
   en_brian: 'Brian',
+  brian: 'Brian',
   en_emma: 'Emma',
+  emma: 'Emma',
   en_joey: 'Joey',
+  joey: 'Joey',
   en_matthew: 'Matthew',
+  matthew: 'Matthew',
   en_kendra: 'Kendra',
+  kendra: 'Kendra',
   en_justin: 'Justin',
+  justin: 'Justin',
   en_russell: 'Russell',
+  russell: 'Russell',
+
+  // Internacionales
   pt_cristiano: 'Cristiano',
+  cristiano: 'Cristiano',
   fr_mathieu: 'Mathieu',
+  mathieu: 'Mathieu',
   it_giorgio: 'Giorgio',
+  giorgio: 'Giorgio',
   de_hans: 'Hans',
+  hans: 'Hans',
   ja_takumi: 'Takumi',
+  takumi: 'Takumi',
   ja_mizuki: 'Mizuki',
+  mizuki: 'Mizuki',
+
+  // Fallbacks
   es_001: 'Mia',
-  es_002: 'Conchita',
   es_female: 'Mia',
   es_male: 'Miguel',
+  es_002: 'Conchita',
+  'es-es-standard-a': 'Enrique',
   en_001: 'Brian',
   en_002: 'Emma'
 };
 
 function getTTSAudioUrl(text, voiceId) {
-  const vName = SE_VOICE_MAP[voiceId] || SE_VOICE_MAP[voiceId?.toLowerCase()] || 'Mia';
+  const clean = (voiceId || '').toString().toLowerCase().trim().replace(/^[-@/]/, '').replace(/^voice:/, '');
+  const vName = SE_VOICE_MAP[clean] || SE_VOICE_MAP[voiceId] || 'Mia';
   return `https://api.streamelements.com/kappa/v2/speech?voice=${encodeURIComponent(vName)}&text=${encodeURIComponent(text)}`;
 }
 
@@ -3180,10 +3263,10 @@ async function saveAllConfig(showNotification = true) {
     },
     tts: {
       enabled: Boolean(document.getElementById('cfgTtsEnabled')?.checked),
-      voice: document.getElementById('cfgTtsVoice')?.value || 'es-ES-Standard-A',
-      volume: Number(document.getElementById('cfgTtsVolume')?.value ?? 80),
+      voice: document.getElementById('cfgTtsVoice')?.value || 'es_mx_mia',
+      volume: Number(document.getElementById('cfgTtsVolume')?.value ?? 90),
       rate: Number(document.getElementById('cfgTtsRate')?.value ?? 1),
-      pitch: Number(document.getElementById('cfgTtsPitch')?.value ?? 0),
+      pitch: Number(document.getElementById('cfgTtsPitch')?.value ?? 1),
       maxLength: Number(document.getElementById('cfgTtsMaxLength')?.value ?? 250),
       bannedWords,
       allowChatCommand: Boolean(document.getElementById('cfgTtsAllowCommand')?.checked),

@@ -85,42 +85,75 @@
       }
 
       const SE_VOICE_MAP = {
+        // Español Latino
         es_mx_mia: 'Mia',
+        mia: 'Mia',
         es_us_miguel: 'Miguel',
+        miguel: 'Miguel',
         es_us_lupe: 'Lupe',
+        lupe: 'Lupe',
         es_us_penelope: 'Penelope',
+        penelope: 'Penelope',
+        penélope: 'Penelope',
+
+        // Español España / Castellano
         es_es_enrique: 'Enrique',
+        enrique: 'Enrique',
         es_es_conchita: 'Conchita',
+        conchita: 'Conchita',
         es_es_lucia: 'Lucia',
+        lucia: 'Lucia',
+        lucía: 'Lucia',
+
+        // English
         en_brian: 'Brian',
+        brian: 'Brian',
         en_emma: 'Emma',
+        emma: 'Emma',
         en_joey: 'Joey',
+        joey: 'Joey',
         en_matthew: 'Matthew',
+        matthew: 'Matthew',
         en_kendra: 'Kendra',
+        kendra: 'Kendra',
         en_justin: 'Justin',
+        justin: 'Justin',
         en_russell: 'Russell',
+        russell: 'Russell',
+
+        // Internacionales
         pt_cristiano: 'Cristiano',
+        cristiano: 'Cristiano',
         fr_mathieu: 'Mathieu',
+        mathieu: 'Mathieu',
         it_giorgio: 'Giorgio',
+        giorgio: 'Giorgio',
         de_hans: 'Hans',
+        hans: 'Hans',
         ja_takumi: 'Takumi',
+        takumi: 'Takumi',
         ja_mizuki: 'Mizuki',
+        mizuki: 'Mizuki',
+
+        // Fallbacks
         es_001: 'Mia',
-        es_002: 'Conchita',
         es_female: 'Mia',
         es_male: 'Miguel',
+        es_002: 'Conchita',
+        'es-es-standard-a': 'Enrique',
         en_001: 'Brian',
         en_002: 'Emma'
       };
 
       function getVoiceName(vId) {
         if (!vId) return 'Mia';
-        return SE_VOICE_MAP[vId] || SE_VOICE_MAP[vId.toLowerCase()] || vId;
+        const clean = vId.toString().toLowerCase().trim().replace(/^[-@/]/, '').replace(/^voice:/, '');
+        return SE_VOICE_MAP[clean] || SE_VOICE_MAP[vId] || 'Mia';
       }
 
-      // 1. Prioridad: Audio streaming nativo con la voz exacta (StreamElements / Google TTS)
+      // 1. Prioridad: Audio streaming nativo con la voz exacta seleccionada (StreamElements / Google TTS)
       const voiceName = getVoiceName(item.voice);
-      const primaryUrl = item.audioUrl || (item.text ? `https://api.streamelements.com/kappa/v2/speech?voice=${encodeURIComponent(voiceName)}&text=${encodeURIComponent(item.text)}` : null);
+      const primaryUrl = (item.text ? `https://api.streamelements.com/kappa/v2/speech?voice=${encodeURIComponent(voiceName)}&text=${encodeURIComponent(item.text)}` : null) || item.audioUrl;
       const secondaryUrl = item.fallbackUrl || (item.text ? `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(item.text)}&tl=es&client=tw-ob` : null);
 
       if (primaryUrl) {
