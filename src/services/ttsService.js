@@ -134,8 +134,9 @@ class TTSService {
 
   generateAudioUrl(text, voiceId = 'es_mx_mia') {
     const encoded = encodeURIComponent(text);
-    const seVoice = this.getStreamElementsVoiceName(voiceId);
-    return `https://api.streamelements.com/kappa/v2/speech?voice=${encodeURIComponent(seVoice)}&text=${encoded}`;
+    const normalized = this.normalizeVoice(voiceId);
+    const lang = (normalized.split('_')[0] || 'es').toLowerCase();
+    return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
   }
 
   processRequest({ user, text, source = 'chat', bits = 0, voiceOverride = null }) {
@@ -175,8 +176,9 @@ class TTSService {
       return { success: false, reason: 'Texto vacío o inválido' };
     }
 
-    const audioUrl = this.generateAudioUrl(cleanText, selectedVoice);
-    const fallbackUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=es&client=tw-ob`;
+    const lang = (selectedVoice.split('_')[0] || 'es').toLowerCase();
+    const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
+    const fallbackUrl = audioUrl;
 
     const ttsItem = {
       id: 'tts-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),

@@ -2482,71 +2482,138 @@ async function triggerTestAlert(type) {
   } catch (e) { }
 }
 
-const SE_VOICE_MAP = {
+const VOICE_PROFILES = {
   // Español Latino
-  es_mx_mia: 'Mia',
-  mia: 'Mia',
-  es_us_miguel: 'Miguel',
-  miguel: 'Miguel',
-  es_us_lupe: 'Lupe',
-  lupe: 'Lupe',
-  es_us_penelope: 'Penelope',
-  penelope: 'Penelope',
-  'penélope': 'Penelope',
+  es_mx_mia: { id: 'es_mx_mia', name: 'Mia', lang: 'es-MX', gender: 'female', pitch: 1.15, rate: 1.0 },
+  mia: { id: 'es_mx_mia', name: 'Mia', lang: 'es-MX', gender: 'female', pitch: 1.15, rate: 1.0 },
+  es_us_miguel: { id: 'es_us_miguel', name: 'Miguel', lang: 'es-US', gender: 'male', pitch: 0.65, rate: 1.0 },
+  miguel: { id: 'es_us_miguel', name: 'Miguel', lang: 'es-US', gender: 'male', pitch: 0.65, rate: 1.0 },
+  es_us_lupe: { id: 'es_us_lupe', name: 'Lupe', lang: 'es-US', gender: 'female', pitch: 1.2, rate: 1.0 },
+  lupe: { id: 'es_us_lupe', name: 'Lupe', lang: 'es-US', gender: 'female', pitch: 1.2, rate: 1.0 },
+  es_us_penelope: { id: 'es_us_penelope', name: 'Penelope', lang: 'es-US', gender: 'female', pitch: 1.05, rate: 0.95 },
+  penelope: { id: 'es_us_penelope', name: 'Penelope', lang: 'es-US', gender: 'female', pitch: 1.05, rate: 0.95 },
+  'penélope': { id: 'es_us_penelope', name: 'Penelope', lang: 'es-US', gender: 'female', pitch: 1.05, rate: 0.95 },
 
   // Español España / Castellano
-  es_es_enrique: 'Enrique',
-  enrique: 'Enrique',
-  es_es_conchita: 'Conchita',
-  conchita: 'Conchita',
-  es_es_lucia: 'Lucia',
-  lucia: 'Lucia',
-  'lucía': 'Lucia',
+  es_es_enrique: { id: 'es_es_enrique', name: 'Enrique', lang: 'es-ES', gender: 'male', pitch: 0.62, rate: 1.05 },
+  enrique: { id: 'es_es_enrique', name: 'Enrique', lang: 'es-ES', gender: 'male', pitch: 0.62, rate: 1.05 },
+  es_es_conchita: { id: 'es_es_conchita', name: 'Conchita', lang: 'es-ES', gender: 'female', pitch: 1.1, rate: 1.0 },
+  conchita: { id: 'es_es_conchita', name: 'Conchita', lang: 'es-ES', gender: 'female', pitch: 1.1, rate: 1.0 },
+  es_es_lucia: { id: 'es_es_lucia', name: 'Lucia', lang: 'es-ES', gender: 'female', pitch: 1.25, rate: 1.05 },
+  lucia: { id: 'es_es_lucia', name: 'Lucia', lang: 'es-ES', gender: 'female', pitch: 1.25, rate: 1.05 },
+  'lucía': { id: 'es_es_lucia', name: 'Lucia', lang: 'es-ES', gender: 'female', pitch: 1.25, rate: 1.05 },
 
   // English
-  en_brian: 'Brian',
-  brian: 'Brian',
-  en_emma: 'Emma',
-  emma: 'Emma',
-  en_joey: 'Joey',
-  joey: 'Joey',
-  en_matthew: 'Matthew',
-  matthew: 'Matthew',
-  en_kendra: 'Kendra',
-  kendra: 'Kendra',
-  en_justin: 'Justin',
-  justin: 'Justin',
-  en_russell: 'Russell',
-  russell: 'Russell',
+  en_brian: { id: 'en_brian', name: 'Brian', lang: 'en-GB', gender: 'male', pitch: 0.7, rate: 0.95 },
+  brian: { id: 'en_brian', name: 'Brian', lang: 'en-GB', gender: 'male', pitch: 0.7, rate: 0.95 },
+  en_emma: { id: 'en_emma', name: 'Emma', lang: 'en-GB', gender: 'female', pitch: 1.15, rate: 1.0 },
+  emma: { id: 'en_emma', name: 'Emma', lang: 'en-GB', gender: 'female', pitch: 1.15, rate: 1.0 },
+  en_joey: { id: 'en_joey', name: 'Joey', lang: 'en-US', gender: 'male', pitch: 0.68, rate: 1.0 },
+  joey: { id: 'en_joey', name: 'Joey', lang: 'en-US', gender: 'male', pitch: 0.68, rate: 1.0 },
+  en_matthew: { id: 'en_matthew', name: 'Matthew', lang: 'en-US', gender: 'male', pitch: 0.6, rate: 0.95 },
+  matthew: { id: 'en_matthew', name: 'Matthew', lang: 'en-US', gender: 'male', pitch: 0.6, rate: 0.95 },
+  en_kendra: { id: 'en_kendra', name: 'Kendra', lang: 'en-US', gender: 'female', pitch: 1.2, rate: 1.0 },
+  kendra: { id: 'en_kendra', name: 'Kendra', lang: 'en-US', gender: 'female', pitch: 1.2, rate: 1.0 },
+  en_justin: { id: 'en_justin', name: 'Justin', lang: 'en-US', gender: 'male', pitch: 1.35, rate: 1.1 },
+  justin: { id: 'en_justin', name: 'Justin', lang: 'en-US', gender: 'male', pitch: 1.35, rate: 1.1 },
+  en_russell: { id: 'en_russell', name: 'Russell', lang: 'en-AU', gender: 'male', pitch: 0.75, rate: 1.0 },
+  russell: { id: 'en_russell', name: 'Russell', lang: 'en-AU', gender: 'male', pitch: 0.75, rate: 1.0 },
 
   // Internacionales
-  pt_cristiano: 'Cristiano',
-  cristiano: 'Cristiano',
-  fr_mathieu: 'Mathieu',
-  mathieu: 'Mathieu',
-  it_giorgio: 'Giorgio',
-  giorgio: 'Giorgio',
-  de_hans: 'Hans',
-  hans: 'Hans',
-  ja_takumi: 'Takumi',
-  takumi: 'Takumi',
-  ja_mizuki: 'Mizuki',
-  mizuki: 'Mizuki',
+  pt_cristiano: { id: 'pt_cristiano', name: 'Cristiano', lang: 'pt-BR', gender: 'male', pitch: 0.7, rate: 1.0 },
+  cristiano: { id: 'pt_cristiano', name: 'Cristiano', lang: 'pt-BR', gender: 'male', pitch: 0.7, rate: 1.0 },
+  fr_mathieu: { id: 'fr_mathieu', name: 'Mathieu', lang: 'fr-FR', gender: 'male', pitch: 0.7, rate: 1.0 },
+  mathieu: { id: 'fr_mathieu', name: 'Mathieu', lang: 'fr-FR', gender: 'male', pitch: 0.7, rate: 1.0 },
+  it_giorgio: { id: 'it_giorgio', name: 'Giorgio', lang: 'it-IT', gender: 'male', pitch: 0.7, rate: 1.0 },
+  giorgio: { id: 'it_giorgio', name: 'Giorgio', lang: 'it-IT', gender: 'male', pitch: 0.7, rate: 1.0 },
+  de_hans: { id: 'de_hans', name: 'Hans', lang: 'de-DE', gender: 'male', pitch: 0.65, rate: 0.95 },
+  hans: { id: 'de_hans', name: 'Hans', lang: 'de-DE', gender: 'male', pitch: 0.65, rate: 0.95 },
+  ja_takumi: { id: 'ja_takumi', name: 'Takumi', lang: 'ja-JP', gender: 'male', pitch: 0.8, rate: 1.1 },
+  takumi: { id: 'ja_takumi', name: 'Takumi', lang: 'ja-JP', gender: 'male', pitch: 0.8, rate: 1.1 },
+  ja_mizuki: { id: 'ja_mizuki', name: 'Mizuki', lang: 'ja-JP', gender: 'female', pitch: 1.25, rate: 1.05 },
+  mizuki: { id: 'ja_mizuki', name: 'Mizuki', lang: 'ja-JP', gender: 'female', pitch: 1.25, rate: 1.05 },
 
   // Fallbacks
-  es_001: 'Mia',
-  es_female: 'Mia',
-  es_male: 'Miguel',
-  es_002: 'Conchita',
-  'es-es-standard-a': 'Enrique',
-  en_001: 'Brian',
-  en_002: 'Emma'
+  es_001: { id: 'es_mx_mia', name: 'Mia', lang: 'es-MX', gender: 'female', pitch: 1.15, rate: 1.0 },
+  es_female: { id: 'es_mx_mia', name: 'Mia', lang: 'es-MX', gender: 'female', pitch: 1.15, rate: 1.0 },
+  es_male: { id: 'es_us_miguel', name: 'Miguel', lang: 'es-US', gender: 'male', pitch: 0.65, rate: 1.0 },
+  es_002: { id: 'es_es_conchita', name: 'Conchita', lang: 'es-ES', gender: 'female', pitch: 1.1, rate: 1.0 },
+  'es-es-standard-a': { id: 'es_es_enrique', name: 'Enrique', lang: 'es-ES', gender: 'male', pitch: 0.62, rate: 1.05 },
+  en_001: { id: 'en_brian', name: 'Brian', lang: 'en-GB', gender: 'male', pitch: 0.7, rate: 0.95 },
+  en_002: { id: 'en_emma', name: 'Emma', lang: 'en-GB', gender: 'female', pitch: 1.15, rate: 1.0 }
 };
 
 function getTTSAudioUrl(text, voiceId) {
   const clean = (voiceId || '').toString().toLowerCase().trim().replace(/^[-@/]/, '').replace(/^voice:/, '');
-  const vName = SE_VOICE_MAP[clean] || SE_VOICE_MAP[voiceId] || 'Mia';
-  return `https://api.streamelements.com/kappa/v2/speech?voice=${encodeURIComponent(vName)}&text=${encodeURIComponent(text)}`;
+  const profile = VOICE_PROFILES[clean] || VOICE_PROFILES[voiceId] || VOICE_PROFILES['es_mx_mia'];
+  const lang = (profile.lang || 'es-ES').split('-')[0];
+  return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
+}
+
+function playTTSAudioLocal(text, voiceKey, volume = 0.9, onEnd = null) {
+  const cleanKey = (voiceKey || '').toString().toLowerCase().trim().replace(/^[-@/]/, '').replace(/^voice:/, '');
+  const profile = VOICE_PROFILES[cleanKey] || VOICE_PROFILES[voiceKey] || VOICE_PROFILES['es_mx_mia'];
+  const targetLang = (profile.lang || 'es-ES').split('-')[0].toLowerCase();
+
+  if (!('speechSynthesis' in window)) {
+    const audioUrl = getTTSAudioUrl(text, cleanKey);
+    const a = new Audio(audioUrl);
+    a.volume = volume;
+    if (onEnd) a.onended = onEnd;
+    a.play().catch(() => { if (onEnd) onEnd(); });
+    return;
+  }
+
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.volume = volume;
+    utterance.rate = profile.rate || 1.0;
+    utterance.pitch = profile.pitch || 1.0;
+    utterance.lang = profile.lang || 'es-ES';
+
+    const voices = window.speechSynthesis.getVoices() || [];
+    let matchedVoice = null;
+
+    if (profile.gender === 'male') {
+      matchedVoice = voices.find(v => {
+        const vLang = v.lang.toLowerCase();
+        const vName = v.name.toLowerCase();
+        return (vLang.startsWith(targetLang) || (targetLang === 'es' && vLang.startsWith('es'))) &&
+          (vName.includes('male') || vName.includes('david') || vName.includes('raul') || vName.includes('pablo') ||
+           vName.includes('jorge') || vName.includes('alvaro') || vName.includes('enrique') || vName.includes('carlos') ||
+           vName.includes('miguel') || vName.includes('george') || vName.includes('mark') || vName.includes('stefan') ||
+           vName.includes('guy') || vName.includes('cosimo') || vName.includes('keita'));
+      });
+    } else {
+      matchedVoice = voices.find(v => {
+        const vLang = v.lang.toLowerCase();
+        const vName = v.name.toLowerCase();
+        return (vLang.startsWith(targetLang) || (targetLang === 'es' && vLang.startsWith('es'))) &&
+          (vName.includes('female') || vName.includes('zira') || vName.includes('sabina') || vName.includes('helena') ||
+           vName.includes('laura') || vName.includes('monica') || vName.includes('mia') || vName.includes('lucia') ||
+           vName.includes('conchita') || vName.includes('susan') || vName.includes('hazel'));
+      });
+    }
+
+    if (!matchedVoice) {
+      matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith(targetLang));
+    }
+    if (!matchedVoice) {
+      matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith('es') || v.lang.toLowerCase().startsWith('en'));
+    }
+
+    if (matchedVoice) {
+      utterance.voice = matchedVoice;
+    }
+
+    utterance.onend = () => { if (onEnd) onEnd(); };
+    utterance.onerror = () => { if (onEnd) onEnd(); };
+
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    if (onEnd) onEnd();
+  }
 }
 
 async function triggerTestTTS() {
@@ -2581,24 +2648,7 @@ async function triggerTestTTS() {
   showToast('🗣️ Mensaje TTS enviado a OBS Studio', 'success');
 
   // Preview local directo en el navegador con la voz exacta seleccionada
-  try {
-    const previewAudio = new Audio(ttsAudioUrl);
-    previewAudio.volume = volume;
-    const playPromise = previewAudio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(() => {
-        // Fallback WebSpeech en caso de bloqueo de autoplay del navegador
-        if ('speechSynthesis' in window) {
-          window.speechSynthesis.cancel();
-          const u = new SpeechSynthesisUtterance(text);
-          u.volume = volume;
-          u.rate = rate;
-          u.pitch = pitch;
-          window.speechSynthesis.speak(u);
-        }
-      });
-    }
-  } catch (e) { }
+  playTTSAudioLocal(text, voice, volume);
 
   try {
     const room = getActiveStreamerRoom();
