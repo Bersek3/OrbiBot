@@ -720,14 +720,6 @@
               Sesión</button>
           </div>
 
-          <!-- Indicador de Doble Respaldo en la Nube (Supabase + MongoDB) -->
-          <div id="dualBackupBadge"
-            title="Doble Respaldo en la Nube Activo: Todos tus datos se guardan simultáneamente en Supabase y MongoDB Atlas"
-            style="display:inline-flex; align-items:center; gap:6px; padding:6px 14px; background:rgba(16, 185, 129, 0.08); border:1px solid rgba(16, 185, 129, 0.25); border-radius:999px; font-size:12px; color:#10b981; font-weight:700;">
-            <span style="font-size:13px;">🛡️</span>
-            <span>Doble Respaldo (Supabase ☁️ + MongoDB 🍃)</span>
-          </div>
-
           <!-- Indicador de Autoguardado Automático -->
           <div id="autoSaveIndicator"
             style="display:inline-flex; align-items:center; gap:8px; padding:6px 14px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:999px; font-size:12px; color:var(--text-muted); font-weight:600; transition:all 0.3s ease;">
@@ -2523,7 +2515,7 @@ console.log('Widget personalizado cargado');"></textarea>
         <h3 class="modal-title">¿Cerrar Sesión de Twitch?</h3>
         <p class="modal-desc">
           Se desconectará el bot del canal <strong id="logoutModalUser" style="color: #00f2fe;">@streamer</strong>. Los
-          widgets de OBS quedarán en espera y tu configuración actual está 100% guardada en Supabase.
+          widgets de OBS quedarán en espera y tu configuración actual se mantendrá guardada.
         </p>
         <div id="logoutModalUserCard" class="logout-user-preview">
           <img id="logoutModalAvatar"

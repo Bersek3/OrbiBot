@@ -261,7 +261,7 @@ function switchAuthTab(tab) {
     if (loginForm) loginForm.style.display = 'none';
     if (registerForm) registerForm.style.display = 'flex';
     if (mainTitle) mainTitle.textContent = 'Crear Cuenta';
-    if (subtitle) subtitle.textContent = 'Crea tu cuenta gratis en Supabase para acceder al panel.';
+    if (subtitle) subtitle.textContent = 'Crea tu cuenta gratis para acceder al panel de control.';
     const emailInput = document.getElementById('authRegEmail');
     if (emailInput) setTimeout(() => emailInput.focus(), 50);
   } else {
@@ -270,7 +270,7 @@ function switchAuthTab(tab) {
     if (registerForm) registerForm.style.display = 'none';
     if (loginForm) loginForm.style.display = 'flex';
     if (mainTitle) mainTitle.textContent = 'Iniciar Sesión';
-    if (subtitle) subtitle.textContent = 'Accede a tu panel de control, widgets y overlays en la nube.';
+    if (subtitle) subtitle.textContent = 'Accede a tu panel de control, widgets y overlays.';
     const emailInput = document.getElementById('authLoginEmail');
     if (emailInput) setTimeout(() => emailInput.focus(), 50);
   }
@@ -292,7 +292,7 @@ async function signInWithGoogle() {
     initSupabaseAuth();
   }
   if (!supabaseClient) {
-    showAuthAlert('error', 'El cliente de Supabase no está listo. Verifica tu conexión.');
+    showAuthAlert('error', 'El servicio de autenticación no está listo. Verifica tu conexión a internet.');
     return;
   }
 
@@ -320,7 +320,7 @@ async function signInWithGoogle() {
     }
   } catch (err) {
     console.error('Error al conectar con Google:', err);
-    showAuthAlert('error', 'Error con Google OAuth: ' + (err.message || 'Verifica la configuración del proveedor Google en Supabase.'));
+    showAuthAlert('error', 'Error con Google OAuth: ' + (err.message || 'Inténtalo de nuevo.'));
   }
 }
 
@@ -417,7 +417,7 @@ async function handleAuthRegisterSubmit(event) {
       if (passwordInput) passwordInput.value = '';
       if (passwordConfirmInput) passwordConfirmInput.value = '';
 
-      showAuthAlert('success', '¡Cuenta creada exitosamente en Supabase! Ya puedes iniciar sesión.');
+      showAuthAlert('success', '¡Cuenta creada exitosamente! Ya puedes iniciar sesión.');
 
       setTimeout(() => {
         switchAuthTab('login');
@@ -725,28 +725,6 @@ function handleChatPlatformToggle(platform, enabled) {
   showToast(enabled ? `🟢 Chat de ${platName} activado en OBS` : `⚪ Chat de ${platName} pausado en OBS`, 'info');
 }
 
-// ================= DUAL DATABASE CLOUD BACKUP STATUS =================
-async function checkDualBackupStatus() {
-  const badge = document.getElementById('dualBackupBadge');
-  if (!badge) return;
-  try {
-    const res = await fetch('/api/backup/status');
-    if (res.ok) {
-      const data = await res.json();
-      if (data.supabase?.connected && data.mongodb?.connected) {
-        badge.innerHTML = '<span>🛡️</span> <span>Doble Respaldo (Supabase ☁️ + MongoDB 🍃)</span>';
-        badge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
-        badge.style.color = '#10b981';
-      } else if (data.supabase?.connected || data.mongodb?.connected) {
-        const activeName = data.supabase?.connected ? 'Supabase ☁️' : 'MongoDB 🍃';
-        badge.innerHTML = `<span>🛡️</span> <span>Respaldo en Nube (${activeName})</span>`;
-        badge.style.borderColor = 'rgba(0, 242, 254, 0.4)';
-        badge.style.color = 'var(--cyan-accent)';
-      }
-    }
-  } catch (e) { }
-}
-
 // Helper: Check if both platforms are enabled
 function areBothPlatformsEnabledInDash() {
   const twitchConn = Boolean(appConfig?.twitch?.connected || localStorage.getItem('orbibot_twitch_auth'));
@@ -930,7 +908,6 @@ window.resetGoalProgress = resetGoalProgress;
 window.deleteGoalUI = deleteGoalUI;
 window.toggleGoalUrlVisibility = toggleGoalUrlVisibility;
 window.copyGoalWidgetUrl = copyGoalWidgetUrl;
-window.checkDualBackupStatus = checkDualBackupStatus;
 
 // ================= VIEW SWITCHER (LANDING VS DASHBOARD) =================
 function showLandingView() {
@@ -1429,7 +1406,6 @@ async function loadInitialData() {
     renderGoals(effectiveGoals);
     updateSongRequestUI(srRes);
     await loadSounds();
-    checkDualBackupStatus();
 
     if (effectiveTwitch.channel && window.tmi && (!browserTmiClient || browserTmiClient.readyState() !== 'OPEN')) {
       connectInBrowserTwitchBot(effectiveTwitch);
@@ -5148,7 +5124,7 @@ function selectGalleryGif(url, name) {
   if (imgEl) imgEl.src = url;
 
   saveWidgetStyles();
-  showToast(`GIF "${name}" guardado en la base de datos para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'info');
+  showToast(`GIF "${name}" guardado para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'info');
 }
 
 function handleAlertUrlInput(url) {
@@ -5194,9 +5170,9 @@ function handleAlertFileUpload(input) {
       const imgEl = document.getElementById('wcPvAlertImg');
       if (imgEl) imgEl.src = finalUrl;
 
-      // Guardar inmediatamente en la base de datos (Supabase + localStorage + backend)
+      // Guardar inmediatamente
       await saveWidgetStyles();
-      showToast(`✅ Imagen "${file.name}" guardada en la base de datos para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'success');
+      showToast(`✅ Imagen "${file.name}" guardada para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'success');
     };
     reader.readAsDataURL(file);
     input.value = '';
@@ -5254,9 +5230,9 @@ function handleAlertSoundUpload(input) {
       addSoundOption(finalUrl, file.name);
       playActiveAlertSound();
 
-      // Guardar inmediatamente en la base de datos (Supabase + localStorage + backend)
+      // Guardar inmediatamente
       await saveWidgetStyles();
-      showToast(`✅ Audio "${file.name}" guardado en la base de datos para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'success');
+      showToast(`✅ Audio "${file.name}" guardado para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'success');
     };
     reader.readAsDataURL(file);
     input.value = '';
@@ -5720,10 +5696,10 @@ async function saveWidgetStyles() {
     }
 
     setAutoSaveStatus('saved');
-    showToast(`✅ Configuración y multimedia de "${WC_WIDGET_NAMES[wcCurrentWidget]}" guardados en la nube`, 'success');
+    showToast(`✅ Configuración y multimedia de "${WC_WIDGET_NAMES[wcCurrentWidget]}" guardados`, 'success');
   } catch (e) {
     setAutoSaveStatus('saved');
-    showToast('Estilos guardados localmente', 'info');
+    showToast('Estilos guardados', 'info');
   }
 }
 
