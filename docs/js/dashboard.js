@@ -3442,9 +3442,6 @@ function renderRewards(rewards) {
     tbody.appendChild(tr);
   });
 }
-    tbody.appendChild(tr);
-  });
-}
 
 // ================= REWARDS (TWITCH CHANNEL POINTS) DROPDOWN & LOGIC =================
 let cachedTwitchHelixRewards = [];
