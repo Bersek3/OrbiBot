@@ -90,10 +90,14 @@ async function loadUserDataFromSupabase(userIdentifier) {
           localStorage.setItem('orbibot_rewards', JSON.stringify(item.value));
           renderRewards(item.value);
         }
+        if (item.key === 'custom_sounds' && Array.isArray(item.value)) {
+          localStorage.setItem('orbibot_custom_sounds', JSON.stringify(item.value));
+        }
       });
       if (typeof initWidgetCustomization === 'function') {
         initWidgetCustomization();
       }
+      await loadSounds();
     }
   } catch (err) {
     console.warn('⚠️ [Supabase Cloud] Error al cargar datos del usuario:', err.message);
@@ -2838,7 +2842,10 @@ function renderRewards(rewards) {
     let actionBadge = `<span class="btn btn-secondary btn-sm">${r.action}</span>`;
     if (r.action === 'tts') actionBadge = `<span class="btn btn-primary btn-sm" style="font-weight: 600;">🗣️ Voz TTS</span>`;
     if (r.action === 'song_request') actionBadge = `<span class="btn btn-accent btn-sm" style="font-weight: 600;">🎶 Canción (VIP)</span>`;
-    if (r.action === 'sound') actionBadge = `<span class="btn btn-sm" style="background:#f5a623; color:#000; font-weight: 700;">🔊 Sonido (${r.soundUrl ? r.soundUrl.split('/').pop() : 'Default'})</span>`;
+    if (r.action === 'sound') {
+      const soundName = r.soundUrl ? (r.soundUrl.startsWith('data:') ? 'Audio Personalizado' : r.soundUrl.split('/').pop()) : 'Default';
+      actionBadge = `<span class="btn btn-sm" style="background:#f5a623; color:#000; font-weight: 700;">🔊 Sonido (${escapeHtml(soundName)})</span>`;
+    }
 
     tr.innerHTML = `
       <td>
@@ -3139,13 +3146,92 @@ function handleRewardActionChange(action) {
 
 async function loadSounds() {
   try {
-    const sounds = await fetch('/api/sounds').then(r => r.json()).catch(() => []);
+    // 1. Obtener sonidos guardados localmente
+    let localSounds = [];
+    try {
+      localSounds = JSON.parse(localStorage.getItem('orbibot_custom_sounds') || '[]');
+    } catch (e) { }
+    if (!Array.isArray(localSounds)) localSounds = [];
+
+    // 2. Si hay cliente de Supabase y localSounds está vacío, consultar si hay en la nube
+    if (supabaseClient && localSounds.length === 0) {
+      try {
+        const session = getUserSession();
+        const streamerId = (session?.email || appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '').trim();
+        if (streamerId) {
+          const { data } = await supabaseClient
+            .from('orbibot_settings')
+            .select('value')
+            .eq('streamer_id', streamerId)
+            .eq('key', 'custom_sounds')
+            .maybeSingle();
+          if (data && Array.isArray(data.value) && data.value.length > 0) {
+            localSounds = data.value;
+            localStorage.setItem('orbibot_custom_sounds', JSON.stringify(localSounds));
+          }
+        }
+      } catch (e) { }
+    }
+
+    // 3. Obtener sonidos del servidor backend si responde
+    let serverSounds = [];
+    try {
+      serverSounds = await fetch('/api/sounds').then(r => r.json()).catch(() => []);
+    } catch (e) { }
+    if (!Array.isArray(serverSounds)) serverSounds = [];
+
+    // 4. Combinar y evitar duplicados
+    const soundMap = new Map();
+
+    serverSounds.forEach(s => {
+      if (s && s.name) {
+        soundMap.set(s.name.toLowerCase(), {
+          name: s.name,
+          url: s.url || `/assets/sounds/custom/${s.name}`
+        });
+      }
+    });
+
+    localSounds.forEach(s => {
+      if (s && s.name) {
+        const key = s.name.toLowerCase();
+        soundMap.set(key, {
+          name: s.name,
+          url: s.url || s.dataUrl || s.data || `/assets/sounds/custom/${s.name}`
+        });
+      }
+    });
+
+    // 5. También incluir soundUrls configuradas en recompensas de Puntos de Canal
+    try {
+      const rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
+      if (Array.isArray(rewards)) {
+        rewards.forEach(r => {
+          if (r.action === 'sound' && r.soundUrl) {
+            const rawName = r.soundUrl.startsWith('data:')
+              ? (r.rewardName ? `Audio - ${r.rewardName}` : 'Sonido Personalizado')
+              : (r.soundUrl.split('/').pop() || 'Sonido');
+            const key = rawName.toLowerCase();
+            if (!soundMap.has(key)) {
+              soundMap.set(key, {
+                name: rawName,
+                url: r.soundUrl
+              });
+            }
+          }
+        });
+      }
+    } catch (e) { }
+
+    const sounds = Array.from(soundMap.values());
+
     const container = document.getElementById('soundListContainer');
     const select = document.getElementById('rewardSoundSelect');
 
     if (select) {
+      const currentSelected = select.value;
       select.innerHTML = '';
-      if (!Array.isArray(sounds) || sounds.length === 0) {
+      if (sounds.length === 0) {
         select.innerHTML = '<option value="">⚠️ No has subido sonidos personalizados aún</option>';
       } else {
         const placeholderOpt = document.createElement('option');
@@ -3159,12 +3245,16 @@ async function loadSounds() {
           opt.innerText = `🔊 ${s.name}`;
           select.appendChild(opt);
         });
+
+        if (currentSelected) {
+          select.value = currentSelected;
+        }
       }
     }
 
     if (container) {
       container.innerHTML = '';
-      if (!Array.isArray(sounds) || sounds.length === 0) {
+      if (sounds.length === 0) {
         container.innerHTML = `
           <div style="font-size: 12.5px; color: var(--text-muted); text-align: center; padding: 32px 16px;">
             <div style="font-size: 32px; margin-bottom: 8px;">🎵</div>
@@ -3198,20 +3288,40 @@ async function loadSounds() {
 async function deleteCustomSound(name) {
   if (!confirm(`¿Estás seguro de eliminar el sonido "${name}"?`)) return;
   try {
-    const res = await fetch('/api/sounds/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast(`Sonido "${name}" eliminado`, 'success');
-      await loadSounds();
-    } else {
-      showToast(data.message || 'Error al eliminar', 'error');
+    let customSounds = [];
+    try {
+      customSounds = JSON.parse(localStorage.getItem('orbibot_custom_sounds') || '[]');
+    } catch (e) { }
+    if (Array.isArray(customSounds)) {
+      customSounds = customSounds.filter(s => s.name.toLowerCase() !== name.toLowerCase());
+      localStorage.setItem('orbibot_custom_sounds', JSON.stringify(customSounds));
     }
+
+    if (supabaseClient) {
+      try {
+        const session = getUserSession();
+        const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
+        await supabaseClient.from('orbibot_settings').upsert({
+          streamer_id: streamerId,
+          key: 'custom_sounds',
+          value: customSounds,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'streamer_id,key' });
+      } catch (e) { }
+    }
+
+    try {
+      await fetch('/api/sounds/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+    } catch (e) { }
+
+    showToast(`Sonido "${name}" eliminado`, 'success');
+    await loadSounds();
   } catch (e) {
-    showToast('Error al conectar con el servidor', 'error');
+    showToast('Error al eliminar sonido: ' + e.message, 'error');
   }
 }
 
@@ -3234,23 +3344,79 @@ async function handleSoundFileUpload(input) {
   const reader = new FileReader();
   reader.onload = async (e) => {
     try {
-      const res = await fetch('/api/sounds/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: file.name,
-          data: e.target.result
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`¡Sonido ${data.name} subido con éxito y añadido a la lista!`, 'success');
-        await loadSounds();
-        if (document.getElementById('rewardSoundSelect')) {
-          document.getElementById('rewardSoundSelect').value = data.url;
+      const dataUrl = e.target.result;
+      let finalUrl = dataUrl;
+      const cleanName = file.name;
+
+      // 1. Intentar subir al backend /api/sounds/upload
+      try {
+        const res = await fetch('/api/sounds/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: cleanName,
+            data: dataUrl
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.url) {
+          finalUrl = data.url;
         }
+      } catch (err) {
+        console.warn('Backend sound upload fallback to dataUrl:', err);
+      }
+
+      // 2. Guardar en orbibot_custom_sounds local
+      let customSounds = [];
+      try {
+        customSounds = JSON.parse(localStorage.getItem('orbibot_custom_sounds') || '[]');
+      } catch (err) { }
+      if (!Array.isArray(customSounds)) customSounds = [];
+
+      const soundObj = {
+        name: cleanName,
+        url: finalUrl,
+        dataUrl: dataUrl,
+        createdAt: Date.now()
+      };
+      const existingIdx = customSounds.findIndex(s => s.name.toLowerCase() === cleanName.toLowerCase());
+      if (existingIdx >= 0) {
+        customSounds[existingIdx] = soundObj;
       } else {
-        showToast(`Error: ${data.message || 'No se pudo subir'}`, 'error');
+        customSounds.push(soundObj);
+      }
+      localStorage.setItem('orbibot_custom_sounds', JSON.stringify(customSounds));
+
+      // 3. Guardar en Supabase Cloud
+      if (supabaseClient) {
+        try {
+          const session = getUserSession();
+          const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
+          await supabaseClient.from('orbibot_settings').upsert({
+            streamer_id: streamerId,
+            key: 'custom_sounds',
+            value: customSounds,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'streamer_id,key' });
+        } catch (err) {
+          console.warn('Error syncing custom_sounds to Supabase:', err);
+        }
+      }
+
+      showToast(`¡Sonido "${cleanName}" subido y guardado con éxito!`, 'success');
+      await loadSounds();
+
+      const select = document.getElementById('rewardSoundSelect');
+      if (select) {
+        select.value = finalUrl;
+        if (!select.value && select.options.length > 0) {
+          for (let i = 0; i < select.options.length; i++) {
+            if (select.options[i].value === finalUrl || select.options[i].value.includes(cleanName) || select.options[i].innerText.includes(cleanName)) {
+              select.selectedIndex = i;
+              break;
+            }
+          }
+        }
       }
     } catch (err) {
       showToast(`Error al subir sonido: ${err.message}`, 'error');
@@ -3317,7 +3483,7 @@ async function saveRewardUI() {
   if (supabaseClient) {
     try {
       const session = getUserSession();
-      const streamerId = (appConfig?.twitch?.channel || session?.email || 'default').toLowerCase().replace(/^#/, '');
+      const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
       await supabaseClient.from('orbibot_settings').upsert({
         streamer_id: streamerId,
         key: 'channel_points',
@@ -3325,6 +3491,33 @@ async function saveRewardUI() {
         updated_at: new Date().toISOString()
       }, { onConflict: 'streamer_id,key' });
     } catch (e) { }
+  }
+
+  // Si el sonido no estaba en custom_sounds, asegurarse de agregarlo para mantener persistencia
+  if (action === 'sound' && soundUrl) {
+    let customSounds = [];
+    try {
+      customSounds = JSON.parse(localStorage.getItem('orbibot_custom_sounds') || '[]');
+    } catch (e) { }
+    if (!Array.isArray(customSounds)) customSounds = [];
+    const soundExists = customSounds.some(s => s.url === soundUrl);
+    if (!soundExists) {
+      const soundName = soundUrl.startsWith('data:') ? `Audio - ${name}` : (soundUrl.split('/').pop() || name);
+      customSounds.push({ name: soundName, url: soundUrl, createdAt: Date.now() });
+      localStorage.setItem('orbibot_custom_sounds', JSON.stringify(customSounds));
+      if (supabaseClient) {
+        try {
+          const session = getUserSession();
+          const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
+          await supabaseClient.from('orbibot_settings').upsert({
+            streamer_id: streamerId,
+            key: 'custom_sounds',
+            value: customSounds,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'streamer_id,key' });
+        } catch (e) { }
+      }
+    }
   }
 
   renderRewards(rewards);
@@ -3351,6 +3544,8 @@ async function editReward(rewardId) {
   const r = rewards.find(item => item.id === rewardId);
   if (!r) return;
 
+  toggleRewardForm(true);
+
   document.getElementById('editRewardId').value = r.id;
   const inputEl = document.getElementById('rewardNameInput');
   if (inputEl) {
@@ -3370,10 +3565,21 @@ async function editReward(rewardId) {
 
   document.getElementById('rewardActionSelect').value = r.action;
   handleRewardActionChange(r.action);
-  if (r.soundUrl && document.getElementById('rewardSoundSelect')) {
-    document.getElementById('rewardSoundSelect').value = r.soundUrl;
+
+  if (r.soundUrl) {
+    const soundSel = document.getElementById('rewardSoundSelect');
+    if (soundSel) {
+      let optFound = Array.from(soundSel.options).some(o => o.value === r.soundUrl);
+      if (!optFound) {
+        const opt = document.createElement('option');
+        opt.value = r.soundUrl;
+        const optName = r.soundUrl.startsWith('data:') ? `🔊 Audio guardado (${r.rewardName})` : `🔊 ${r.soundUrl.split('/').pop()}`;
+        opt.innerText = optName;
+        soundSel.appendChild(opt);
+      }
+      soundSel.value = r.soundUrl;
+    }
   }
-  toggleRewardForm(true);
 }
 
 async function deleteReward(rewardId) {
@@ -3414,7 +3620,13 @@ async function deleteReward(rewardId) {
 }
 
 async function testReward(rewardId) {
-  const rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  let rewards = [];
+  try {
+    rewards = await fetch('/api/rewards').then(r => r.json()).catch(() => []);
+  } catch (e) { }
+  if (!Array.isArray(rewards) || rewards.length === 0) {
+    rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
+  }
   const r = rewards.find(item => item.id === rewardId);
   if (!r) return;
 

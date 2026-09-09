@@ -480,6 +480,16 @@ class StorageService {
     return rewards || [];
   }
 
+  getCustomSounds() {
+    return readJSON('custom_sounds.json', []);
+  }
+
+  saveCustomSounds(sounds) {
+    writeJSON('custom_sounds.json', sounds || []);
+    this.syncToSupabase('custom_sounds', sounds || []);
+    return sounds || [];
+  }
+
   getUsers() {
     return readJSON('users.json', []);
   }

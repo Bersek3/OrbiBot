@@ -601,13 +601,28 @@ app.get('/api/sounds', (req, res) => {
     if (!fs.existsSync(soundsDir)) {
       fs.mkdirSync(soundsDir, { recursive: true });
     }
-    const files = fs.readdirSync(soundsDir)
+    const fsFiles = fs.readdirSync(soundsDir)
       .filter(f => /\.(mp3|wav|ogg|m4a|aac)$/i.test(f))
       .map(f => ({
         name: f,
         url: `/assets/sounds/custom/${f}`
       }));
-    res.json(files);
+
+    const storedSounds = storage.getCustomSounds() || [];
+    const soundMap = new Map();
+
+    fsFiles.forEach(f => soundMap.set(f.name.toLowerCase(), f));
+    storedSounds.forEach(s => {
+      if (s && s.name) {
+        soundMap.set(s.name.toLowerCase(), {
+          name: s.name,
+          url: s.url || `/assets/sounds/custom/${s.name}`,
+          data: s.data || s.dataUrl
+        });
+      }
+    });
+
+    res.json(Array.from(soundMap.values()));
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -640,6 +655,18 @@ app.post('/api/sounds/upload', (req, res) => {
     }
 
     const soundUrl = `/assets/sounds/custom/${cleanName}`;
+
+    // Persist in storage & sync to Supabase
+    let storedSounds = storage.getCustomSounds() || [];
+    const soundObj = { name: cleanName, url: soundUrl, data: data, createdAt: Date.now() };
+    const existingIdx = storedSounds.findIndex(s => s.name.toLowerCase() === cleanName.toLowerCase());
+    if (existingIdx >= 0) {
+      storedSounds[existingIdx] = soundObj;
+    } else {
+      storedSounds.push(soundObj);
+    }
+    storage.saveCustomSounds(storedSounds);
+
     res.json({ success: true, name: cleanName, url: soundUrl });
   } catch (err) {
     console.error('Error al subir sonido:', err);
@@ -657,6 +684,10 @@ app.post('/api/sounds/delete', (req, res) => {
 
     if (fs.existsSync(soundPath)) fs.unlinkSync(soundPath);
     if (fs.existsSync(docsPath)) fs.unlinkSync(docsPath);
+
+    let storedSounds = storage.getCustomSounds() || [];
+    storedSounds = storedSounds.filter(s => s.name.toLowerCase() !== cleanName.toLowerCase());
+    storage.saveCustomSounds(storedSounds);
 
     res.json({ success: true, message: 'Sonido eliminado correctamente.' });
   } catch (err) {
