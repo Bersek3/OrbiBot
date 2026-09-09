@@ -1447,6 +1447,12 @@ function connectInBrowserTwitchBot(twitchData) {
         showToast(`¡${username} donó ${bitCount} bits!`, 'success');
       }
 
+      // Puntos de Canal (Twitch Channel Points) con texto
+      if (tags['custom-reward-id']) {
+        handleBrowserChannelPointRedemption(tags['custom-reward-id'], username, message);
+        return;
+      }
+
       // Procesamiento de comando !tts desde el chat en cliente de navegador
       try {
         const currentCfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
@@ -1486,6 +1492,33 @@ function connectInBrowserTwitchBot(twitchData) {
         }
       } catch (e) { }
     });
+
+    // Capturar canjes de Puntos de Canal sin texto vía raw_message / USERNOTICE
+    client.on('raw_message', (raw) => {
+      try {
+        if (raw && raw.raw && raw.raw.includes('custom-reward-id=')) {
+          const rewardMatch = raw.raw.match(/custom-reward-id=([^;\s]+)/);
+          if (rewardMatch) {
+            const customRewardId = rewardMatch[1];
+            const userMatch = raw.raw.match(/display-name=([^;\s]+)/) || raw.raw.match(/login=([^;\s]+)/);
+            const username = userMatch ? decodeURIComponent(userMatch[1]) : (raw.tags?.['display-name'] || raw.tags?.username || 'Espectador');
+            const msgMatch = raw.raw.match(/USERNOTICE\s+#[^\s]+\s+:(.*)$/);
+            const userMsg = msgMatch ? msgMatch[1] : '';
+            handleBrowserChannelPointRedemption(customRewardId, username, userMsg);
+          }
+        }
+      } catch (e) { }
+    });
+
+    client.on('usernotice', (msgId, ch, tags, msg) => {
+      try {
+        const customRewardId = tags?.['custom-reward-id'];
+        if (customRewardId) {
+          const username = tags['display-name'] || tags.username || 'Espectador';
+          handleBrowserChannelPointRedemption(customRewardId, username, msg || '');
+        }
+      } catch (e) { }
+    });
   }
 
   browserTmiClient = new window.tmi.Client(opts);
@@ -1504,6 +1537,99 @@ function connectInBrowserTwitchBot(twitchData) {
       updateBotStatusUI({ status: 'connected', channel });
     }
   });
+}
+
+let browserRecentRedemptions = new Set();
+async function handleBrowserChannelPointRedemption(customRewardId, username, message = '', rewardTitle = '') {
+  const dedupeKey = `${customRewardId || rewardTitle}_${username}_${Math.floor(Date.now() / 2500)}`;
+  if (browserRecentRedemptions.has(dedupeKey)) return;
+  browserRecentRedemptions.add(dedupeKey);
+  setTimeout(() => browserRecentRedemptions.delete(dedupeKey), 10000);
+
+  let rewards = [];
+  try {
+    rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
+  } catch(e) {}
+
+  let matchedReward = rewards.find(r => r.enabled && (
+    (r.rewardId && customRewardId && r.rewardId.toLowerCase() === customRewardId.toLowerCase()) ||
+    (r.id && customRewardId && r.id.toLowerCase() === customRewardId.toLowerCase()) ||
+    (rewardTitle && r.rewardName && r.rewardName.trim().toLowerCase() === rewardTitle.trim().toLowerCase())
+  ));
+
+  // Si no coincide directamente, buscar por cachedTwitchHelixRewards
+  if (!matchedReward && customRewardId && typeof cachedTwitchHelixRewards !== 'undefined' && Array.isArray(cachedTwitchHelixRewards)) {
+    const helixMatch = cachedTwitchHelixRewards.find(tr => tr.id === customRewardId);
+    if (helixMatch) {
+      matchedReward = rewards.find(r => r.enabled && r.rewardName.trim().toLowerCase() === helixMatch.title.trim().toLowerCase());
+      if (matchedReward) {
+        matchedReward.rewardId = customRewardId;
+        localStorage.setItem('orbibot_rewards', JSON.stringify(rewards));
+      }
+    }
+  }
+
+  if (matchedReward && matchedReward.enabled) {
+    console.log(`[Dashboard] 🎁 Canje procesado: "${matchedReward.rewardName}" (${matchedReward.action}) por @${username}`);
+    if (matchedReward.action === 'sound') {
+      const soundUrl = matchedReward.soundUrl || '/assets/sounds/airhorn.mp3';
+      broadcastEvent('alert', {
+        type: 'sound',
+        user: username,
+        soundUrl: soundUrl,
+        reward: matchedReward.rewardName || 'Efecto de Sonido',
+        message
+      });
+      previewSound(soundUrl);
+      showToast(`🔊 @${username} canjeó sonido: "${matchedReward.rewardName}"`, 'success');
+      return;
+    } else if (matchedReward.action === 'tts') {
+      const ttsConfig = (appConfig?.tts) || {};
+      const voice = ttsConfig.voice || 'es_mx_mia';
+      const textToSpeak = message || `¡${username} canjeó ${matchedReward.rewardName}!`;
+      const ttsData = {
+        id: 'tts_' + Date.now(),
+        user: username,
+        text: textToSpeak,
+        voice,
+        volume: Number(ttsConfig.volume !== undefined ? ttsConfig.volume : 90) / 100,
+        audioUrl: getTTSAudioUrl(textToSpeak, voice),
+        timestamp: Date.now()
+      };
+      broadcastEvent('tts', ttsData);
+      broadcastEvent('alert', {
+        type: 'channel_points',
+        user: username,
+        reward: matchedReward.rewardName || 'Voz TTS',
+        message
+      });
+      return;
+    } else if (matchedReward.action === 'song_request') {
+      if (message) {
+        try {
+          await fetch('/api/sr/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: message, requester: username, isPriority: true })
+          });
+        } catch(e) {}
+      }
+      broadcastEvent('alert', {
+        type: 'channel_points',
+        user: username,
+        reward: matchedReward.rewardName || 'Pedir Canción VIP',
+        message
+      });
+      return;
+    }
+  } else {
+    broadcastEvent('alert', {
+      type: 'channel_points',
+      user: username,
+      reward: rewardTitle || 'Puntos de Canal',
+      message
+    });
+  }
 }
 
 // ================= IN-BROWSER KICK CHAT LISTENER =================

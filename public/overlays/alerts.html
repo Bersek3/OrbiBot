@@ -363,6 +363,45 @@
           tmiClient.on('raided', (ch, username, viewers) => {
             showAlert({ type: 'raid', user: username, viewers: parseInt(viewers, 10) || 1 });
           });
+
+          // Puntos de Canal (con texto o sin texto) vía TMI
+          tmiClient.on('message', (ch, tags, message) => {
+            const customRewardId = tags['custom-reward-id'];
+            if (customRewardId) {
+              const username = tags['display-name'] || tags.username || 'Espectador';
+              fetch('/api/rewards').then(r => r.json()).then(rewards => {
+                const matched = Array.isArray(rewards) ? rewards.find(r => r.rewardId === customRewardId || r.id === customRewardId) : null;
+                if (matched && matched.action === 'sound') {
+                  showAlert({ type: 'sound', user: username, soundUrl: matched.soundUrl, reward: matched.rewardName, message });
+                } else {
+                  showAlert({ type: 'channel_points', user: username, reward: matched?.rewardName || 'Puntos de Canal', message });
+                }
+              }).catch(() => {
+                showAlert({ type: 'channel_points', user: username, reward: 'Puntos de Canal', message });
+              });
+            }
+          });
+
+          tmiClient.on('raw_message', (raw) => {
+            try {
+              if (raw && raw.raw && raw.raw.includes('custom-reward-id=')) {
+                const match = raw.raw.match(/custom-reward-id=([^;\s]+)/);
+                if (match) {
+                  const customRewardId = match[1];
+                  const userMatch = raw.raw.match(/display-name=([^;\s]+)/) || raw.raw.match(/login=([^;\s]+)/);
+                  const username = userMatch ? decodeURIComponent(userMatch[1]) : (raw.tags?.['display-name'] || raw.tags?.username || 'Espectador');
+                  const msgMatch = raw.raw.match(/USERNOTICE\s+#[^\s]+\s+:(.*)$/);
+                  const userMsg = msgMatch ? msgMatch[1] : '';
+                  fetch('/api/rewards').then(r => r.json()).then(rewards => {
+                    const matched = Array.isArray(rewards) ? rewards.find(r => r.rewardId === customRewardId || r.id === customRewardId) : null;
+                    if (matched && matched.action === 'sound') {
+                      showAlert({ type: 'sound', user: username, soundUrl: matched.soundUrl, reward: matched.rewardName, message: userMsg });
+                    }
+                  }).catch(() => {});
+                }
+              }
+            } catch(e) {}
+          });
         } catch(e) {
           console.error('TMI Client error:', e);
         }
