@@ -945,6 +945,16 @@ app.post('/api/rewards', (req, res) => {
   res.json({ success: true, rewards });
 });
 
+app.post('/api/rewards/delete', (req, res) => {
+  const { id } = req.body || {};
+  let rewards = storage.getRewards() || [];
+  if (id) {
+    rewards = rewards.filter(r => r.id !== id && r.rewardName !== id);
+    storage.saveRewards(rewards);
+  }
+  res.json({ success: true, rewards });
+});
+
 // Fetch Twitch Channel Points Custom Rewards from Twitch Helix
 app.get('/api/rewards/twitch', async (req, res) => {
   try {

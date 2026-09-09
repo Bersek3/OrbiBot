@@ -28,6 +28,40 @@ const SUPABASE_URL = 'https://pzrlfuzjkwkrnmqkoaue.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_L6kzW0ZtGyfl6mvKevDX0Q_6G0DCGDP';
 let supabaseClient = null;
 
+async function saveToAllSupabaseScopes(key, value) {
+  if (!supabaseClient) return;
+  const scopes = new Set();
+  const session = getUserSession();
+  if (session?.email) scopes.add(session.email.toLowerCase().trim());
+  if (appConfig?.twitch?.channel) scopes.add(appConfig.twitch.channel.toLowerCase().replace(/^#/, '').trim());
+
+  try {
+    const localTwitch = localStorage.getItem('orbibot_twitch_auth');
+    if (localTwitch) {
+      const parsed = JSON.parse(localTwitch);
+      const chan = (parsed.channel || parsed.login || parsed.displayName || '').toLowerCase().replace(/^#/, '').trim();
+      if (chan) scopes.add(chan);
+    }
+  } catch (e) { }
+
+  scopes.add('default');
+
+  const promises = Array.from(scopes).filter(Boolean).map(streamerId => {
+    return supabaseClient.from('orbibot_settings').upsert({
+      streamer_id: streamerId,
+      key: key,
+      value: value,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'streamer_id,key' });
+  });
+
+  try {
+    await Promise.all(promises);
+  } catch (err) {
+    console.warn(`[Supabase Multi-Scope Sync Error for ${key}]:`, err);
+  }
+}
+
 async function loadUserDataFromSupabase(userIdentifier) {
   if (!supabaseClient || !userIdentifier) return;
   try {
@@ -88,9 +122,18 @@ async function loadUserDataFromSupabase(userIdentifier) {
           localStorage.setItem('orbibot_commands', JSON.stringify(cleanCmds));
           renderCommands(cleanCmds);
         }
-        if (item.key === 'channel_points' && item.value) {
-          localStorage.setItem('orbibot_rewards', JSON.stringify(item.value));
-          renderRewards(item.value);
+        if (item.key === 'channel_points' && Array.isArray(item.value)) {
+          const seen = new Set();
+          const cleanRwds = [];
+          for (const r of item.value) {
+            const k = (r.rewardName || r.name || r.id || '').trim().toLowerCase();
+            if (k && !seen.has(k)) {
+              seen.add(k);
+              cleanRwds.push(r);
+            }
+          }
+          localStorage.setItem('orbibot_rewards', JSON.stringify(cleanRwds));
+          renderRewards(cleanRwds);
         }
         if (item.key === 'goals' && Array.isArray(item.value)) {
           localStorage.setItem('orbibot_goals', JSON.stringify(item.value));
@@ -1352,54 +1395,26 @@ async function loadInitialData() {
       } catch (e) { }
     }
 
-    // Merge or fallback commands & rewards from localStorage if backend was empty but local storage has them
+    // Set effective commands, rewards & goals cleanly
     let effectiveCommands = Array.isArray(cmdRes) ? cmdRes : [];
-    const localCmds = localStorage.getItem('orbibot_commands');
-    if (effectiveCommands.length === 0 && localCmds) {
-      try {
-        const parsedCmds = JSON.parse(localCmds);
-        if (Array.isArray(parsedCmds) && parsedCmds.length > 0) {
-          effectiveCommands = parsedCmds;
-          fetch('/api/commands', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(effectiveCommands)
-          }).catch(() => {});
-        }
-      } catch(e) {}
-    }
-
     let effectiveRewards = Array.isArray(rwdRes) ? rwdRes : [];
-    const localRwds = localStorage.getItem('orbibot_rewards');
-    if (effectiveRewards.length === 0 && localRwds) {
-      try {
-        const parsedRwds = JSON.parse(localRwds);
-        if (Array.isArray(parsedRwds) && parsedRwds.length > 0) {
-          effectiveRewards = parsedRwds;
-          fetch('/api/rewards', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(effectiveRewards)
-          }).catch(() => {});
-        }
-      } catch(e) {}
-    }
-
     let effectiveGoals = Array.isArray(goalsRes) ? goalsRes : [];
-    const localGoals = localStorage.getItem('orbibot_goals');
-    if (effectiveGoals.length === 0 && localGoals) {
-      try {
-        const parsedGoals = JSON.parse(localGoals);
-        if (Array.isArray(parsedGoals) && parsedGoals.length > 0) {
-          effectiveGoals = parsedGoals;
-          fetch('/api/goals', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(effectiveGoals)
-          }).catch(() => {});
-        }
-      } catch(e) {}
+
+    // Deduplicate rewards by name
+    const seenRwds = new Set();
+    const cleanRwds = [];
+    for (const r of effectiveRewards) {
+      const k = (r.rewardName || r.name || r.id || '').trim().toLowerCase();
+      if (k && !seenRwds.has(k)) {
+        seenRwds.add(k);
+        cleanRwds.push(r);
+      }
     }
+    effectiveRewards = cleanRwds;
+
+    localStorage.setItem('orbibot_commands', JSON.stringify(effectiveCommands));
+    localStorage.setItem('orbibot_rewards', JSON.stringify(effectiveRewards));
+    localStorage.setItem('orbibot_goals', JSON.stringify(effectiveGoals));
 
     appConfig = cfgRes;
     bindConfigToUI(cfgRes);
@@ -3230,10 +3245,11 @@ async function deleteGoalUI(goalId) {
 }
 
 async function syncGoalsToStorageAndCloud(goals) {
-  localStorage.setItem('orbibot_goals', JSON.stringify(goals));
+  const cleanGoals = Array.isArray(goals) ? goals : [];
+  localStorage.setItem('orbibot_goals', JSON.stringify(cleanGoals));
 
   if (appConfig) {
-    appConfig.goals = goals;
+    appConfig.goals = cleanGoals;
   }
 
   // 1. Backend API Sync
@@ -3241,26 +3257,12 @@ async function syncGoalsToStorageAndCloud(goals) {
     await fetch('/api/goals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(goals)
+      body: JSON.stringify(cleanGoals)
     });
   } catch(e) {}
 
-  // 2. Direct Supabase Cloud Sync
-  if (supabaseClient) {
-    try {
-      const session = getUserSession();
-      const streamerId = (appConfig?.twitch?.channel || session?.email || 'default').toLowerCase().replace(/^#/, '');
-      await supabaseClient.from('orbibot_settings').upsert({
-        streamer_id: streamerId,
-        key: 'goals',
-        value: goals,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'streamer_id,key' });
-      console.log('☁️ [Supabase Cloud] Metas personalizadas sincronizadas.');
-    } catch(e) {
-      console.warn('Error syncing goals to Supabase:', e);
-    }
-  }
+  // 2. Direct Multi-Scope Supabase Cloud Sync
+  await saveToAllSupabaseScopes('goals', cleanGoals);
 }
 
 // ================= COMMANDS =================
@@ -3375,19 +3377,7 @@ async function deleteCommand(cmdId) {
   }
 
   localStorage.setItem('orbibot_commands', JSON.stringify(commands));
-
-  if (supabaseClient) {
-    try {
-      const session = getUserSession();
-      const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
-      await supabaseClient.from('orbibot_settings').upsert({
-        streamer_id: streamerId,
-        key: 'commands',
-        value: commands,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'streamer_id,key' });
-    } catch(e) {}
-  }
+  await saveToAllSupabaseScopes('commands', commands);
 
   renderCommands(commands);
   showToast('Comando eliminado', 'info');
@@ -3399,7 +3389,18 @@ function renderRewards(rewards) {
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  if (!rewards || rewards.length === 0) {
+  let list = Array.isArray(rewards) ? rewards : [];
+  const seen = new Set();
+  const deduped = [];
+  for (const r of list) {
+    const k = (r.rewardName || r.name || r.id || '').trim().toLowerCase();
+    if (k && !seen.has(k)) {
+      seen.add(k);
+      deduped.push(r);
+    }
+  }
+
+  if (deduped.length === 0) {
     tbody.innerHTML = `
       <tr>
         <td colspan="4" style="text-align: center; padding: 32px 16px; color: var(--text-secondary);">
@@ -3412,7 +3413,7 @@ function renderRewards(rewards) {
     return;
   }
 
-  rewards.forEach(r => {
+  deduped.forEach(r => {
     const tr = document.createElement('tr');
     let actionBadge = `<span class="btn btn-secondary btn-sm">${r.action}</span>`;
     if (r.action === 'tts') actionBadge = `<span class="btn btn-primary btn-sm" style="font-weight: 600;">🗣️ Voz TTS</span>`;
@@ -3438,6 +3439,9 @@ function renderRewards(rewards) {
         <button class="btn btn-danger btn-sm" onclick="deleteReward('${r.id}')" title="Eliminar">🗑️</button>
       </td>
     `;
+    tbody.appendChild(tr);
+  });
+}
     tbody.appendChild(tr);
   });
 }
@@ -4008,22 +4012,7 @@ async function handleSoundFileUpload(input) {
         customSounds.push(soundObj);
       }
       localStorage.setItem('orbibot_custom_sounds', JSON.stringify(customSounds));
-
-      // 3. Guardar en Supabase Cloud
-      if (supabaseClient) {
-        try {
-          const session = getUserSession();
-          const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
-          await supabaseClient.from('orbibot_settings').upsert({
-            streamer_id: streamerId,
-            key: 'custom_sounds',
-            value: customSounds,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'streamer_id,key' });
-        } catch (err) {
-          console.warn('Error syncing custom_sounds to Supabase:', err);
-        }
-      }
+      await saveToAllSupabaseScopes('custom_sounds', customSounds);
 
       showToast(`¡Sonido "${cleanName}" subido y guardado con éxito!`, 'success');
       await loadSounds();
@@ -4075,6 +4064,7 @@ async function saveRewardUI() {
   if (!Array.isArray(rewards) || rewards.length === 0) {
     rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
   }
+  if (!Array.isArray(rewards)) rewards = [];
 
   const newReward = {
     id: editId || `reward-${Date.now()}`,
@@ -4085,35 +4075,44 @@ async function saveRewardUI() {
     enabled: true
   };
 
-  const existingIdx = rewards.findIndex(r => r.id === newReward.id);
-  if (existingIdx >= 0) {
-    rewards[existingIdx] = newReward;
+  let targetIdx = -1;
+  if (editId) {
+    targetIdx = rewards.findIndex(r => r.id === editId);
+  }
+  if (targetIdx === -1) {
+    targetIdx = rewards.findIndex(r => (r.rewardName || '').trim().toLowerCase() === name.toLowerCase());
+    if (targetIdx >= 0) {
+      newReward.id = rewards[targetIdx].id;
+    }
+  }
+
+  if (targetIdx >= 0) {
+    rewards[targetIdx] = newReward;
   } else {
     rewards.push(newReward);
+  }
+
+  // Deduplicate before saving
+  const seen = new Set();
+  const deduped = [];
+  for (const r of rewards) {
+    const k = (r.rewardName || '').trim().toLowerCase();
+    if (k && !seen.has(k)) {
+      seen.add(k);
+      deduped.push(r);
+    }
   }
 
   try {
     await fetch('/api/rewards', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rewards)
+      body: JSON.stringify(deduped)
     });
   } catch (e) { }
 
-  localStorage.setItem('orbibot_rewards', JSON.stringify(rewards));
-
-  if (supabaseClient) {
-    try {
-      const session = getUserSession();
-      const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
-      await supabaseClient.from('orbibot_settings').upsert({
-        streamer_id: streamerId,
-        key: 'channel_points',
-        value: rewards,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'streamer_id,key' });
-    } catch (e) { }
-  }
+  localStorage.setItem('orbibot_rewards', JSON.stringify(deduped));
+  await saveToAllSupabaseScopes('channel_points', deduped);
 
   // Si el sonido no estaba en custom_sounds, asegurarse de agregarlo para mantener persistencia
   if (action === 'sound' && soundUrl) {
@@ -4127,22 +4126,11 @@ async function saveRewardUI() {
       const soundName = soundUrl.startsWith('data:') ? `Audio - ${name}` : (soundUrl.split('/').pop() || name);
       customSounds.push({ name: soundName, url: soundUrl, createdAt: Date.now() });
       localStorage.setItem('orbibot_custom_sounds', JSON.stringify(customSounds));
-      if (supabaseClient) {
-        try {
-          const session = getUserSession();
-          const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
-          await supabaseClient.from('orbibot_settings').upsert({
-            streamer_id: streamerId,
-            key: 'custom_sounds',
-            value: customSounds,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'streamer_id,key' });
-        } catch (e) { }
-      }
+      await saveToAllSupabaseScopes('custom_sounds', customSounds);
     }
   }
 
-  renderRewards(rewards);
+  renderRewards(deduped);
   toggleRewardForm(false);
   document.getElementById('editRewardId').value = '';
   if (inputEl) {
@@ -4212,32 +4200,32 @@ async function deleteReward(rewardId) {
   if (!Array.isArray(rewards) || rewards.length === 0) {
     rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
   }
-  const filtered = rewards.filter(r => r.id !== rewardId);
+  if (!Array.isArray(rewards)) rewards = [];
+
+  const filtered = rewards.filter(r => r.id !== rewardId && r.rewardName !== rewardId);
+
+  const seen = new Set();
+  const deduped = [];
+  for (const r of filtered) {
+    const k = (r.rewardName || '').trim().toLowerCase();
+    if (k && !seen.has(k)) {
+      seen.add(k);
+      deduped.push(r);
+    }
+  }
 
   try {
     await fetch('/api/rewards', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(filtered)
+      body: JSON.stringify(deduped)
     });
   } catch (e) { }
 
-  localStorage.setItem('orbibot_rewards', JSON.stringify(filtered));
+  localStorage.setItem('orbibot_rewards', JSON.stringify(deduped));
+  await saveToAllSupabaseScopes('channel_points', deduped);
 
-  if (supabaseClient) {
-    try {
-      const session = getUserSession();
-      const streamerId = (appConfig?.twitch?.channel || session?.email || 'default').toLowerCase().replace(/^#/, '');
-      await supabaseClient.from('orbibot_settings').upsert({
-        streamer_id: streamerId,
-        key: 'channel_points',
-        value: filtered,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'streamer_id,key' });
-    } catch (e) { }
-  }
-
-  renderRewards(filtered);
+  renderRewards(deduped);
   showToast('Recompensa eliminada', 'success');
 }
 
@@ -4969,19 +4957,7 @@ function setupEventListeners() {
     } catch (e) { }
 
     localStorage.setItem('orbibot_commands', JSON.stringify(finalCommands));
-
-    if (supabaseClient) {
-      try {
-        const session = getUserSession();
-        const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
-        await supabaseClient.from('orbibot_settings').upsert({
-          streamer_id: streamerId,
-          key: 'commands',
-          value: finalCommands,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'streamer_id,key' });
-      } catch (e) { }
-    }
+    await saveToAllSupabaseScopes('commands', finalCommands);
 
     renderCommands(finalCommands);
     showToast(`Comando ${formattedName} guardado con éxito`, 'success');
@@ -5801,42 +5777,11 @@ async function saveWidgetStyles() {
       } catch (e) { }
     }
 
-    // Direct Supabase Cloud Sync
-    if (supabaseClient) {
-      try {
-        const session = getUserSession();
-        const streamerId = (appConfig?.twitch?.channel || session?.email || 'default').toLowerCase().replace(/^#/, '');
-        const upsertPromises = [
-          supabaseClient.from('orbibot_settings').upsert({
-            streamer_id: streamerId,
-            key: 'widgetStyles',
-            value: wcWidgetStyles,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'streamer_id,key' }),
-          supabaseClient.from('orbibot_settings').upsert({
-            streamer_id: streamerId,
-            key: 'config',
-            value: appConfig || cfg,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'streamer_id,key' })
-        ];
-
-        if (updatedAlerts) {
-          upsertPromises.push(
-            supabaseClient.from('orbibot_settings').upsert({
-              streamer_id: streamerId,
-              key: 'alerts',
-              value: updatedAlerts,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'streamer_id,key' })
-          );
-        }
-
-        await Promise.all(upsertPromises);
-        console.log('☁️ [Supabase Cloud] Ajustes multimedia y estilos de widgets guardados.');
-      } catch (e) {
-        console.warn('Error syncing widget styles directly to Supabase:', e);
-      }
+    // Direct Multi-Scope Supabase Cloud Sync
+    await saveToAllSupabaseScopes('widgetStyles', wcWidgetStyles);
+    await saveToAllSupabaseScopes('config', appConfig || cfg);
+    if (updatedAlerts) {
+      await saveToAllSupabaseScopes('alerts', updatedAlerts);
     }
 
     setAutoSaveStatus('saved');

@@ -454,29 +454,31 @@ class StorageService {
 
   async syncToSupabase(key, value) {
     if (!this.supabase) return;
-    const streamerId = this.getStreamerId();
-    try {
-      const { error } = await this.supabase
-        .from('orbibot_settings')
-        .upsert({
-          streamer_id: streamerId,
-          key,
-          value,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'streamer_id,key' });
-
-      if (error) {
-        if (error.message && error.message.includes('streamer_id')) {
-          await this.supabase.from('orbibot_settings').upsert({
+    const scopes = new Set([this.getStreamerId(), 'default'].filter(Boolean));
+    for (const streamerId of scopes) {
+      try {
+        const { error } = await this.supabase
+          .from('orbibot_settings')
+          .upsert({
+            streamer_id: streamerId,
             key,
             value,
             updated_at: new Date().toISOString()
-          }, { onConflict: 'key' });
+          }, { onConflict: 'streamer_id,key' });
+
+        if (error) {
+          if (error.message && error.message.includes('streamer_id')) {
+            await this.supabase.from('orbibot_settings').upsert({
+              key,
+              value,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'key' });
+          }
+        } else {
+          this.isSupabaseReady = true;
         }
-      } else {
-        this.isSupabaseReady = true;
-      }
-    } catch (err) { }
+      } catch (err) { }
+    }
   }
 
   // ================= 🍃 BASE DE DATOS 2: MONGODB ATLAS =================
@@ -581,22 +583,24 @@ class StorageService {
 
   async syncToMongoDB(key, value) {
     if (!this.isMongoReady || !this.mongoDb) return;
-    const streamerId = this.getStreamerId();
-    try {
-      await this.mongoDb.collection('settings').updateOne(
-        { streamer_id: streamerId, key },
-        {
-          $set: {
-            streamer_id: streamerId,
-            key,
-            value,
-            updated_at: new Date().toISOString()
-          }
-        },
-        { upsert: true }
-      );
-    } catch (err) {
-      console.warn(`⚠️ [MongoDB Cloud] Error al guardar "${key}" para "${streamerId}":`, err.message);
+    const scopes = new Set([this.getStreamerId(), 'default'].filter(Boolean));
+    for (const streamerId of scopes) {
+      try {
+        await this.mongoDb.collection('settings').updateOne(
+          { streamer_id: streamerId, key },
+          {
+            $set: {
+              streamer_id: streamerId,
+              key,
+              value,
+              updated_at: new Date().toISOString()
+            }
+          },
+          { upsert: true }
+        );
+      } catch (err) {
+        console.warn(`⚠️ [MongoDB Cloud] Error al guardar "${key}" para "${streamerId}":`, err.message);
+      }
     }
   }
 
