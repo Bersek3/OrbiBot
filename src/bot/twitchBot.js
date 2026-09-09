@@ -11,6 +11,8 @@ class TwitchBot {
     this.eventCallbacks = [];
     this.commandCooldowns = new Map();
     this.isExplicitDisconnect = false;
+    this.isConnecting = false;
+    this._activeEventSubUserId = null;
     this.startWatchdog();
   }
 
@@ -22,15 +24,16 @@ class TwitchBot {
         const twitchCfg = config.twitch || {};
         const shouldBeConnected = Boolean(twitchCfg.channel && (twitchCfg.connected !== false) && !this.isExplicitDisconnect);
         
-        if (shouldBeConnected) {
-          const isClientOpen = this.client && (typeof this.client.readyState === 'function' ? this.client.readyState() === 'OPEN' : true);
-          if (!this.client || this.status === 'disconnected' || !isClientOpen) {
-            console.log(`[TwitchBot Watchdog] 🛡️ Verificando estado del bot... reconectando #${twitchCfg.channel}`);
+        if (shouldBeConnected && !this.isConnecting) {
+          const clientState = this.client && typeof this.client.readyState === 'function' ? this.client.readyState() : null;
+          // Solo reconectar si el cliente no existe o se encuentra explícitamente en CLOSED
+          if (!this.client || clientState === 'CLOSED') {
+            console.log(`[TwitchBot Watchdog] 🛡️ Verificando cliente IRC inactivo... reconectando #${twitchCfg.channel}`);
             this.connect().catch(e => console.warn('[TwitchBot Watchdog] Error al reconectar:', e.message));
           }
         }
       } catch (e) { }
-    }, 25000);
+    }, 30000);
   }
 
   onEvent(callback) {
@@ -48,11 +51,15 @@ class TwitchBot {
   }
 
   async connect() {
+    if (this.isConnecting) return { success: false, message: 'Conexión ya en proceso...' };
+    this.isConnecting = true;
     this.isExplicitDisconnect = false;
+
     const config = storage.getConfig();
     const twitchCfg = config.twitch;
 
     if (!twitchCfg.channel) {
+      this.isConnecting = false;
       this.status = 'disconnected';
       this.statusMessage = 'Canal no configurado';
       this.broadcast('bot_status', { status: this.status, message: this.statusMessage });
@@ -104,6 +111,7 @@ class TwitchBot {
       this.status = 'connected';
       this.statusMessage = `Conectado a #${channelName} ${token ? `como @${botUser}` : '(Modo lectura)'}`;
       this.broadcast('bot_status', { status: this.status, message: this.statusMessage, channel: channelName });
+      this.isConnecting = false;
 
       // Sincronizar automáticamente IDs de recompensas de Puntos de Canal con Twitch
       this.syncTwitchRewards();
@@ -127,12 +135,14 @@ class TwitchBot {
           this.status = 'connected';
           this.statusMessage = `Conectado a #${channelName} (Modo lectura)`;
           this.broadcast('bot_status', { status: this.status, message: this.statusMessage, channel: channelName });
+          this.isConnecting = false;
           return { success: true, message: this.statusMessage };
         } catch (fallbackErr) {
           console.warn('[TwitchBot] Error en fallback anónimo:', fallbackErr.message);
         }
       }
 
+      this.isConnecting = false;
       this.status = 'error';
       this.statusMessage = `Error de conexión: ${err.message || err}`;
       this.broadcast('bot_status', { status: this.status, message: this.statusMessage });
@@ -222,23 +232,14 @@ class TwitchBot {
     });
 
     this.client.on('disconnected', (reason) => {
-      console.warn(`[TwitchBot] ⚠️ Socket IRC desconectado (${reason}).`);
+      console.warn(`[TwitchBot] ⚠️ Socket IRC desconectado (${reason}). TMI.js reconectará automáticamente.`);
       if (!this.isExplicitDisconnect) {
-        const cfg = storage.getConfig();
-        if (cfg.twitch && cfg.twitch.channel && cfg.twitch.connected !== false) {
-          this.status = 'connecting';
-          this.statusMessage = 'Reconectando automáticamente...';
-          this.broadcast('bot_status', { status: this.status, message: this.statusMessage, channel: channelName });
-          setTimeout(() => {
-            if (!this.isExplicitDisconnect) {
-              this.connect().catch(() => {});
-            }
-          }, 3000);
-          return;
-        }
+        this.status = 'connecting';
+        this.statusMessage = 'Reconectando con el chat de Twitch...';
+      } else {
+        this.status = 'disconnected';
+        this.statusMessage = 'Desconectado';
       }
-      this.status = 'disconnected';
-      this.statusMessage = 'Desconectado';
       this.broadcast('bot_status', { status: this.status, message: this.statusMessage, channel: channelName });
     });
     // Chat Message Handler
@@ -606,13 +607,20 @@ class TwitchBot {
    * Conecta a Twitch EventSub WebSocket para capturar todos los canjes de Puntos de Canal en tiempo real.
    */
   connectEventSub(userId, clientId, token) {
+    if (!userId || !clientId || !token) return;
+
+    const WebSocket = require('ws');
+    if (this.eventsubWs && (this.eventsubWs.readyState === WebSocket.OPEN || this.eventsubWs.readyState === WebSocket.CONNECTING) && this._activeEventSubUserId === userId) {
+      return; // Conexión ya activa y operando
+    }
+
     if (this.eventsubWs) {
       try { this.eventsubWs.close(); } catch (e) { }
       this.eventsubWs = null;
     }
+    this._activeEventSubUserId = userId;
 
     try {
-      const WebSocket = require('ws');
       const ws = new WebSocket('wss://eventsub.wss.twitch.tv/ws');
       this.eventsubWs = ws;
 
@@ -663,14 +671,17 @@ class TwitchBot {
       });
 
       ws.on('close', () => {
-        if (this.status === 'connected') {
+        this.eventsubWs = null;
+        if (this.status === 'connected' && !this.isExplicitDisconnect) {
           setTimeout(() => {
-            const config = storage.getConfig();
-            const tCfg = config.twitch || {};
-            if (tCfg.userId && tCfg.clientId && tCfg.oauthToken && this.status === 'connected') {
-              this.connectEventSub(tCfg.userId, tCfg.clientId, tCfg.oauthToken);
+            if (this.status === 'connected' && !this.isExplicitDisconnect) {
+              const config = storage.getConfig();
+              const tCfg = config.twitch || {};
+              if (tCfg.userId && tCfg.clientId && tCfg.oauthToken) {
+                this.connectEventSub(tCfg.userId, tCfg.clientId, tCfg.oauthToken);
+              }
             }
-          }, 5000);
+          }, 8000);
         }
       });
 
