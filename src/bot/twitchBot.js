@@ -10,6 +10,27 @@ class TwitchBot {
     this.statusMessage = 'Desconectado';
     this.eventCallbacks = [];
     this.commandCooldowns = new Map();
+    this.isExplicitDisconnect = false;
+    this.startWatchdog();
+  }
+
+  startWatchdog() {
+    if (this._watchdogTimer) clearInterval(this._watchdogTimer);
+    this._watchdogTimer = setInterval(() => {
+      try {
+        const config = storage.getConfig();
+        const twitchCfg = config.twitch || {};
+        const shouldBeConnected = Boolean(twitchCfg.channel && (twitchCfg.connected !== false) && !this.isExplicitDisconnect);
+        
+        if (shouldBeConnected) {
+          const isClientOpen = this.client && (typeof this.client.readyState === 'function' ? this.client.readyState() === 'OPEN' : true);
+          if (!this.client || this.status === 'disconnected' || !isClientOpen) {
+            console.log(`[TwitchBot Watchdog] 🛡️ Verificando estado del bot... reconectando #${twitchCfg.channel}`);
+            this.connect().catch(e => console.warn('[TwitchBot Watchdog] Error al reconectar:', e.message));
+          }
+        }
+      } catch (e) { }
+    }, 25000);
   }
 
   onEvent(callback) {
@@ -27,6 +48,7 @@ class TwitchBot {
   }
 
   async connect() {
+    this.isExplicitDisconnect = false;
     const config = storage.getConfig();
     const twitchCfg = config.twitch;
 
@@ -39,10 +61,11 @@ class TwitchBot {
 
     if (this.client) {
       try {
-        await this.disconnect();
+        await this.client.disconnect();
       } catch (e) {
         // ignore
       }
+      this.client = null;
     }
 
     const channelName = twitchCfg.channel.toLowerCase().replace(/^#/, '');
@@ -53,7 +76,10 @@ class TwitchBot {
       options: { debug: false },
       connection: {
         reconnect: true,
-        secure: true
+        secure: true,
+        maxReconnectAttempts: Infinity,
+        maxReconnectInterval: 15000,
+        reconnectDecay: 1.5
       },
       channels: [channelName]
     };
@@ -89,6 +115,24 @@ class TwitchBot {
 
       return { success: true, message: this.statusMessage };
     } catch (err) {
+      // Si falló por credenciales inválidas/expiradas, intentar reconectar en modo lectura anónimo para no perder el stream
+      if (tmiOptions.identity) {
+        console.warn(`[TwitchBot] ⚠️ Autenticación IRC falló (${err.message || err}). Intentando reconexión anónima (solo lectura):`);
+        try {
+          delete tmiOptions.identity;
+          this.client = new tmi.Client(tmiOptions);
+          this.setupHandlers(channelName);
+          await this.client.connect();
+
+          this.status = 'connected';
+          this.statusMessage = `Conectado a #${channelName} (Modo lectura)`;
+          this.broadcast('bot_status', { status: this.status, message: this.statusMessage, channel: channelName });
+          return { success: true, message: this.statusMessage };
+        } catch (fallbackErr) {
+          console.warn('[TwitchBot] Error en fallback anónimo:', fallbackErr.message);
+        }
+      }
+
       this.status = 'error';
       this.statusMessage = `Error de conexión: ${err.message || err}`;
       this.broadcast('bot_status', { status: this.status, message: this.statusMessage });
@@ -136,6 +180,7 @@ class TwitchBot {
   }
 
   async disconnect() {
+    this.isExplicitDisconnect = true;
     if (this.client) {
       try {
         await this.client.disconnect();
@@ -161,6 +206,41 @@ class TwitchBot {
   }
 
   setupHandlers(channelName) {
+    // IRC Connection Status Handlers
+    this.client.on('connected', (address, port) => {
+      this.status = 'connected';
+      this.statusMessage = `Conectado a #${channelName}`;
+      this.broadcast('bot_status', { status: this.status, message: this.statusMessage, channel: channelName });
+      console.log(`[TwitchBot] 🟢 IRC conectado exitosamente con #${channelName}`);
+    });
+
+    this.client.on('reconnect', () => {
+      this.status = 'connecting';
+      this.statusMessage = `Reconectando con #${channelName}...`;
+      this.broadcast('bot_status', { status: this.status, message: this.statusMessage, channel: channelName });
+      console.log(`[TwitchBot] 🔄 Reconectando socket IRC con #${channelName}`);
+    });
+
+    this.client.on('disconnected', (reason) => {
+      console.warn(`[TwitchBot] ⚠️ Socket IRC desconectado (${reason}).`);
+      if (!this.isExplicitDisconnect) {
+        const cfg = storage.getConfig();
+        if (cfg.twitch && cfg.twitch.channel && cfg.twitch.connected !== false) {
+          this.status = 'connecting';
+          this.statusMessage = 'Reconectando automáticamente...';
+          this.broadcast('bot_status', { status: this.status, message: this.statusMessage, channel: channelName });
+          setTimeout(() => {
+            if (!this.isExplicitDisconnect) {
+              this.connect().catch(() => {});
+            }
+          }, 3000);
+          return;
+        }
+      }
+      this.status = 'disconnected';
+      this.statusMessage = 'Desconectado';
+      this.broadcast('bot_status', { status: this.status, message: this.statusMessage, channel: channelName });
+    });
     // Chat Message Handler
     this.client.on('message', async (channel, tags, message, self) => {
       if (self) return;

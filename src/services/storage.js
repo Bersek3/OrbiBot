@@ -662,6 +662,8 @@ class StorageService {
       ...DEFAULT_CONFIG,
       ...cfg,
       twitch: { ...DEFAULT_CONFIG.twitch, ...(cfg.twitch || {}) },
+      kick: { ...DEFAULT_CONFIG.kick, ...(cfg.kick || {}) },
+      chatPlatforms: { ...DEFAULT_CONFIG.chatPlatforms, ...(cfg.chatPlatforms || {}) },
       songRequest: { ...DEFAULT_CONFIG.songRequest, ...(cfg.songRequest || {}) },
       tts: { ...DEFAULT_CONFIG.tts, ...(cfg.tts || {}) },
       goals,
@@ -688,27 +690,65 @@ class StorageService {
 
   saveConfig(newConfig) {
     const current = this.getConfig();
-    const merged = {
-      ...current,
-      ...newConfig,
-      twitch: { ...current.twitch, ...(newConfig.twitch || {}) },
-      songRequest: { ...current.songRequest, ...(newConfig.songRequest || {}) },
-      tts: { ...current.tts, ...(newConfig.tts || {}) },
-      goals: { ...current.goals, ...(newConfig.goals || {}) },
-      widgetStyles: { ...(current.widgetStyles || {}), ...(newConfig.widgetStyles || {}) },
-      security: { ...current.security, ...(newConfig.security || {}) }
-    };
 
+    // Preservar credenciales válidas de Twitch ante actualizaciones parciales o campos vacíos del autoguardado
+    let mergedTwitch = { ...current.twitch };
     if (newConfig.twitch) {
-      if (newConfig.twitch.channel) {
-        const newChannel = newConfig.twitch.channel.toLowerCase().replace(/^#/, '').trim();
-        if (newChannel && newChannel !== this._streamerId) {
-          this.setStreamerId(newChannel);
-        }
-      } else if (newConfig.twitch.channel === '') {
+      const inc = newConfig.twitch;
+      const isExplicitReset = inc.explicitReset === true;
+
+      const channel = inc.channel !== undefined
+        ? (inc.channel ? inc.channel.toLowerCase().replace(/^#/, '').trim() : (isExplicitReset ? '' : current.twitch.channel))
+        : current.twitch.channel;
+
+      const botUsername = inc.botUsername !== undefined
+        ? (inc.botUsername ? inc.botUsername.toLowerCase().replace(/^#/, '').trim() : (isExplicitReset ? '' : (current.twitch.botUsername || channel)))
+        : current.twitch.botUsername;
+
+      const oauthToken = inc.oauthToken !== undefined
+        ? (inc.oauthToken ? inc.oauthToken : (isExplicitReset ? '' : current.twitch.oauthToken))
+        : current.twitch.oauthToken;
+
+      const clientId = inc.clientId || current.twitch.clientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
+      const displayName = inc.displayName || current.twitch.displayName || channel;
+      const profileImage = inc.profileImage || current.twitch.profileImage || '';
+      const userId = inc.userId || current.twitch.userId || '';
+      const connected = inc.connected !== undefined
+        ? inc.connected
+        : (isExplicitReset ? false : Boolean(channel && (oauthToken || current.twitch.connected)));
+
+      mergedTwitch = {
+        ...current.twitch,
+        ...inc,
+        channel,
+        botUsername,
+        oauthToken,
+        clientId,
+        displayName,
+        profileImage,
+        userId,
+        connected
+      };
+
+      if (channel && channel !== this._streamerId) {
+        this.setStreamerId(channel);
+      } else if (isExplicitReset && channel === '') {
         this.setStreamerId('default');
       }
     }
+
+    const merged = {
+      ...current,
+      ...newConfig,
+      twitch: mergedTwitch,
+      kick: { ...current.kick, ...(newConfig.kick || {}) },
+      chatPlatforms: { ...current.chatPlatforms, ...(newConfig.chatPlatforms || {}) },
+      songRequest: { ...current.songRequest, ...(newConfig.songRequest || {}) },
+      tts: { ...current.tts, ...(newConfig.tts || {}) },
+      goals: Array.isArray(newConfig.goals) ? newConfig.goals : (newConfig.goals ? { ...current.goals, ...newConfig.goals } : current.goals),
+      widgetStyles: { ...(current.widgetStyles || {}), ...(newConfig.widgetStyles || {}) },
+      security: { ...current.security, ...(newConfig.security || {}) }
+    };
 
     writeJSON('config.json', merged);
     this.syncToCloud('config', merged);

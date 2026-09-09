@@ -1605,6 +1605,26 @@ function connectInBrowserTwitchBot(twitchData) {
         }
       } catch (e) { }
     });
+
+    client.on('reconnect', () => {
+      updateBotStatusUI({ status: 'connecting', channel });
+      console.log(`[Browser IRC] 🔄 Reconectando con #${channel}...`);
+    });
+
+    client.on('disconnected', (reason) => {
+      console.warn(`[Browser IRC] ⚠️ Desconectado (${reason}). Reintentando conexión...`);
+      const isStillConnected = Boolean((appConfig?.twitch?.channel || localStorage.getItem('orbibot_twitch_auth')) && (appConfig?.twitch?.connected !== false));
+      if (isStillConnected) {
+        updateBotStatusUI({ status: 'connecting', channel });
+        setTimeout(() => {
+          if (window.tmi && isStillConnected) {
+            connectInBrowserTwitchBot(twitchData);
+          }
+        }, 4000);
+      } else {
+        updateBotStatusUI({ status: 'disconnected' });
+      }
+    });
   }
 
   browserTmiClient = new window.tmi.Client(opts);
@@ -4336,12 +4356,37 @@ async function saveAllConfig(showNotification = true) {
     .map(w => w.trim())
     .filter(Boolean);
 
+  // Preservar credenciales existentes de Twitch para evitar que campos no renderizados o vacíos las borren
+  const currentTwitchAuth = (() => {
+    try { return JSON.parse(localStorage.getItem('orbibot_twitch_auth') || '{}'); } catch (e) { return {}; }
+  })();
+
+  const inputChannel = document.getElementById('cfgTwitchChannel')?.value.trim() || '';
+  const inputBotUser = document.getElementById('cfgTwitchBotUser')?.value.trim() || '';
+  const inputToken = document.getElementById('cfgTwitchToken')?.value.trim() || '';
+
+  const effectiveChannel = inputChannel || appConfig?.twitch?.channel || currentTwitchAuth.channel || '';
+  const effectiveBotUser = inputBotUser || appConfig?.twitch?.botUsername || currentTwitchAuth.botUsername || effectiveChannel;
+  const effectiveToken = inputToken || appConfig?.twitch?.oauthToken || currentTwitchAuth.oauthToken || '';
+  const effectiveClientId = appConfig?.twitch?.clientId || currentTwitchAuth.clientId || 'yw1vr664ichms8an2x5lhji58v7ozk';
+  const effectiveDisplayName = appConfig?.twitch?.displayName || currentTwitchAuth.displayName || effectiveChannel;
+  const effectiveProfileImage = appConfig?.twitch?.profileImage || currentTwitchAuth.profileImage || '';
+  const effectiveUserId = appConfig?.twitch?.userId || currentTwitchAuth.userId || '';
+  const effectiveConnected = Boolean(effectiveChannel && (appConfig?.twitch?.connected !== false || currentTwitchAuth.connected !== false));
+
+  const twitchPayload = {
+    channel: effectiveChannel,
+    botUsername: effectiveBotUser,
+    oauthToken: effectiveToken,
+    clientId: effectiveClientId,
+    displayName: effectiveDisplayName,
+    profileImage: effectiveProfileImage,
+    userId: effectiveUserId,
+    connected: effectiveConnected
+  };
+
   const payload = {
-    twitch: {
-      channel: document.getElementById('cfgTwitchChannel')?.value.trim() || '',
-      botUsername: document.getElementById('cfgTwitchBotUser')?.value.trim() || '',
-      oauthToken: document.getElementById('cfgTwitchToken')?.value.trim() || ''
-    },
+    twitch: twitchPayload,
     songRequest: {
       prefix: document.getElementById('cfgSrPrefix')?.value.trim() || '!sr',
       userLevel: document.getElementById('cfgSrUserLevel')?.value || 'all',
@@ -4365,13 +4410,10 @@ async function saveAllConfig(showNotification = true) {
 
   try {
     let cfg = JSON.parse(localStorage.getItem('orbibot_config') || '{}');
-    cfg = { ...cfg, ...payload };
+    cfg = { ...cfg, ...payload, twitch: { ...(cfg.twitch || {}), ...twitchPayload } };
     localStorage.setItem('orbibot_config', JSON.stringify(cfg));
-    if (payload.twitch.channel) {
-      let twAuth = JSON.parse(localStorage.getItem('orbibot_twitch_auth') || '{}');
-      twAuth.channel = payload.twitch.channel;
-      twAuth.botUsername = payload.twitch.botUsername;
-      twAuth.oauthToken = payload.twitch.oauthToken;
+    if (effectiveChannel) {
+      let twAuth = { ...currentTwitchAuth, ...twitchPayload };
       localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twAuth));
     }
   } catch (e) { }
