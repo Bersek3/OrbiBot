@@ -5,20 +5,28 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>OBS Goal Widget Overlay</title>
+  <title>OBS Goal Widget Overlay - OrbiBot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bangers&family=Bebas+Neue&family=Chakra+Petch:wght@400;700&family=Cinzel:wght@700&family=Creepster&family=Fredoka:wght@500;700&family=Inter:wght@400;700&family=Luckiest+Guy&family=Montserrat:wght@500;700;900&family=Orbitron:wght@600;900&family=Outfit:wght@400;600;800&family=Permanent+Marker&family=Poppins:wght@400;600;800&family=Press+Start+2P&family=Righteous&family=Roboto:wght@400;700&family=Rubik:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/overlays.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  <style>
+    .goal-card {
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .goal-bar-fill {
+      transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.4s ease;
+    }
+  </style>
 </head>
 <body>
-  <div class="goal-container">
-    <div class="goal-card">
+  <div class="goal-container" id="goalContainer">
+    <div class="goal-card" id="goalCard">
       <div class="goal-header">
-        <span id="goalTitle" class="goal-title">Meta de Suscriptores</span>
+        <span id="goalTitle" class="goal-title">Cargando Meta...</span>
         <span class="goal-numbers">
-          <span id="goalCurrent">0</span> / <span id="goalTarget">50</span>
+          <span id="goalCurrent">0</span> / <span id="goalTarget">100</span>
         </span>
       </div>
       <div class="goal-bar-bg">
@@ -40,7 +48,7 @@
           if (data.goals.finalCSS || data.goals.generatedCSS) {
             const style = document.createElement('style');
             style.id = 'orbibot-custom-styles';
-            style.textContent = data.goals.finalCSS || data.goals.generatedCSS;
+            style.textContent = data.alerts?.finalCSS || data.goals.finalCSS || data.goals.generatedCSS;
             document.head.appendChild(style);
           }
           if (data.goals.customJS) {
@@ -53,74 +61,141 @@
     })();
 
     const urlParams = new URLSearchParams(window.location.search);
-    const goalType = urlParams.get('type') || 'subs';
+    const requestedGoalId = (urlParams.get('goalId') || urlParams.get('id') || urlParams.get('type') || '').trim();
     const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
     const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
 
+    const goalContainer = document.getElementById('goalContainer');
     const goalTitle = document.getElementById('goalTitle');
     const goalCurrent = document.getElementById('goalCurrent');
     const goalTarget = document.getElementById('goalTarget');
     const goalFill = document.getElementById('goalFill');
     const goalPercent = document.getElementById('goalPercent');
 
+    let activeGoal = null;
+
     function updateGoalDisplay(goal) {
       if (!goal) return;
+      activeGoal = goal;
+
+      if (goal.enabled === false) {
+        goalContainer.style.opacity = '0';
+        return;
+      }
+      goalContainer.style.opacity = '1';
+
       goalTitle.innerText = goal.title || 'Meta del Stream';
-      goalCurrent.innerText = goal.current || 0;
-      goalTarget.innerText = goal.target || 100;
+      goalCurrent.innerText = Number(goal.current) || 0;
+      goalTarget.innerText = Number(goal.target) || 100;
 
       const current = Number(goal.current) || 0;
       const target = Number(goal.target) || 1;
-      const pct = Math.min(100, Math.round((current / target) * 100));
+      const pct = Math.min(100, Math.max(0, Math.round((current / target) * 100)));
 
       goalFill.style.width = `${pct}%`;
       goalPercent.innerText = `${pct}%`;
 
-      if (goal.color) {
-        goalFill.style.background = `linear-gradient(90deg, ${goal.color}, #00f2fe)`;
-      }
+      const color1 = goal.color || '#9146ff';
+      const color2 = goal.color2 || '#00f2fe';
+      goalFill.style.background = `linear-gradient(90deg, ${color1}, ${color2})`;
+      goalFill.style.boxShadow = `0 0 15px ${color1}80`;
     }
 
-    // Load initial
+    function findMatchingGoal(goals) {
+      if (!Array.isArray(goals) || goals.length === 0) return null;
+      if (!requestedGoalId) return goals[0];
+
+      const match = goals.find(g =>
+        g.id === requestedGoalId ||
+        g.id === 'goal_' + requestedGoalId ||
+        (g.type && g.type.toLowerCase() === requestedGoalId.toLowerCase())
+      );
+      return match || goals[0];
+    }
+
+    // 1. Initial Load from LocalStorage
     try {
-      const saved = localStorage.getItem('orbibot_goals');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed[goalType]) updateGoalDisplay(parsed[goalType]);
+      const savedGoals = localStorage.getItem('orbibot_goals');
+      if (savedGoals) {
+        const parsed = JSON.parse(savedGoals);
+        if (Array.isArray(parsed)) {
+          const matched = findMatchingGoal(parsed);
+          if (matched) updateGoalDisplay(matched);
+        } else if (typeof parsed === 'object') {
+          // Legacy object format
+          if (parsed[requestedGoalId]) updateGoalDisplay(parsed[requestedGoalId]);
+        }
       }
     } catch(e) {}
 
-    fetch('/api/config')
-      .then(r => r.json())
-      .then(cfg => {
-        if (cfg.goals && cfg.goals[goalType]) {
-          updateGoalDisplay(cfg.goals[goalType]);
+    // 2. Fetch from backend API
+    async function loadGoalsFromApi() {
+      try {
+        const res = await fetch('/api/goals');
+        if (res.ok) {
+          const goals = await res.json();
+          if (Array.isArray(goals) && goals.length > 0) {
+            const matched = findMatchingGoal(goals);
+            if (matched) updateGoalDisplay(matched);
+            return;
+          }
         }
-      })
-      .catch(() => {});
+      } catch(e) {}
+
+      // Fallback fetch config
+      try {
+        const cfgRes = await fetch('/api/config');
+        if (cfgRes.ok) {
+          const cfg = await cfgRes.json();
+          if (Array.isArray(cfg.goals)) {
+            const matched = findMatchingGoal(cfg.goals);
+            if (matched) updateGoalDisplay(matched);
+          } else if (cfg.goals && requestedGoalId && cfg.goals[requestedGoalId]) {
+            updateGoalDisplay(cfg.goals[requestedGoalId]);
+          }
+        }
+      } catch(e) {}
+    }
+
+    loadGoalsFromApi();
 
     function handleIncomingMessage(msg) {
       if (!msg) return;
-      if (msg.event === 'init_state' && msg.data?.goals) {
-        updateGoalDisplay(msg.data.goals[goalType]);
-      } else if (msg.event === 'goal_update' && msg.data?.type === goalType) {
-        updateGoalDisplay(msg.data.goal);
+      const data = msg.data || msg;
+
+      if (msg.event === 'goal_update' || data.goal) {
+        const targetGoal = data.goal || data;
+        const targetGoalId = data.goalId || targetGoal.id;
+        if (!activeGoal || (targetGoalId && activeGoal.id === targetGoalId) || (data.type && activeGoal.type === data.type)) {
+          updateGoalDisplay(targetGoal);
+        }
+      } else if (msg.event === 'goals_updated' && Array.isArray(data)) {
+        const matched = findMatchingGoal(data);
+        if (matched) updateGoalDisplay(matched);
       } else if (msg.event === 'alert') {
-        if ((goalType === 'subs' && msg.data?.type === 'sub') ||
-            (goalType === 'followers' && msg.data?.type === 'follower')) {
-          const cur = parseInt(goalCurrent.innerText, 10) + 1;
-          goalCurrent.innerText = cur;
-          updateGoalDisplay({ title: goalTitle.innerText, current: cur, target: parseInt(goalTarget.innerText, 10) });
-        } else if (goalType === 'bits' && msg.data?.type === 'bits') {
-          const cur = parseInt(goalCurrent.innerText, 10) + (msg.data.amount || 0);
-          goalCurrent.innerText = cur;
-          updateGoalDisplay({ title: goalTitle.innerText, current: cur, target: parseInt(goalTarget.innerText, 10) });
+        if (!activeGoal) return;
+        const alertType = data.type || '';
+        let shouldIncrement = false;
+        let incrementAmount = 1;
+
+        if (alertType === 'sub' && (activeGoal.type === 'subs' || activeGoal.type === 'sub')) {
+          shouldIncrement = true;
+        } else if (alertType === 'follower' && (activeGoal.type === 'followers' || activeGoal.type === 'follower')) {
+          shouldIncrement = true;
+        } else if (alertType === 'bits' && (activeGoal.type === 'bits' || activeGoal.type === 'bit')) {
+          shouldIncrement = true;
+          incrementAmount = Number(data.amount) || 1;
+        }
+
+        if (shouldIncrement) {
+          const newCurrent = (Number(activeGoal.current) || 0) + incrementAmount;
+          activeGoal.current = newCurrent;
+          updateGoalDisplay(activeGoal);
         }
       }
     }
 
     function connectChannels() {
-      // 1. Local WebSocket con reconexión automática en segundo plano
       let wsInstance = null;
       let wsReconnectTimeout = null;
 
@@ -128,6 +203,12 @@
         if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
         try {
           wsInstance = new WebSocket(url);
+          wsInstance.onopen = () => {
+            const targetRoom = channel || token;
+            if (targetRoom) {
+              wsInstance.send(JSON.stringify({ action: 'join', room: targetRoom }));
+            }
+          };
           wsInstance.onmessage = (event) => {
             try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
           };
@@ -152,7 +233,7 @@
 
       connectLocalWs(wsUrl);
 
-      // 2. Cloud Real-time Relay (Paho MQTT) con reconexión automática
+      // Cloud Real-time Relay (Paho MQTT)
       let mqttClient = null;
       let mqttReconnectTimeout = null;
 
@@ -164,14 +245,10 @@
           const clientId = 'orbi_goal_' + Math.random().toString(36).substring(2, 9);
           try {
             mqttClient = new Paho.MQTT.Client('broker.emqx.io', 8084, clientId);
-            mqttClient.onConnectionLost = (responseObject) => {
-              console.warn('MQTT Connection lost, reconnecting in 3.5s...', responseObject);
-              scheduleMqttReconnect();
-            };
+            mqttClient.onConnectionLost = () => scheduleMqttReconnect();
             mqttClient.onMessageArrived = (message) => {
               try {
-                const payload = JSON.parse(message.payloadString);
-                handleIncomingMessage(payload);
+                handleIncomingMessage(JSON.parse(message.payloadString));
               } catch(e) {}
             };
             mqttClient.connect({
@@ -185,10 +262,7 @@
                   mqttClient.subscribe(`orbibot/${channel}/events`);
                 }
               },
-              onFailure: (e) => {
-                console.warn('MQTT connect failed, retrying in 4s...', e);
-                scheduleMqttReconnect();
-              }
+              onFailure: () => scheduleMqttReconnect()
             });
           } catch(e) {
             scheduleMqttReconnect();
@@ -203,7 +277,6 @@
 
       connectMqtt();
 
-      // 3. BroadcastChannel & Storage for same-browser testing
       if (typeof BroadcastChannel !== 'undefined') {
         const bc = new BroadcastChannel('orbibot_stream_channel');
         bc.onmessage = (e) => handleIncomingMessage(e.data);
@@ -215,27 +288,12 @@
         }
       });
 
-      // 4. OBS Scene Activate & Visibility Health Watcher
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
-          if (!wsInstance || wsInstance.readyState !== WebSocket.OPEN) {
-            connectLocalWs(wsUrl);
-          }
-          if (!mqttClient || !mqttClient.isConnected()) {
-            connectMqtt();
-          }
+          if (!wsInstance || wsInstance.readyState !== WebSocket.OPEN) connectLocalWs(wsUrl);
+          if (!mqttClient || !mqttClient.isConnected()) connectMqtt();
         }
       });
-
-      // 5. Chequeo periódico de salud en segundo plano cada 15s
-      setInterval(() => {
-        const wsOpen = wsInstance && wsInstance.readyState === WebSocket.OPEN;
-        const mqttOpen = mqttClient && mqttClient.isConnected();
-        if (!wsOpen && !mqttOpen) {
-          connectLocalWs(wsUrl);
-          connectMqtt();
-        }
-      }, 15000);
     }
 
     connectChannels();

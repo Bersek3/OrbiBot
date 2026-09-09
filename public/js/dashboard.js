@@ -90,6 +90,12 @@ async function loadUserDataFromSupabase(userIdentifier) {
           localStorage.setItem('orbibot_rewards', JSON.stringify(item.value));
           renderRewards(item.value);
         }
+        if (item.key === 'goals' && Array.isArray(item.value)) {
+          localStorage.setItem('orbibot_goals', JSON.stringify(item.value));
+          if (typeof renderGoals === 'function') {
+            renderGoals(item.value);
+          }
+        }
         if (item.key === 'custom_sounds' && Array.isArray(item.value)) {
           localStorage.setItem('orbibot_custom_sounds', JSON.stringify(item.value));
         }
@@ -892,6 +898,17 @@ window.triggerKickOAuthLogin = triggerKickOAuthLogin;
 window.handleKickAuthSuccess = handleKickAuthSuccess;
 window.disconnectKickAccount = disconnectKickAccount;
 
+// Export Custom Goals Manager functions to window
+window.renderGoals = renderGoals;
+window.toggleGoalForm = toggleGoalForm;
+window.saveGoalFormUI = saveGoalFormUI;
+window.editGoalForm = editGoalForm;
+window.adjustGoalProgress = adjustGoalProgress;
+window.resetGoalProgress = resetGoalProgress;
+window.deleteGoalUI = deleteGoalUI;
+window.toggleGoalUrlVisibility = toggleGoalUrlVisibility;
+window.copyGoalWidgetUrl = copyGoalWidgetUrl;
+
 // ================= VIEW SWITCHER (LANDING VS DASHBOARD) =================
 function showLandingView() {
   const landingView = document.getElementById('landingView');
@@ -1279,17 +1296,35 @@ function handleSocketMessage(msg) {
     showToast(`🔔 Alerta en OBS: ${alertType} de ${data.user || 'Espectador'}`, 'info');
   } else if (event === 'tts') {
     console.log('TTS triggered in dashboard:', data);
+  } else if (event === 'goal_update' || event === 'goals_updated') {
+    if (event === 'goals_updated' && Array.isArray(data)) {
+      localStorage.setItem('orbibot_goals', JSON.stringify(data));
+      if (typeof renderGoals === 'function') renderGoals(data);
+    } else if (event === 'goal_update') {
+      try {
+        let goals = JSON.parse(localStorage.getItem('orbibot_goals') || '[]');
+        const targetGoal = data.goal || data;
+        const targetId = data.goalId || targetGoal.id;
+        const idx = goals.findIndex(g => g.id === targetId || (g.type && g.type === data.type));
+        if (idx !== -1) {
+          goals[idx] = { ...goals[idx], ...targetGoal };
+          localStorage.setItem('orbibot_goals', JSON.stringify(goals));
+          if (typeof renderGoals === 'function') renderGoals(goals);
+        }
+      } catch(e) {}
+    }
   }
 }
 
 // ================= LOAD DATA =================
 async function loadInitialData() {
   try {
-    const [cfgRes, cmdRes, rwdRes, srRes] = await Promise.all([
+    const [cfgRes, cmdRes, rwdRes, srRes, goalsRes] = await Promise.all([
       fetch('/api/config').then(r => r.json()),
       fetch('/api/commands').then(r => r.json()),
       fetch('/api/rewards').then(r => r.json()),
-      fetch('/api/sr/state').then(r => r.json())
+      fetch('/api/sr/state').then(r => r.json()),
+      fetch('/api/goals').then(r => r.json()).catch(() => [])
     ]);
 
     // Sync localStorage Twitch auth if present
@@ -1348,10 +1383,27 @@ async function loadInitialData() {
       } catch(e) {}
     }
 
+    let effectiveGoals = Array.isArray(goalsRes) ? goalsRes : [];
+    const localGoals = localStorage.getItem('orbibot_goals');
+    if (effectiveGoals.length === 0 && localGoals) {
+      try {
+        const parsedGoals = JSON.parse(localGoals);
+        if (Array.isArray(parsedGoals) && parsedGoals.length > 0) {
+          effectiveGoals = parsedGoals;
+          fetch('/api/goals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(effectiveGoals)
+          }).catch(() => {});
+        }
+      } catch(e) {}
+    }
+
     appConfig = cfgRes;
     bindConfigToUI(cfgRes);
     renderCommands(effectiveCommands);
     renderRewards(effectiveRewards);
+    renderGoals(effectiveGoals);
     updateSongRequestUI(srRes);
     await loadSounds();
 
@@ -1366,6 +1418,7 @@ async function loadInitialData() {
     const localCfg = localStorage.getItem('orbibot_config');
     const localCmds = localStorage.getItem('orbibot_commands');
     const localRwds = localStorage.getItem('orbibot_rewards');
+    const localGoals = localStorage.getItem('orbibot_goals');
 
     let twitchData = localTwitch ? JSON.parse(localTwitch) : {
       channel: '',
@@ -1384,12 +1437,8 @@ async function loadInitialData() {
     let cfg = localCfg ? JSON.parse(localCfg) : {
       twitch: twitchData,
       songRequest: { prefix: '!sr', enabled: true, maxDurationMinutes: 8, maxPerUser: 5, userLevel: 'all', volume: 75 },
-      tts: { enabled: true, voice: 'es_001', volume: 90, rate: 1.0, pitch: 1.0, maxLength: 250, bannedWords: [], allowChatCommand: true, chatCommand: '!tts', minBits: 50 },
-      goals: {
-        subs: { title: 'Meta de Suscriptores', current: 12, target: 50, color: '#9146ff' },
-        followers: { title: 'Meta de Seguidores', current: 185, target: 300, color: '#00f2fe' },
-        bits: { title: 'Meta de Bits', current: 1500, target: 5000, color: '#f5a623' }
-      }
+      tts: { enabled: true, voice: 'es_mx_mia', volume: 90, rate: 1.0, pitch: 1.0, maxLength: 250, bannedWords: [], allowChatCommand: true, chatCommand: '!tts', minBits: 50 },
+      goals: []
     };
 
     cfg.twitch = { ...cfg.twitch, ...twitchData };
@@ -1398,6 +1447,7 @@ async function loadInitialData() {
 
     renderCommands(localCmds ? JSON.parse(localCmds) : []);
     renderRewards(localRwds !== null ? JSON.parse(localRwds) : []);
+    renderGoals(localGoals ? JSON.parse(localGoals) : []);
 
     updateSongRequestUI({ currentSong: null, queue: [], isPlaying: false });
 
@@ -1619,6 +1669,10 @@ async function handleBrowserChannelPointRedemption(customRewardId, username, mes
       return;
     } else if (matchedReward.action === 'tts') {
       const ttsConfig = (appConfig?.tts) || {};
+      if (ttsConfig.enabled === false) {
+        console.log('[Dashboard] TTS desactivado en la configuración. Omitiendo TTS de canje.');
+        return;
+      }
       const voice = ttsConfig.voice || 'es_mx_mia';
       const textToSpeak = message || `¡${username} canjeó ${matchedReward.rewardName}!`;
       const ttsData = {
@@ -1845,23 +1899,9 @@ function bindConfigToUI(cfg) {
     document.getElementById('cfgTtsMinBits').value = cfg.tts.minBits !== undefined ? cfg.tts.minBits : 50;
   }
 
-  // Goals
-  if (cfg.goals) {
-    if (cfg.goals.subs) {
-      document.getElementById('cfgGoalSubTitle').value = cfg.goals.subs.title || 'Meta de Suscriptores';
-      document.getElementById('cfgGoalSubCurrent').value = cfg.goals.subs.current || 0;
-      document.getElementById('cfgGoalSubTarget').value = cfg.goals.subs.target || 50;
-    }
-    if (cfg.goals.followers) {
-      document.getElementById('cfgGoalFollowTitle').value = cfg.goals.followers.title || 'Meta de Seguidores';
-      document.getElementById('cfgGoalFollowCurrent').value = cfg.goals.followers.current || 0;
-      document.getElementById('cfgGoalFollowTarget').value = cfg.goals.followers.target || 300;
-    }
-    if (cfg.goals.bits) {
-      document.getElementById('cfgGoalBitsTitle').value = cfg.goals.bits.title || 'Meta de Bits';
-      document.getElementById('cfgGoalBitsCurrent').value = cfg.goals.bits.current || 0;
-      document.getElementById('cfgGoalBitsTarget').value = cfg.goals.bits.target || 5000;
-    }
+  // Custom Goals
+  if (Array.isArray(cfg.goals)) {
+    renderGoals(cfg.goals);
   }
 }
 
@@ -2845,34 +2885,363 @@ async function triggerTestTTS() {
   } catch (e) { }
 }
 
-// ================= GOALS UPDATE =================
-async function saveGoalValues(type) {
-  let title = '', current = 0, target = 100;
-  if (type === 'subs') {
-    title = document.getElementById('cfgGoalSubTitle').value;
-    current = parseInt(document.getElementById('cfgGoalSubCurrent').value, 10) || 0;
-    target = parseInt(document.getElementById('cfgGoalSubTarget').value, 10) || 50;
-  } else if (type === 'followers') {
-    title = document.getElementById('cfgGoalFollowTitle').value;
-    current = parseInt(document.getElementById('cfgGoalFollowCurrent').value, 10) || 0;
-    target = parseInt(document.getElementById('cfgGoalFollowTarget').value, 10) || 300;
-  } else if (type === 'bits') {
-    title = document.getElementById('cfgGoalBitsTitle').value;
-    current = parseInt(document.getElementById('cfgGoalBitsCurrent').value, 10) || 0;
-    target = parseInt(document.getElementById('cfgGoalBitsTarget').value, 10) || 5000;
+// ================= CUSTOM GOALS MANAGER (OBS WIDGETS) =================
+let currentGoalsList = [];
+
+function renderGoals(goals) {
+  const container = document.getElementById('goalsListContainer');
+  if (!container) return;
+
+  if (Array.isArray(goals)) {
+    currentGoalsList = goals;
+  } else {
+    try {
+      currentGoalsList = JSON.parse(localStorage.getItem('orbibot_goals') || '[]');
+    } catch(e) {
+      currentGoalsList = [];
+    }
   }
 
-  // Transmitir a OBS inmediatamente
-  broadcastEvent('goals_updated', { type, title, current, target });
-  showToast(`Meta de ${type.toUpperCase()} actualizada en OBS`, 'success');
+  container.innerHTML = '';
 
+  if (!currentGoalsList || currentGoalsList.length === 0) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 36px 20px; background: rgba(15, 20, 32, 0.6); border: 2px dashed rgba(145, 70, 255, 0.3); border-radius: 14px;">
+        <div style="font-size: 38px; margin-bottom: 10px;">🎯</div>
+        <h4 style="font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 6px;">No tienes metas personalizadas activas</h4>
+        <p style="font-size: 13px; color: var(--text-secondary); max-width: 480px; margin: 0 auto 16px;">
+          Crea tus propias metas para subs, seguidores, bits, donaciones o eventos especiales. Cada una tendrá su propio enlace independiente para OBS Studio.
+        </p>
+        <button class="btn btn-primary btn-sm" onclick="toggleGoalForm(true)">
+          + Crear Mi Primera Meta
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  const token = (document.getElementById('cfgWidgetTokenDisplay')?.value || localStorage.getItem('orbibot_widget_token') || '').trim();
+  const rawChannel = (appConfig?.twitch?.channel || document.getElementById('cfgTwitchChannel')?.value || '').trim();
+  const channel = rawChannel.toLowerCase().replace(/^#/, '');
+  const baseUrl = window.location.origin + window.location.pathname.replace(/\/index\.html$/i, '').replace(/\/$/, '');
+
+  const TYPE_LABELS = {
+    subs: { label: 'Suscripciones', emoji: '⭐', color: '#9146ff' },
+    followers: { label: 'Seguidores', emoji: '👤', color: '#00f2fe' },
+    bits: { label: 'Bits / Cheers', emoji: '💎', color: '#f5a623' },
+    donations: { label: 'Donaciones', emoji: '☕', color: '#10b981' },
+    custom: { label: 'Personalizada', emoji: '🎯', color: '#ec4899' }
+  };
+
+  currentGoalsList.forEach(g => {
+    const goalId = g.id;
+    const title = g.title || 'Meta del Stream';
+    const type = g.type || 'custom';
+    const typeInfo = TYPE_LABELS[type] || TYPE_LABELS.custom;
+    const current = Number(g.current) || 0;
+    const target = Number(g.target) || 100;
+    const pct = Math.min(100, Math.max(0, Math.round((current / target) * 100)));
+    const color1 = g.color || '#9146ff';
+    const color2 = g.color2 || '#00f2fe';
+
+    const goalUrl = `${baseUrl}/overlays/goals.html?goalId=${encodeURIComponent(goalId)}${token ? '&token=' + encodeURIComponent(token) : ''}${channel ? '&channel=' + encodeURIComponent(channel) : ''}`;
+    const inputId = `urlGoal_${goalId}`;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = 'background: rgba(18, 24, 38, 0.85); border: 1px solid rgba(145, 70, 255, 0.25); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+    card.innerHTML = `
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+              <span style="font-size: 18px;">${typeInfo.emoji}</span>
+              <h4 style="font-size: 15px; font-weight: 700; color: #fff; margin: 0;">${escapeHtml(title)}</h4>
+            </div>
+            <span style="display: inline-block; font-size: 11px; font-weight: 700; color: ${typeInfo.color}; background: ${typeInfo.color}18; border: 1px solid ${typeInfo.color}40; padding: 2px 8px; border-radius: 6px;">
+              ${typeInfo.label}
+            </span>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 16px; font-weight: 800; color: #fff;">
+              ${current} <span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">/ ${target}</span>
+            </div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--cyan-accent);">${pct}%</div>
+          </div>
+        </div>
+
+        <!-- Barra de Progreso Neón Visual -->
+        <div style="background: rgba(0, 0, 0, 0.5); border-radius: 10px; height: 16px; padding: 2px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 14px; overflow: hidden; position: relative;">
+          <div style="height: 100%; width: ${pct}%; background: linear-gradient(90deg, ${color1}, ${color2}); border-radius: 8px; box-shadow: 0 0 12px ${color1}80; transition: width 0.4s ease;"></div>
+        </div>
+
+        <!-- Controles Rápidos de Progreso -->
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 8px; margin-bottom: 14px;">
+          <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Progreso:</span>
+          <div style="display: flex; gap: 4px;">
+            <button class="btn btn-secondary btn-sm" onclick="adjustGoalProgress('${goalId}', -1)" style="padding: 2px 8px; font-size: 11px;" title="Restar 1">-1</button>
+            <button class="btn btn-secondary btn-sm" onclick="adjustGoalProgress('${goalId}', 1)" style="padding: 2px 8px; font-size: 11px;" title="Sumar 1">+1</button>
+            <button class="btn btn-secondary btn-sm" onclick="adjustGoalProgress('${goalId}', 5)" style="padding: 2px 8px; font-size: 11px;" title="Sumar 5">+5</button>
+            <button class="btn btn-secondary btn-sm" onclick="resetGoalProgress('${goalId}')" style="padding: 2px 8px; font-size: 11px; color: var(--red-danger);" title="Reiniciar a 0">🔄 0</button>
+          </div>
+        </div>
+
+        <!-- Enlace Exclusivo de OBS -->
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; font-weight: 600;">Enlace Navegador para OBS Studio:</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="password" id="${inputId}" value="${goalUrl}" readonly class="form-control" style="font-family: monospace; font-size: 11px; padding: 6px 10px; background: rgba(0,0,0,0.4); border-color: rgba(145, 70, 255, 0.3);">
+            <button class="btn btn-secondary btn-sm" onclick="toggleGoalUrlVisibility('${inputId}', this)" title="Mostrar u ocultar" style="padding: 4px 8px; font-size: 12px;">👁️</button>
+            <button class="btn btn-primary btn-sm" onclick="copyGoalWidgetUrl('${inputId}')" style="padding: 4px 10px; font-size: 11px; white-space: nowrap;">Copiar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Acciones de Edición / Borrado -->
+      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px; margin-top: 4px;">
+        <a href="${goalUrl}" target="_blank" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 4px 10px;">Vista Previa ↗</a>
+        <div style="display: flex; gap: 6px;">
+          <button class="btn btn-secondary btn-sm" onclick="editGoalForm('${goalId}')" style="font-size: 11px; padding: 4px 10px;">✏️ Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteGoalUI('${goalId}')" style="font-size: 11px; padding: 4px 8px;" title="Eliminar Meta">🗑️</button>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+function toggleGoalUrlVisibility(inputId, btn) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  if (el.type === 'password') {
+    el.type = 'text';
+    if (btn) btn.innerText = '🙈';
+  } else {
+    el.type = 'password';
+    if (btn) btn.innerText = '👁️';
+  }
+}
+
+function copyGoalWidgetUrl(inputId) {
+  const el = document.getElementById(inputId);
+  if (el) {
+    navigator.clipboard.writeText(el.value).then(() => {
+      showToast('🎯 ¡Enlace privado de la Meta copiado para OBS!', 'success');
+    }).catch(() => {
+      showToast('¡Copiado!', 'success');
+    });
+  }
+}
+
+function toggleGoalForm(show) {
+  const card = document.getElementById('goalFormCard');
+  if (!card) return;
+  if (show) {
+    document.getElementById('editGoalId').value = '';
+    document.getElementById('goalFormTitle').innerHTML = '<span>🎯</span> <span>Crear Nueva Meta Personalizada</span>';
+    document.getElementById('newGoalTitle').value = '';
+    document.getElementById('newGoalType').value = 'custom';
+    document.getElementById('newGoalCurrent').value = 0;
+    document.getElementById('newGoalTarget').value = 50;
+    document.getElementById('newGoalColor').value = '#9146ff';
+    document.getElementById('newGoalColorHex').value = '#9146ff';
+    document.getElementById('newGoalColor2').value = '#00f2fe';
+    document.getElementById('newGoalColor2Hex').value = '#00f2fe';
+    card.style.display = 'block';
+    document.getElementById('newGoalTitle').focus();
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    card.style.display = 'none';
+  }
+}
+
+async function saveGoalFormUI() {
+  const editId = document.getElementById('editGoalId')?.value.trim();
+  const title = document.getElementById('newGoalTitle')?.value.trim();
+  const type = document.getElementById('newGoalType')?.value || 'custom';
+  const current = Math.max(0, parseInt(document.getElementById('newGoalCurrent')?.value, 10) || 0);
+  const target = Math.max(1, parseInt(document.getElementById('newGoalTarget')?.value, 10) || 1);
+  const color = document.getElementById('newGoalColor')?.value || '#9146ff';
+  const color2 = document.getElementById('newGoalColor2')?.value || '#00f2fe';
+
+  if (!title) {
+    showToast('Por favor escribe un título para la meta.', 'error');
+    document.getElementById('newGoalTitle')?.focus();
+    return;
+  }
+
+  let goals = [];
   try {
-    await fetch('/api/goals/update', {
+    goals = JSON.parse(localStorage.getItem('orbibot_goals') || '[]');
+  } catch(e) {
+    goals = [];
+  }
+  if (!Array.isArray(goals)) goals = [];
+
+  let savedGoal = null;
+  if (editId) {
+    const idx = goals.findIndex(g => g.id === editId);
+    if (idx !== -1) {
+      goals[idx] = {
+        ...goals[idx],
+        title,
+        type,
+        current,
+        target,
+        color,
+        color2,
+        enabled: true,
+        updatedAt: new Date().toISOString()
+      };
+      savedGoal = goals[idx];
+    }
+  }
+
+  if (!savedGoal) {
+    savedGoal = {
+      id: 'goal_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      title,
+      type,
+      current,
+      target,
+      color,
+      color2,
+      enabled: true,
+      createdAt: new Date().toISOString()
+    };
+    goals.push(savedGoal);
+  }
+
+  await syncGoalsToStorageAndCloud(goals);
+  broadcastEvent('goal_update', { goalId: savedGoal.id, type: savedGoal.type, goal: savedGoal });
+  broadcastEvent('goals_updated', goals);
+
+  renderGoals(goals);
+  toggleGoalForm(false);
+  showToast(`🎯 Meta "${title}" guardada correctamente`, 'success');
+}
+
+function editGoalForm(goalId) {
+  let goals = [];
+  try {
+    goals = JSON.parse(localStorage.getItem('orbibot_goals') || '[]');
+  } catch(e) {}
+  const goal = goals.find(g => g.id === goalId);
+  if (!goal) return;
+
+  document.getElementById('editGoalId').value = goal.id;
+  document.getElementById('goalFormTitle').innerHTML = `<span>✏️</span> <span>Editar Meta (${escapeHtml(goal.title)})</span>`;
+  document.getElementById('newGoalTitle').value = goal.title || '';
+  document.getElementById('newGoalType').value = goal.type || 'custom';
+  document.getElementById('newGoalCurrent').value = goal.current !== undefined ? goal.current : 0;
+  document.getElementById('newGoalTarget').value = goal.target || 100;
+
+  const c1 = goal.color || '#9146ff';
+  const c2 = goal.color2 || '#00f2fe';
+  document.getElementById('newGoalColor').value = c1;
+  document.getElementById('newGoalColorHex').value = c1;
+  document.getElementById('newGoalColor2').value = c2;
+  document.getElementById('newGoalColor2Hex').value = c2;
+
+  const card = document.getElementById('goalFormCard');
+  if (card) {
+    card.style.display = 'block';
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+async function adjustGoalProgress(goalId, delta) {
+  let goals = [];
+  try {
+    goals = JSON.parse(localStorage.getItem('orbibot_goals') || '[]');
+  } catch(e) {}
+  const goal = goals.find(g => g.id === goalId);
+  if (!goal) return;
+
+  goal.current = Math.max(0, (Number(goal.current) || 0) + Number(delta));
+  goal.updatedAt = new Date().toISOString();
+
+  await syncGoalsToStorageAndCloud(goals);
+  broadcastEvent('goal_update', { goalId: goal.id, type: goal.type, goal });
+  renderGoals(goals);
+  showToast(`🎯 Progreso de "${goal.title}": ${goal.current} / ${goal.target}`, 'info');
+}
+
+async function resetGoalProgress(goalId) {
+  let goals = [];
+  try {
+    goals = JSON.parse(localStorage.getItem('orbibot_goals') || '[]');
+  } catch(e) {}
+  const goal = goals.find(g => g.id === goalId);
+  if (!goal) return;
+
+  goal.current = 0;
+  goal.updatedAt = new Date().toISOString();
+
+  await syncGoalsToStorageAndCloud(goals);
+  broadcastEvent('goal_update', { goalId: goal.id, type: goal.type, goal });
+  renderGoals(goals);
+  showToast(`🔄 Meta "${goal.title}" reiniciada a 0`, 'info');
+}
+
+async function deleteGoalUI(goalId) {
+  let goals = [];
+  try {
+    goals = JSON.parse(localStorage.getItem('orbibot_goals') || '[]');
+  } catch(e) {}
+  const goal = goals.find(g => g.id === goalId);
+  const title = goal?.title || 'Meta';
+
+  goals = goals.filter(g => g.id !== goalId);
+
+  await syncGoalsToStorageAndCloud(goals);
+  try {
+    await fetch('/api/goals/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, title, current, target })
+      body: JSON.stringify({ id: goalId })
     });
-  } catch (e) { }
+  } catch(e) {}
+
+  broadcastEvent('goals_updated', goals);
+  renderGoals(goals);
+  showToast(`🗑️ Meta "${title}" eliminada`, 'info');
+}
+
+async function syncGoalsToStorageAndCloud(goals) {
+  localStorage.setItem('orbibot_goals', JSON.stringify(goals));
+
+  if (appConfig) {
+    appConfig.goals = goals;
+  }
+
+  // 1. Backend API Sync
+  try {
+    await fetch('/api/goals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(goals)
+    });
+  } catch(e) {}
+
+  // 2. Direct Supabase Cloud Sync
+  if (supabaseClient) {
+    try {
+      const session = getUserSession();
+      const streamerId = (appConfig?.twitch?.channel || session?.email || 'default').toLowerCase().replace(/^#/, '');
+      await supabaseClient.from('orbibot_settings').upsert({
+        streamer_id: streamerId,
+        key: 'goals',
+        value: goals,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'streamer_id,key' });
+      console.log('☁️ [Supabase Cloud] Metas personalizadas sincronizadas.');
+    } catch(e) {
+      console.warn('Error syncing goals to Supabase:', e);
+    }
+  }
 }
 
 // ================= COMMANDS =================
@@ -3906,31 +4275,6 @@ function setupAutoSaveListeners() {
       el.addEventListener('input', () => triggerAutoSave(600, true));
       el.addEventListener('change', () => triggerAutoSave(100, true));
     }
-  });
-
-  // Metas (Goals: Subs, Follows, Bits) auto-save on input and change
-  const goalConfigs = [
-    { type: 'subs', ids: ['cfgGoalSubTitle', 'cfgGoalSubCurrent', 'cfgGoalSubTarget'] },
-    { type: 'followers', ids: ['cfgGoalFollowTitle', 'cfgGoalFollowCurrent', 'cfgGoalFollowTarget'] },
-    { type: 'bits', ids: ['cfgGoalBitsTitle', 'cfgGoalBitsCurrent', 'cfgGoalBitsTarget'] }
-  ];
-
-  goalConfigs.forEach(g => {
-    let goalTimer = null;
-    g.ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const onGoalChange = (delay) => {
-        setAutoSaveStatus('saving');
-        if (goalTimer) clearTimeout(goalTimer);
-        goalTimer = setTimeout(() => {
-          saveGoalValues(g.type);
-          setAutoSaveStatus('saved');
-        }, delay);
-      };
-      el.addEventListener('input', () => onGoalChange(600));
-      el.addEventListener('change', () => onGoalChange(100));
-    });
   });
 }
 

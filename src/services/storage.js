@@ -61,11 +61,7 @@ const DEFAULT_CONFIG = {
     maxLength: 250,
     channelPointsRewardName: 'TTS'
   },
-  goals: {
-    subs: { title: 'Meta de Suscriptores', current: 12, target: 50, color: '#9146ff' },
-    followers: { title: 'Meta de Seguidores', current: 185, target: 300, color: '#00f2fe' },
-    bits: { title: 'Meta de Bits', current: 1500, target: 5000, color: '#f5a623' }
-  }
+  goals: []
 };
 
 const DEFAULT_COMMANDS = [];
@@ -274,6 +270,7 @@ class StorageService {
           if (item.key === 'commands') writeJSON('commands.json', item.value);
           if (item.key === 'alerts') writeJSON('alerts.json', item.value);
           if (item.key === 'channel_points') writeJSON('channel_points.json', item.value);
+          if (item.key === 'goals') writeJSON('goals.json', item.value);
           if (item.key === 'custom_sounds') {
             writeJSON('custom_sounds.json', item.value);
             this.restoreAudioFiles(item.value);
@@ -294,6 +291,10 @@ class StorageService {
         const currentRewards = this.getRewards();
         if (currentRewards && currentRewards.length > 0) {
           await this.syncToSupabase('channel_points', currentRewards);
+        }
+        const currentGoals = this.getGoals();
+        if (currentGoals && currentGoals.length > 0) {
+          await this.syncToSupabase('goals', currentGoals);
         }
         const currentCommands = this.getCommands();
         if (currentCommands && currentCommands.length > 0) {
@@ -328,6 +329,7 @@ class StorageService {
           if (item.key === 'commands') writeJSON('commands.json', item.value);
           if (item.key === 'alerts') writeJSON('alerts.json', item.value);
           if (item.key === 'channel_points') writeJSON('channel_points.json', item.value);
+          if (item.key === 'goals') writeJSON('goals.json', item.value);
           if (item.key === 'custom_sounds') {
             writeJSON('custom_sounds.json', item.value);
             this.restoreAudioFiles(item.value);
@@ -441,13 +443,14 @@ class StorageService {
       security.widgetToken = generateWidgetToken();
       changed = true;
     }
+    const goals = this.getGoals();
     const merged = {
       ...DEFAULT_CONFIG,
       ...cfg,
       twitch: { ...DEFAULT_CONFIG.twitch, ...(cfg.twitch || {}) },
       songRequest: { ...DEFAULT_CONFIG.songRequest, ...(cfg.songRequest || {}) },
       tts: { ...DEFAULT_CONFIG.tts, ...(cfg.tts || {}) },
-      goals: { ...DEFAULT_CONFIG.goals, ...(cfg.goals || {}) },
+      goals,
       security
     };
     if (changed) {
@@ -548,6 +551,27 @@ class StorageService {
     writeJSON('channel_points.json', rewards || []);
     this.syncToSupabase('channel_points', rewards || []);
     return rewards || [];
+  }
+
+  getGoals() {
+    const goals = readJSON('goals.json', null);
+    if (Array.isArray(goals)) {
+      return goals;
+    }
+    // Si goals.json aún no existe, leer de config.json o retornar array vacío
+    const cfg = readJSON('config.json', DEFAULT_CONFIG);
+    if (Array.isArray(cfg.goals)) {
+      writeJSON('goals.json', cfg.goals);
+      return cfg.goals;
+    }
+    return [];
+  }
+
+  saveGoals(goals) {
+    const list = Array.isArray(goals) ? goals : [];
+    writeJSON('goals.json', list);
+    this.syncToSupabase('goals', list);
+    return list;
   }
 
   getCustomSounds() {

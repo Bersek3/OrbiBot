@@ -244,12 +244,41 @@
       return false;
     }
 
+    let ttsEnabled = true;
+    try {
+      const localCfg = localStorage.getItem('orbibot_config');
+      if (localCfg) {
+        const parsed = JSON.parse(localCfg);
+        if (parsed.tts && parsed.tts.enabled !== undefined) {
+          ttsEnabled = parsed.tts.enabled !== false;
+        }
+      }
+    } catch(e) {}
+
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(cfg => {
+        if (cfg?.tts && cfg.tts.enabled !== undefined) {
+          ttsEnabled = cfg.tts.enabled !== false;
+        }
+      })
+      .catch(() => {});
+
     function handleIncomingMessage(msg) {
       if (!msg) return;
       if (msg.event === 'tts') {
+        if (!ttsEnabled) {
+          console.log('[TTS Overlay] TTS está deshabilitado en la configuración. Mensaje ignorado.');
+          return;
+        }
         if (isDuplicateTts(msg)) return;
         queue.push(msg.data);
         processQueue();
+      } else if (msg.event === 'config_updated' || msg.event === 'init_state') {
+        const cfg = msg.data?.config || msg.data;
+        if (cfg?.tts && cfg.tts.enabled !== undefined) {
+          ttsEnabled = cfg.tts.enabled !== false;
+        }
       }
     }
 

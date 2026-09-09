@@ -195,6 +195,8 @@ class TwitchBot {
           message
         });
 
+        this.incrementGoalsByType('bits', bitCount);
+
         // Trigger TTS if bits meet threshold
         const ttsConfig = storage.getConfig().tts;
         if (ttsConfig.enabled && bitCount >= (ttsConfig.minBits || 50)) {
@@ -218,8 +220,13 @@ class TwitchBot {
       const config = storage.getConfig();
 
       // Check Song Request Command (default !sr or custom prefix)
-      const srPrefix = (config.songRequest.prefix || '!sr').toLowerCase();
+      const isSrEnabled = config.songRequest && config.songRequest.enabled !== false;
+      const srPrefix = (config.songRequest?.prefix || '!sr').toLowerCase();
       if (trimmed.toLowerCase().startsWith(srPrefix)) {
+        if (!isSrEnabled) {
+          this.sendMessage(channel, `@${username}, el sistema de Song Request está desactivado en este momento.`);
+          return;
+        }
         const query = trimmed.slice(srPrefix.length).trim();
         if (!query) {
           this.sendMessage(channel, `@${username}, uso: ${srPrefix} <enlace o nombre de canción>`);
@@ -239,6 +246,7 @@ class TwitchBot {
 
       // Check !song (current playing)
       if (trimmed.toLowerCase() === '!song' || trimmed.toLowerCase() === '!cancion') {
+        if (!isSrEnabled) return;
         const state = songRequest.getState();
         if (state.currentSong) {
           this.sendMessage(channel, `🎶 Sonando ahora: ${state.currentSong.title} (pedida por @${state.currentSong.requester})`);
@@ -250,6 +258,7 @@ class TwitchBot {
 
       // Check !skip
       if (trimmed.toLowerCase() === '!skip' || trimmed.toLowerCase() === '!saltar') {
+        if (!isSrEnabled) return;
         if (isMod) {
           const res = songRequest.skip(username, true);
           this.sendMessage(channel, res.message);
@@ -262,6 +271,7 @@ class TwitchBot {
 
       // Check !queue
       if (trimmed.toLowerCase() === '!queue' || trimmed.toLowerCase() === '!cola') {
+        if (!isSrEnabled) return;
         const state = songRequest.getState();
         if (state.queue.length === 0) {
           this.sendMessage(channel, `La cola de reproducción está vacía.`);
@@ -307,6 +317,7 @@ class TwitchBot {
 
     // Subscriptions
     this.client.on('subscription', (channel, username, method, message, userstate) => {
+      this.incrementGoalsByType('subs', 1);
       this.broadcast('alert', {
         type: 'sub',
         user: username,
@@ -317,6 +328,7 @@ class TwitchBot {
 
     // Resubscriptions
     this.client.on('resub', (channel, username, months, message, userstate, methods) => {
+      this.incrementGoalsByType('subs', 1);
       this.broadcast('alert', {
         type: 'sub',
         user: username,
@@ -328,6 +340,7 @@ class TwitchBot {
 
     // Sub Gifts
     this.client.on('subgift', (channel, username, streakMonths, recipient, methods, userstate) => {
+      this.incrementGoalsByType('subs', 1);
       this.broadcast('alert', {
         type: 'sub',
         user: username,
@@ -480,6 +493,11 @@ class TwitchBot {
         });
         return;
       } else if (matchedReward.action === 'song_request') {
+        const srCfg = storage.getConfig().songRequest;
+        if (srCfg && srCfg.enabled === false) {
+          if (channel) this.sendMessage(channel, `@${username}, el sistema de Song Request está desactivado en este momento.`);
+          return;
+        }
         const result = await songRequest.addSong({
           query: message,
           requester: username,
@@ -583,6 +601,26 @@ class TwitchBot {
       });
     } catch (e) {
       console.warn('[TwitchBot] EventSub no disponible:', e.message);
+    }
+  }
+
+  incrementGoalsByType(type, amount = 1) {
+    try {
+      const goals = storage.getGoals();
+      if (!Array.isArray(goals) || goals.length === 0) return;
+      let updated = false;
+      goals.forEach(g => {
+        if (g.enabled !== false && (g.type === type || g.type === type.replace(/s$/, ''))) {
+          g.current = (Number(g.current) || 0) + Number(amount);
+          updated = true;
+          this.broadcast('goal_update', { goalId: g.id, type: g.type, goal: g });
+        }
+      });
+      if (updated) {
+        storage.saveGoals(goals);
+      }
+    } catch(e) {
+      console.warn('[TwitchBot] Error al auto-incrementar meta:', e.message);
     }
   }
 }

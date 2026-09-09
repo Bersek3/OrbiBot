@@ -924,19 +924,79 @@ app.get('/api/widget-styles', (req, res) => {
 });
 
 // Goals API
-app.post('/api/goals/update', (req, res) => {
-  const { type, current, target, title, color } = req.body;
-  const config = storage.getConfig();
-  if (config.goals && config.goals[type]) {
-    if (current !== undefined) config.goals[type].current = Number(current);
-    if (target !== undefined) config.goals[type].target = Number(target);
-    if (title !== undefined) config.goals[type].title = title;
-    if (color !== undefined) config.goals[type].color = color;
+app.get('/api/goals', (req, res) => {
+  res.json(storage.getGoals());
+});
 
-    storage.saveConfig({ goals: config.goals });
-    broadcast('goal_update', { type, goal: config.goals[type] });
+app.post('/api/goals', (req, res) => {
+  const goals = storage.saveGoals(req.body);
+  broadcast('goals_updated', goals);
+  res.json({ success: true, goals });
+});
+
+app.post('/api/goals/save', (req, res) => {
+  const newGoal = req.body;
+  if (!newGoal.title) return res.status(400).json({ success: false, message: 'El título de la meta es obligatorio.' });
+  let goals = storage.getGoals() || [];
+  if (!newGoal.id) {
+    newGoal.id = 'goal_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
   }
-  res.json({ success: true, goals: storage.getConfig().goals });
+  const existingIdx = goals.findIndex(g => g.id === newGoal.id);
+  if (existingIdx >= 0) {
+    goals[existingIdx] = { ...goals[existingIdx], ...newGoal };
+  } else {
+    goals.push(newGoal);
+  }
+  storage.saveGoals(goals);
+  broadcast('goals_updated', goals);
+  broadcast('goal_update', { goalId: newGoal.id, goal: newGoal });
+  res.json({ success: true, goals, goal: newGoal });
+});
+
+app.post('/api/goals/update', (req, res) => {
+  const { id, goalId, type, current, target, title, color, color2, enabled } = req.body;
+  const targetId = id || goalId;
+  let goals = storage.getGoals() || [];
+  let idx = goals.findIndex(g => g.id === targetId || (type && g.type === type));
+  if (idx !== -1) {
+    if (current !== undefined) goals[idx].current = Number(current);
+    if (target !== undefined) goals[idx].target = Number(target);
+    if (title !== undefined) goals[idx].title = title;
+    if (color !== undefined) goals[idx].color = color;
+    if (color2 !== undefined) goals[idx].color2 = color2;
+    if (enabled !== undefined) goals[idx].enabled = Boolean(enabled);
+    storage.saveGoals(goals);
+    broadcast('goal_update', { goalId: goals[idx].id, goal: goals[idx] });
+    return res.json({ success: true, goal: goals[idx], goals });
+  }
+  if (title) {
+    const created = {
+      id: targetId || ('goal_' + Date.now()),
+      title,
+      type: type || 'custom',
+      current: Number(current) || 0,
+      target: Number(target) || 100,
+      color: color || '#9146ff',
+      color2: color2 || '#00f2fe',
+      enabled: enabled !== false
+    };
+    goals.push(created);
+    storage.saveGoals(goals);
+    broadcast('goals_updated', goals);
+    broadcast('goal_update', { goalId: created.id, goal: created });
+    return res.json({ success: true, goal: created, goals });
+  }
+  res.status(404).json({ success: false, message: 'Meta no encontrada.' });
+});
+
+app.post('/api/goals/delete', (req, res) => {
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ success: false, message: 'ID de meta requerido.' });
+  let goals = storage.getGoals() || [];
+  goals = goals.filter(g => g.id !== id);
+  storage.saveGoals(goals);
+  broadcast('goals_updated', goals);
+  res.json({ success: true, goals });
 });
 
 // Auto-connect bot if credentials are saved and enabled

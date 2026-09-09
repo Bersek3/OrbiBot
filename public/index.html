@@ -1561,70 +1561,87 @@
             </div>
           </div>
 
-          <!-- Ajustes de Metas (Goals Config) -->
+          <!-- Gestor de Metas Personalizadas (Goals Manager) -->
           <div class="card" style="margin-top: 30px;">
-            <div class="card-header">
-              <span class="card-title">🎯 Configurar Números de las Metas (Goals)</span>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <span class="card-title" style="font-size: 16px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 8px;">
+                  <span>🎯</span> <span>Gestor de Metas del Stream (Goal Bars)</span>
+                </span>
+                <p style="font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; margin-bottom: 0;">
+                  Crea metas personalizadas e independientes para tu stream. Cada meta tiene su propio enlace exclusivo de OBS Studio.
+                </p>
+              </div>
+              <button id="btnAddNewGoal" class="btn btn-primary btn-sm" onclick="toggleGoalForm(true)">
+                + Nueva Meta Personalizada
+              </button>
             </div>
 
-            <div class="grid-3">
-              <div>
-                <h5 style="color: var(--twitch-purple-light); margin-bottom: 12px;">⭐ Meta de Suscriptores</h5>
+            <!-- Formulario de Meta (Crear / Editar) -->
+            <div id="goalFormCard" style="display: none; background: rgba(15, 20, 32, 0.95); border: 2px solid var(--primary-purple); border-radius: 12px; padding: 20px; margin-top: 18px; margin-bottom: 22px; box-shadow: 0 8px 32px rgba(145, 70, 255, 0.2);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h5 id="goalFormTitle" style="color: #fff; font-size: 15px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px;">
+                  <span>🎯</span> <span>Crear Nueva Meta Personalizada</span>
+                </h5>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleGoalForm(false)" style="padding: 4px 10px; font-size: 12px;">✕ Cerrar</button>
+              </div>
+              <input type="hidden" id="editGoalId" value="">
+
+              <div class="grid-2">
                 <div class="form-group">
-                  <label class="form-label">Título</label>
-                  <input type="text" id="cfgGoalSubTitle" class="form-control" value="Meta de Suscriptores">
+                  <label class="form-label">Título o Nombre de la Meta</label>
+                  <input type="text" id="newGoalTitle" class="form-control" placeholder="Ej: Meta de 50 Subs VIP, Pizza Stream, Donaciones..." required>
                 </div>
-                <div style="display: flex; gap: 10px;">
-                  <div class="form-group" style="flex:1">
-                    <label class="form-label">Actual</label>
-                    <input type="number" id="cfgGoalSubCurrent" class="form-control" value="12">
-                  </div>
-                  <div class="form-group" style="flex:1">
-                    <label class="form-label">Meta</label>
-                    <input type="number" id="cfgGoalSubTarget" class="form-control" value="50">
-                  </div>
+
+                <div class="form-group">
+                  <label class="form-label">Tipo de Evento / Auto-Incremento</label>
+                  <select id="newGoalType" class="form-control">
+                    <option value="subs">⭐ Suscripciones (Twitch / Kick)</option>
+                    <option value="followers">👤 Seguidores</option>
+                    <option value="bits">💎 Bits / Cheers</option>
+                    <option value="donations">☕ Donaciones / Cafecitos</option>
+                    <option value="custom" selected>🎯 Personalizada (Progreso Manual)</option>
+                  </select>
                 </div>
-                <button class="btn btn-secondary btn-sm" onclick="saveGoalValues('subs')">Actualizar Sub Goal</button>
               </div>
 
-              <div>
-                <h5 style="color: var(--cyan-accent); margin-bottom: 12px;">👤 Meta de Seguidores</h5>
+              <div class="grid-2">
                 <div class="form-group">
-                  <label class="form-label">Título</label>
-                  <input type="text" id="cfgGoalFollowTitle" class="form-control" value="Meta de Seguidores">
+                  <label class="form-label">Progreso Actual</label>
+                  <input type="number" id="newGoalCurrent" class="form-control" value="0" min="0">
                 </div>
-                <div style="display: flex; gap: 10px;">
-                  <div class="form-group" style="flex:1">
-                    <label class="form-label">Actual</label>
-                    <input type="number" id="cfgGoalFollowCurrent" class="form-control" value="185">
-                  </div>
-                  <div class="form-group" style="flex:1">
-                    <label class="form-label">Meta</label>
-                    <input type="number" id="cfgGoalFollowTarget" class="form-control" value="300">
-                  </div>
+                <div class="form-group">
+                  <label class="form-label">Objetivo / Meta Final</label>
+                  <input type="number" id="newGoalTarget" class="form-control" value="50" min="1">
                 </div>
-                <button class="btn btn-secondary btn-sm" onclick="saveGoalValues('followers')">Actualizar Follow
-                  Goal</button>
               </div>
 
-              <div>
-                <h5 style="color: var(--yellow-warn); margin-bottom: 12px;">💎 Meta de Bits</h5>
+              <div class="grid-2">
                 <div class="form-group">
-                  <label class="form-label">Título</label>
-                  <input type="text" id="cfgGoalBitsTitle" class="form-control" value="Meta de Bits">
-                </div>
-                <div style="display: flex; gap: 10px;">
-                  <div class="form-group" style="flex:1">
-                    <label class="form-label">Actual</label>
-                    <input type="number" id="cfgGoalBitsCurrent" class="form-control" value="1500">
-                  </div>
-                  <div class="form-group" style="flex:1">
-                    <label class="form-label">Meta</label>
-                    <input type="number" id="cfgGoalBitsTarget" class="form-control" value="5000">
+                  <label class="form-label">Color Principal (Barra de progreso)</label>
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="color" id="newGoalColor" value="#9146ff" style="width: 44px; height: 38px; border: none; border-radius: 8px; cursor: pointer; background: transparent;" onchange="document.getElementById('newGoalColorHex').value=this.value">
+                    <input type="text" id="newGoalColorHex" class="form-control" value="#9146ff" style="font-family: monospace; font-size: 13px;" oninput="document.getElementById('newGoalColor').value=this.value">
                   </div>
                 </div>
-                <button class="btn btn-secondary btn-sm" onclick="saveGoalValues('bits')">Actualizar Bits Goal</button>
+                <div class="form-group">
+                  <label class="form-label">Color Secundario / Gradiente</label>
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="color" id="newGoalColor2" value="#00f2fe" style="width: 44px; height: 38px; border: none; border-radius: 8px; cursor: pointer; background: transparent;" onchange="document.getElementById('newGoalColor2Hex').value=this.value">
+                    <input type="text" id="newGoalColor2Hex" class="form-control" value="#00f2fe" style="font-family: monospace; font-size: 13px;" oninput="document.getElementById('newGoalColor2').value=this.value">
+                  </div>
+                </div>
               </div>
+
+              <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+                <button type="button" class="btn btn-secondary" onclick="toggleGoalForm(false)">Cancelar</button>
+                <button type="button" id="btnSaveGoal" class="btn btn-primary" onclick="saveGoalFormUI()">💾 Guardar Meta</button>
+              </div>
+            </div>
+
+            <!-- Lista de Metas Personalizadas -->
+            <div id="goalsListContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 18px; margin-top: 18px;">
+              <!-- Se renderiza dinámicamente con renderGoals() -->
             </div>
           </div>
         </section>
