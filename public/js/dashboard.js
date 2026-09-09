@@ -1315,11 +1315,45 @@ async function loadInitialData() {
       } catch (e) { }
     }
 
+    // Merge or fallback commands & rewards from localStorage if backend was empty but local storage has them
+    let effectiveCommands = Array.isArray(cmdRes) ? cmdRes : [];
+    const localCmds = localStorage.getItem('orbibot_commands');
+    if (effectiveCommands.length === 0 && localCmds) {
+      try {
+        const parsedCmds = JSON.parse(localCmds);
+        if (Array.isArray(parsedCmds) && parsedCmds.length > 0) {
+          effectiveCommands = parsedCmds;
+          fetch('/api/commands', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(effectiveCommands)
+          }).catch(() => {});
+        }
+      } catch(e) {}
+    }
+
+    let effectiveRewards = Array.isArray(rwdRes) ? rwdRes : [];
+    const localRwds = localStorage.getItem('orbibot_rewards');
+    if (effectiveRewards.length === 0 && localRwds) {
+      try {
+        const parsedRwds = JSON.parse(localRwds);
+        if (Array.isArray(parsedRwds) && parsedRwds.length > 0) {
+          effectiveRewards = parsedRwds;
+          fetch('/api/rewards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(effectiveRewards)
+          }).catch(() => {});
+        }
+      } catch(e) {}
+    }
+
     appConfig = cfgRes;
     bindConfigToUI(cfgRes);
-    renderCommands(cmdRes);
-    renderRewards(rwdRes);
+    renderCommands(effectiveCommands);
+    renderRewards(effectiveRewards);
     updateSongRequestUI(srRes);
+    await loadSounds();
 
     if (effectiveTwitch.channel && window.tmi && (!browserTmiClient || browserTmiClient.readyState() !== 'OPEN')) {
       connectInBrowserTwitchBot(effectiveTwitch);
@@ -3353,6 +3387,7 @@ async function loadSounds() {
 
     const container = document.getElementById('soundListContainer');
     const select = document.getElementById('rewardSoundSelect');
+    const alertSoundSelect = document.getElementById('wc-alert-soundSelect');
 
     if (select) {
       const currentSelected = select.value;
@@ -3376,6 +3411,23 @@ async function loadSounds() {
           select.value = currentSelected;
         }
       }
+    }
+
+    if (alertSoundSelect) {
+      const customOpt = alertSoundSelect.querySelector('option[value="custom"]');
+      Array.from(alertSoundSelect.querySelectorAll('option.custom-uploaded-sound-opt')).forEach(o => o.remove());
+
+      sounds.forEach(s => {
+        const opt = document.createElement('option');
+        opt.className = 'custom-uploaded-sound-opt';
+        opt.value = s.url;
+        opt.innerText = `🎵 ${s.name}`;
+        if (customOpt) {
+          alertSoundSelect.insertBefore(opt, customOpt);
+        } else {
+          alertSoundSelect.appendChild(opt);
+        }
+      });
     }
 
     if (container) {
@@ -4651,8 +4703,22 @@ function selectAlertEvent(eventKey) {
   const customSoundInput = document.getElementById('wc-alert-soundUrl');
 
   if (soundSelect) {
-    const isStandardOption = Array.from(soundSelect.options).some(o => o.value === currentSound);
-    if (isStandardOption) {
+    let matchedOption = Array.from(soundSelect.options).find(o => o.value === currentSound);
+    if (matchedOption) {
+      soundSelect.value = currentSound;
+      if (customSoundRow) customSoundRow.style.display = 'none';
+    } else if (currentSound && currentSound !== 'custom') {
+      const customOpt = soundSelect.querySelector('option[value="custom"]');
+      const newOpt = document.createElement('option');
+      newOpt.className = 'custom-uploaded-sound-opt';
+      newOpt.value = currentSound;
+      const cleanName = currentSound.startsWith('data:') ? 'Audio Personalizado' : (currentSound.split('/').pop() || 'Audio Personalizado');
+      newOpt.innerText = `🎵 ${cleanName}`;
+      if (customOpt) {
+        soundSelect.insertBefore(newOpt, customOpt);
+      } else {
+        soundSelect.appendChild(newOpt);
+      }
       soundSelect.value = currentSound;
       if (customSoundRow) customSoundRow.style.display = 'none';
     } else {

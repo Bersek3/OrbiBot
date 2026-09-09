@@ -156,7 +156,52 @@ class StorageService {
     this.supabase = null;
     this.isSupabaseReady = false;
     this._streamerId = null; // Cache del streamer_id activo
+    this.restoreAudioFiles(this.getCustomSounds());
     this.initSupabase();
+  }
+
+  /**
+   * Restaura archivos físicos de audio en public/assets/sounds/custom/
+   * si están guardados en base64 dentro de custom_sounds.json o Supabase.
+   */
+  restoreAudioFiles(sounds) {
+    if (!Array.isArray(sounds) || sounds.length === 0) return;
+    const publicCustomDir = path.join(__dirname, '..', '..', 'public', 'assets', 'sounds', 'custom');
+    const docsCustomDir = path.join(__dirname, '..', '..', 'docs', 'assets', 'sounds', 'custom');
+
+    try {
+      if (!fs.existsSync(publicCustomDir)) fs.mkdirSync(publicCustomDir, { recursive: true });
+      if (fs.existsSync(path.join(__dirname, '..', '..', 'docs')) && !fs.existsSync(docsCustomDir)) {
+        fs.mkdirSync(docsCustomDir, { recursive: true });
+      }
+
+      sounds.forEach(s => {
+        if (!s || !s.name) return;
+        const cleanName = path.basename(s.name).replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
+        const rawData = s.data || s.dataUrl;
+        if (rawData && typeof rawData === 'string' && rawData.includes(';base64,')) {
+          const base64Data = rawData.replace(/^data:[^;]+;base64,/, '');
+          try {
+            const buffer = Buffer.from(base64Data, 'base64');
+            const targetPublic = path.join(publicCustomDir, cleanName);
+            if (!fs.existsSync(targetPublic) || fs.statSync(targetPublic).size === 0) {
+              fs.writeFileSync(targetPublic, buffer);
+              console.log(`🔊 [Storage] Audio restaurado en disco: ${cleanName}`);
+            }
+            if (fs.existsSync(path.join(__dirname, '..', '..', 'docs'))) {
+              const targetDocs = path.join(docsCustomDir, cleanName);
+              if (!fs.existsSync(targetDocs) || fs.statSync(targetDocs).size === 0) {
+                fs.writeFileSync(targetDocs, buffer);
+              }
+            }
+          } catch (e) {
+            console.warn(`⚠️ [Storage] Error al restaurar audio ${cleanName}:`, e.message);
+          }
+        }
+      });
+    } catch (err) {
+      console.warn('⚠️ [Storage] Error en restoreAudioFiles:', err.message);
+    }
   }
 
   /**
@@ -229,6 +274,10 @@ class StorageService {
           if (item.key === 'commands') writeJSON('commands.json', item.value);
           if (item.key === 'alerts') writeJSON('alerts.json', item.value);
           if (item.key === 'channel_points') writeJSON('channel_points.json', item.value);
+          if (item.key === 'custom_sounds') {
+            writeJSON('custom_sounds.json', item.value);
+            this.restoreAudioFiles(item.value);
+          }
         });
       } else {
         this.isSupabaseReady = true;
@@ -237,11 +286,19 @@ class StorageService {
           const migrated = await this.migrateFromDefault(streamerId);
           if (migrated) return;
         }
-        console.log(`🌱 [Supabase] Sembrando datos iniciales para streamer "${streamerId}"...`);
-        await this.syncToSupabase('config', this.getConfig());
-        await this.syncToSupabase('commands', this.getCommands());
-        await this.syncToSupabase('alerts', this.getAlerts());
-        await this.syncToSupabase('channel_points', this.getRewards());
+        // Solo respaldar lo que ya existe localmente, sin sobreescribir con valores duros
+        const currentCustomSounds = this.getCustomSounds();
+        if (currentCustomSounds && currentCustomSounds.length > 0) {
+          await this.syncToSupabase('custom_sounds', currentCustomSounds);
+        }
+        const currentRewards = this.getRewards();
+        if (currentRewards && currentRewards.length > 0) {
+          await this.syncToSupabase('channel_points', currentRewards);
+        }
+        const currentCommands = this.getCommands();
+        if (currentCommands && currentCommands.length > 0) {
+          await this.syncToSupabase('commands', currentCommands);
+        }
       }
     } catch (err) {
       console.warn('⚠️ [Supabase] Error durante la sincronización inicial:', err.message);
@@ -271,6 +328,10 @@ class StorageService {
           if (item.key === 'commands') writeJSON('commands.json', item.value);
           if (item.key === 'alerts') writeJSON('alerts.json', item.value);
           if (item.key === 'channel_points') writeJSON('channel_points.json', item.value);
+          if (item.key === 'custom_sounds') {
+            writeJSON('custom_sounds.json', item.value);
+            this.restoreAudioFiles(item.value);
+          }
         });
       }
     } catch (err) {
@@ -450,7 +511,16 @@ class StorageService {
 
   getAlerts() {
     const alerts = readJSON('alerts.json', DEFAULT_ALERTS);
-    return { ...DEFAULT_ALERTS, ...alerts };
+    const merged = {};
+    Object.keys(DEFAULT_ALERTS).forEach(k => {
+      merged[k] = { ...DEFAULT_ALERTS[k], ...(alerts[k] || {}) };
+    });
+    Object.keys(alerts || {}).forEach(k => {
+      if (!merged[k]) {
+        merged[k] = alerts[k];
+      }
+    });
+    return merged;
   }
 
   saveAlerts(alerts) {
@@ -486,6 +556,7 @@ class StorageService {
 
   saveCustomSounds(sounds) {
     writeJSON('custom_sounds.json', sounds || []);
+    this.restoreAudioFiles(sounds);
     this.syncToSupabase('custom_sounds', sounds || []);
     return sounds || [];
   }

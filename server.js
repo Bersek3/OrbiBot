@@ -597,6 +597,11 @@ app.put('/api/commands/:id', (req, res) => {
 // Sound files management (Custom user uploaded sounds)
 app.get('/api/sounds', (req, res) => {
   try {
+    const storedSounds = storage.getCustomSounds() || [];
+    if (storedSounds.length > 0 && typeof storage.restoreAudioFiles === 'function') {
+      storage.restoreAudioFiles(storedSounds);
+    }
+
     const soundsDir = path.join(__dirname, 'public', 'assets', 'sounds', 'custom');
     if (!fs.existsSync(soundsDir)) {
       fs.mkdirSync(soundsDir, { recursive: true });
@@ -608,7 +613,6 @@ app.get('/api/sounds', (req, res) => {
         url: `/assets/sounds/custom/${f}`
       }));
 
-    const storedSounds = storage.getCustomSounds() || [];
     const soundMap = new Map();
 
     fsFiles.forEach(f => soundMap.set(f.name.toLowerCase(), f));
