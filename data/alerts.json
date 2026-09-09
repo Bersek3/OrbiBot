@@ -31,7 +31,7 @@
   },
   "follower": {
     "image": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif",
-    "sound": "/assets/sounds/follow.mp3",
+    "sound": "/assets/sounds/custom/alo-sinaka.mp3",
     "title": "Nuevo Seguidor",
     "enabled": true,
     "message": "¡{user} ahora sigue el canal!",

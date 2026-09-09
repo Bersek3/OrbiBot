@@ -725,6 +725,28 @@ function handleChatPlatformToggle(platform, enabled) {
   showToast(enabled ? `🟢 Chat de ${platName} activado en OBS` : `⚪ Chat de ${platName} pausado en OBS`, 'info');
 }
 
+// ================= DUAL DATABASE CLOUD BACKUP STATUS =================
+async function checkDualBackupStatus() {
+  const badge = document.getElementById('dualBackupBadge');
+  if (!badge) return;
+  try {
+    const res = await fetch('/api/backup/status');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.supabase?.connected && data.mongodb?.connected) {
+        badge.innerHTML = '<span>🛡️</span> <span>Doble Respaldo (Supabase ☁️ + MongoDB 🍃)</span>';
+        badge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+        badge.style.color = '#10b981';
+      } else if (data.supabase?.connected || data.mongodb?.connected) {
+        const activeName = data.supabase?.connected ? 'Supabase ☁️' : 'MongoDB 🍃';
+        badge.innerHTML = `<span>🛡️</span> <span>Respaldo en Nube (${activeName})</span>`;
+        badge.style.borderColor = 'rgba(0, 242, 254, 0.4)';
+        badge.style.color = 'var(--cyan-accent)';
+      }
+    }
+  } catch (e) { }
+}
+
 // Helper: Check if both platforms are enabled
 function areBothPlatformsEnabledInDash() {
   const twitchConn = Boolean(appConfig?.twitch?.connected || localStorage.getItem('orbibot_twitch_auth'));
@@ -908,6 +930,7 @@ window.resetGoalProgress = resetGoalProgress;
 window.deleteGoalUI = deleteGoalUI;
 window.toggleGoalUrlVisibility = toggleGoalUrlVisibility;
 window.copyGoalWidgetUrl = copyGoalWidgetUrl;
+window.checkDualBackupStatus = checkDualBackupStatus;
 
 // ================= VIEW SWITCHER (LANDING VS DASHBOARD) =================
 function showLandingView() {
@@ -1406,6 +1429,7 @@ async function loadInitialData() {
     renderGoals(effectiveGoals);
     updateSongRequestUI(srRes);
     await loadSounds();
+    checkDualBackupStatus();
 
     if (effectiveTwitch.channel && window.tmi && (!browserTmiClient || browserTmiClient.readyState() !== 'OPEN')) {
       connectInBrowserTwitchBot(effectiveTwitch);

@@ -1,55 +1,35 @@
 {
-  "security": {
-    "widgetToken": "sec_cb04c456356689d198f80b1d3c9d86ff"
-  },
-  "twitch": {
-    "channel": "bersek___",
-    "botUsername": "bersek___",
-    "oauthToken": "43jh824qaqogjil3y12390isywc086",
-    "clientId": "yw1vr664ichms8an2x5lhji58v7ozk",
-    "connected": true,
-    "userId": "226055830",
-    "displayName": "Bersek___",
-    "profileImage": "https://static-cdn.jtvnw.net/jtv_user_pictures/92a6561b-8e64-4f5f-a5fe-af7782347288-profile_image-300x300.jpeg"
-  },
-  "kick": {
-    "channel": "bersek",
-    "username": "Bersek",
-    "profile_picture": "https://files.kick.com/images/user/2984464/profile_image/conversion/8b4e7fba-64d9-469b-b1eb-da87178f4fab-medium.webp",
-    "userId": "2984464",
-    "accessToken": "MTI2OTLJZTUTNZRHNY0ZMTY4LTG5NTCTMTHIOTLMZJU4ZWU2",
-    "refreshToken": "ZDEYY2Q4OWITZTC4ZS01NTU2LWFJN2ETMDJMMZY4NJI4ZJC3",
-    "clientId": "01M0VT0JC58YQEVGRHM8JFXQX3",
-    "connected": true
-  },
-  "chatPlatforms": {
-    "twitch": true,
-    "kick": true
-  },
-  "songRequest": {
-    "prefix": "!sr",
-    "enabled": true,
-    "maxDurationMinutes": 8,
-    "maxPerUser": 5,
-    "userLevel": "all",
-    "volume": 75,
-    "autoplay": true
-  },
   "tts": {
-    "enabled": true,
-    "engine": "streamelements",
-    "voice": "es_mx_mia",
-    "volume": 90,
     "rate": 1,
     "pitch": 1,
+    "voice": "es_mx_mia",
+    "engine": "streamelements",
+    "volume": 90,
+    "enabled": true,
     "minBits": 50,
-    "allowChatCommand": true,
-    "chatCommand": "!tts",
-    "bannedWords": [],
     "maxLength": 250,
+    "bannedWords": [],
+    "chatCommand": "!tts",
+    "allowChatCommand": true,
     "channelPointsRewardName": "TTS"
   },
+  "kick": {
+    "userId": "2984464",
+    "channel": "bersek",
+    "clientId": "01M0VT0JC58YQEVGRHM8JFXQX3",
+    "username": "Bersek",
+    "connected": true,
+    "accessToken": "MTI2OTLJZTUTNZRHNY0ZMTY4LTG5NTCTMTHIOTLMZJU4ZWU2",
+    "refreshToken": "ZDEYY2Q4OWITZTC4ZS01NTU2LWFJN2ETMDJMMZY4NJI4ZJC3",
+    "profile_picture": "https://files.kick.com/images/user/2984464/profile_image/conversion/8b4e7fba-64d9-469b-b1eb-da87178f4fab-medium.webp"
+  },
   "goals": {
+    "bits": {
+      "color": "#f5a623",
+      "title": "Meta de Bits",
+      "target": 5000,
+      "current": 1500
+    },
     "subs": {
       "color": "#9146ff",
       "title": "Meta de Suscriptores",
@@ -61,13 +41,64 @@
       "title": "Meta de Seguidores",
       "target": 300,
       "current": 185
-    },
-    "bits": {
-      "color": "#f5a623",
-      "title": "Meta de Bits",
-      "target": 5000,
-      "current": 1500
     }
   },
-  "widgetStyles": {}
+  "twitch": {
+    "userId": "226055830",
+    "channel": "bersek___",
+    "clientId": "yw1vr664ichms8an2x5lhji58v7ozk",
+    "connected": true,
+    "oauthToken": "43jh824qaqogjil3y12390isywc086",
+    "botUsername": "bersek___",
+    "displayName": "Bersek___",
+    "profileImage": "https://static-cdn.jtvnw.net/jtv_user_pictures/92a6561b-8e64-4f5f-a5fe-af7782347288-profile_image-300x300.jpeg"
+  },
+  "security": {
+    "widgetToken": "sec_cb04c456356689d198f80b1d3c9d86ff"
+  },
+  "songRequest": {
+    "prefix": "!sr",
+    "volume": 75,
+    "enabled": true,
+    "autoplay": true,
+    "userLevel": "all",
+    "maxPerUser": 5,
+    "maxDurationMinutes": 8
+  },
+  "widgetStyles": {
+    "alerts": {
+      "images": {
+        "sub": "https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif",
+        "bits": "https://media.giphy.com/media/26FPJGjhefSJuaRhu/giphy.gif",
+        "raid": "https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif",
+        "follower": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif",
+        "channel_points": "https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif"
+      },
+      "sounds": {
+        "sub": "/assets/sounds/sub.mp3",
+        "bits": "/assets/sounds/bits.mp3",
+        "raid": "/assets/sounds/raid.mp3",
+        "follower": "/assets/sounds/custom/alo-sinaka.mp3",
+        "channel_points": "/assets/sounds/points.mp3"
+      },
+      "bgColor": "#0b0e14",
+      "customJS": "",
+      "finalCSS": "/* OrbiBot Custom Styles - Alert Box */\n.alert-card {\n  font-family: 'Outfit', sans-serif !important;\n  background: rgba(11,14,20,0.88) !important;\n  border-radius: 24px !important;\n  border-color: #9146ff !important;\n  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px #9146ff50 !important;\n}\n.alert-title {\n  font-family: 'Outfit', sans-serif !important;\n  color: #ffffff !important;\n  font-size: 32px !important;\n}\n.alert-message {\n  font-family: 'Outfit', sans-serif !important;\n  color: #cbd5e1 !important;\n  font-size: 20px !important;\n}\n.alert-badge {\n  font-family: 'Outfit', sans-serif !important;\n  background: linear-gradient(135deg, #9146ff, #00f2fe) !important;\n}\n.alert-media {\n  max-height: 119px !important;\n}\n",
+      "bgOpacity": 88,
+      "customCSS": "",
+      "imageSize": 119,
+      "titleSize": 32,
+      "fontFamily": "'Outfit', sans-serif",
+      "titleColor": "#ffffff",
+      "accentColor": "#9146ff",
+      "messageSize": 20,
+      "borderRadius": 24,
+      "generatedCSS": "/* OrbiBot Custom Styles - Alert Box */\n.alert-card {\n  font-family: 'Outfit', sans-serif !important;\n  background: rgba(11,14,20,0.88) !important;\n  border-radius: 24px !important;\n  border-color: #9146ff !important;\n  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px #9146ff50 !important;\n}\n.alert-title {\n  font-family: 'Outfit', sans-serif !important;\n  color: #ffffff !important;\n  font-size: 32px !important;\n}\n.alert-message {\n  font-family: 'Outfit', sans-serif !important;\n  color: #cbd5e1 !important;\n  font-size: 20px !important;\n}\n.alert-badge {\n  font-family: 'Outfit', sans-serif !important;\n  background: linear-gradient(135deg, #9146ff, #00f2fe) !important;\n}\n.alert-media {\n  max-height: 119px !important;\n}\n",
+      "messageColor": "#cbd5e1"
+    }
+  },
+  "chatPlatforms": {
+    "kick": true,
+    "twitch": true
+  }
 }

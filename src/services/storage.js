@@ -1,7 +1,9 @@
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
+const { MongoClient } = require('mongodb');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 
@@ -151,14 +153,22 @@ class StorageService {
   constructor() {
     this.supabase = null;
     this.isSupabaseReady = false;
+
+    this.mongoClient = null;
+    this.mongoDb = null;
+    this.isMongoReady = false;
+
     this._streamerId = null; // Cache del streamer_id activo
     this.restoreAudioFiles(this.getCustomSounds());
+    
+    // Inicializar ambas bases de datos para Doble Respaldo
     this.initSupabase();
+    this.initMongoDB();
   }
 
   /**
    * Restaura archivos físicos de audio en public/assets/sounds/custom/
-   * si están guardados en base64 dentro de custom_sounds.json o Supabase.
+   * si están guardados en base64 dentro de custom_sounds.json o en la nube.
    */
   restoreAudioFiles(sounds) {
     if (!Array.isArray(sounds) || sounds.length === 0) return;
@@ -202,7 +212,6 @@ class StorageService {
 
   /**
    * Obtiene el streamer_id actual basándose en el canal de Twitch configurado.
-   * Si no hay canal configurado, retorna 'default'.
    */
   getStreamerId() {
     if (this._streamerId) return this._streamerId;
@@ -221,9 +230,10 @@ class StorageService {
   setStreamerId(id) {
     const cleanId = (id || 'default').toLowerCase().replace(/^#/, '').trim();
     this._streamerId = cleanId || 'default';
-    console.log(`🔑 [Storage] Streamer ID establecido: "${this._streamerId}"`);
+    console.log(`🔑 [Storage] Streamer ID activo: "${this._streamerId}"`);
   }
 
+  // ================= 🟢 BASE DE DATOS 1: SUPABASE =================
   initSupabase() {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_KEY;
@@ -233,13 +243,13 @@ class StorageService {
         this.supabase = createClient(supabaseUrl, supabaseKey, {
           auth: { persistSession: false }
         });
-        console.log('🟢 [Supabase] Cliente inicializado correctamente.');
+        console.log('🟢 [Supabase Cloud] Cliente inicializado correctamente.');
         this.syncFromSupabase();
       } catch (err) {
-        console.warn('⚠️ [Supabase] Error al inicializar cliente:', err.message);
+        console.warn('⚠️ [Supabase Cloud] Error al inicializar cliente:', err.message);
       }
     } else {
-      console.log('ℹ️ [Storage] Supabase no configurado. Utilizando almacenamiento local JSON.');
+      console.log('ℹ️ [Storage] Supabase no configurado en .env.');
     }
   }
 
@@ -253,9 +263,7 @@ class StorageService {
         .eq('streamer_id', streamerId);
 
       if (error) {
-        // Si la tabla no tiene la columna streamer_id aún, intentar lectura legacy
         if (error.message && error.message.includes('streamer_id')) {
-          console.warn('⚠️ [Supabase] La tabla aún no tiene columna "streamer_id". Ejecuta supabase_migration.sql para actualizar.');
           return this.syncFromSupabaseLegacy();
         }
         console.warn('⚠️ [Supabase] Error al sincronizar:', error.message);
@@ -264,7 +272,7 @@ class StorageService {
 
       if (data && data.length > 0) {
         this.isSupabaseReady = true;
-        console.log(`✅ [Supabase] ${data.length} configuraciones sincronizadas para streamer "${streamerId}".`);
+        console.log(`✅ [Supabase Cloud] ${data.length} configuraciones sincronizadas para streamer "${streamerId}".`);
         data.forEach(item => {
           if (item.key === 'config') writeJSON('config.json', item.value);
           if (item.key === 'commands') writeJSON('commands.json', item.value);
@@ -278,52 +286,31 @@ class StorageService {
         });
       } else {
         this.isSupabaseReady = true;
-        // Verificar si hay datos en 'default' que podríamos migrar
         if (streamerId !== 'default') {
-          const migrated = await this.migrateFromDefault(streamerId);
+          const migrated = await this.migrateFromDefaultSupabase(streamerId);
           if (migrated) return;
         }
-        // Solo respaldar lo que ya existe localmente, sin sobreescribir con valores duros
-        const currentCustomSounds = this.getCustomSounds();
-        if (currentCustomSounds && currentCustomSounds.length > 0) {
-          await this.syncToSupabase('custom_sounds', currentCustomSounds);
-        }
-        const currentRewards = this.getRewards();
-        if (currentRewards && currentRewards.length > 0) {
-          await this.syncToSupabase('channel_points', currentRewards);
-        }
-        const currentGoals = this.getGoals();
-        if (currentGoals && currentGoals.length > 0) {
-          await this.syncToSupabase('goals', currentGoals);
-        }
-        const currentCommands = this.getCommands();
-        if (currentCommands && currentCommands.length > 0) {
-          await this.syncToSupabase('commands', currentCommands);
-        }
+        // Respaldar lo local en Supabase
+        const sounds = this.getCustomSounds();
+        if (sounds && sounds.length > 0) await this.syncToSupabase('custom_sounds', sounds);
+        const rwds = this.getRewards();
+        if (rwds && rwds.length > 0) await this.syncToSupabase('channel_points', rwds);
+        const goals = this.getGoals();
+        if (goals && goals.length > 0) await this.syncToSupabase('goals', goals);
+        const cmds = this.getCommands();
+        if (cmds && cmds.length > 0) await this.syncToSupabase('commands', cmds);
       }
     } catch (err) {
       console.warn('⚠️ [Supabase] Error durante la sincronización inicial:', err.message);
     }
   }
 
-  /**
-   * Fallback: lee datos del esquema anterior (sin streamer_id) para compatibilidad.
-   */
   async syncFromSupabaseLegacy() {
     if (!this.supabase) return;
     try {
-      const { data, error } = await this.supabase
-        .from('orbibot_settings')
-        .select('*');
-
-      if (error) {
-        console.warn('⚠️ [Supabase] Nota: La tabla "orbibot_settings" no existe o requiere creación.');
-        return;
-      }
-
-      if (data && data.length > 0) {
+      const { data, error } = await this.supabase.from('orbibot_settings').select('*');
+      if (!error && data && data.length > 0) {
         this.isSupabaseReady = true;
-        console.log(`✅ [Supabase] ${data.length} configuraciones sincronizadas (modo legacy).`);
         data.forEach(item => {
           if (item.key === 'config') writeJSON('config.json', item.value);
           if (item.key === 'commands') writeJSON('commands.json', item.value);
@@ -336,15 +323,10 @@ class StorageService {
           }
         });
       }
-    } catch (err) {
-      console.warn('⚠️ [Supabase] Error en sincronización legacy:', err.message);
-    }
+    } catch (err) { }
   }
 
-  /**
-   * Migra datos del streamer_id 'default' al streamer_id real cuando se autentica.
-   */
-  async migrateFromDefault(newStreamerId) {
+  async migrateFromDefaultSupabase(newStreamerId) {
     if (!this.supabase) return false;
     try {
       const { data } = await this.supabase
@@ -353,7 +335,6 @@ class StorageService {
         .eq('streamer_id', 'default');
 
       if (data && data.length > 0) {
-        console.log(`🔄 [Supabase] Migrando ${data.length} registros de "default" a "${newStreamerId}"...`);
         for (const item of data) {
           await this.supabase
             .from('orbibot_settings')
@@ -364,12 +345,9 @@ class StorageService {
               updated_at: new Date().toISOString()
             }, { onConflict: 'streamer_id,key' });
         }
-        console.log(`✅ [Supabase] Migración completada: "default" → "${newStreamerId}".`);
         return true;
       }
-    } catch (e) {
-      console.warn('⚠️ [Supabase] Error en migración:', e.message);
-    }
+    } catch (e) { }
     return false;
   }
 
@@ -387,54 +365,185 @@ class StorageService {
         }, { onConflict: 'streamer_id,key' });
 
       if (error) {
-        // Si falla por columna faltante, intentar modo legacy
         if (error.message && error.message.includes('streamer_id')) {
-          return this.syncToSupabaseLegacy(key, value);
-        }
-        if (error.code !== 'PGRST205') {
-          console.warn(`⚠️ [Supabase] Error al guardar "${key}" para "${streamerId}":`, error.message);
+          await this.supabase.from('orbibot_settings').upsert({
+            key,
+            value,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
         }
       } else {
         this.isSupabaseReady = true;
       }
-    } catch (err) {
-      // Ignorar errores de conexión transitorios
-    }
+    } catch (err) { }
   }
 
-  /**
-   * Fallback: guarda sin streamer_id para compatibilidad con esquema anterior.
-   */
-  async syncToSupabaseLegacy(key, value) {
-    if (!this.supabase) return;
+  // ================= 🍃 BASE DE DATOS 2: MONGODB ATLAS =================
+  initMongoDB() {
+    let mongoUri = process.env.MONGODB_URI || 'mongodb+srv://Berserk:Bersek%401106%403200@servidor.krd1u.mongodb.net/orbibot?retryWrites=true&w=majority';
+
+    // Formatear correctamente contraseñas con caracteres especiales como @
+    if (mongoUri.includes('@') && !mongoUri.includes('%40')) {
+      const match = mongoUri.match(/^(mongodb(?:\+srv)?:\/\/)([^:]+):([^@]+)@(.*)$/);
+      if (match) {
+        mongoUri = `${match[1]}${match[2]}:${encodeURIComponent(match[3])}@${match[4]}`;
+      }
+    }
+
     try {
-      const { error } = await this.supabase
-        .from('orbibot_settings')
-        .upsert({
-          key,
-          value,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'key' });
+      this.mongoClient = new MongoClient(mongoUri, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 8000
+      });
 
-      if (error && error.code !== 'PGRST205') {
-        console.warn(`⚠️ [Supabase] Error en guardado legacy "${key}":`, error.message);
-      } else {
-        this.isSupabaseReady = true;
-      }
+      this.mongoClient.connect().then(async () => {
+        this.mongoDb = this.mongoClient.db('orbibot');
+        this.isMongoReady = true;
+        console.log('🍃 [MongoDB Cloud] Base de datos conectada correctamente (Doble Respaldo Activo).');
+
+        try {
+          await this.mongoDb.collection('settings').createIndex({ streamer_id: 1, key: 1 }, { unique: true });
+          await this.mongoDb.collection('users').createIndex({ email: 1 }, { unique: true });
+        } catch (e) { }
+
+        // Sincronizar desde MongoDB
+        this.syncFromMongoDB();
+      }).catch(err => {
+        console.warn('⚠️ [MongoDB Cloud] No se pudo conectar a MongoDB:', err.message);
+        this.isMongoReady = false;
+      });
     } catch (err) {
-      // Ignorar errores transitorios
+      console.warn('⚠️ [MongoDB Cloud] Error de inicialización:', err.message);
+      this.isMongoReady = false;
     }
   }
 
+  async syncFromMongoDB() {
+    if (!this.isMongoReady || !this.mongoDb) return;
+    const streamerId = this.getStreamerId();
+    try {
+      const records = await this.mongoDb.collection('settings')
+        .find({ streamer_id: streamerId })
+        .toArray();
+
+      if (records && records.length > 0) {
+        console.log(`✅ [MongoDB Cloud] ${records.length} configuraciones sincronizadas para streamer "${streamerId}".`);
+        records.forEach(item => {
+          if (item.key === 'config') writeJSON('config.json', item.value);
+          if (item.key === 'commands') writeJSON('commands.json', item.value);
+          if (item.key === 'alerts') writeJSON('alerts.json', item.value);
+          if (item.key === 'channel_points') writeJSON('channel_points.json', item.value);
+          if (item.key === 'goals') writeJSON('goals.json', item.value);
+          if (item.key === 'custom_sounds') {
+            writeJSON('custom_sounds.json', item.value);
+            this.restoreAudioFiles(item.value);
+          }
+        });
+      } else {
+        // Si MongoDB está vacío, respaldar lo actual local en MongoDB
+        const currentCustomSounds = this.getCustomSounds();
+        if (currentCustomSounds && currentCustomSounds.length > 0) {
+          await this.syncToMongoDB('custom_sounds', currentCustomSounds);
+        }
+        const currentRewards = this.getRewards();
+        if (currentRewards && currentRewards.length > 0) {
+          await this.syncToMongoDB('channel_points', currentRewards);
+        }
+        const currentGoals = this.getGoals();
+        if (currentGoals && currentGoals.length > 0) {
+          await this.syncToMongoDB('goals', currentGoals);
+        }
+        const currentCommands = this.getCommands();
+        if (currentCommands && currentCommands.length > 0) {
+          await this.syncToMongoDB('commands', currentCommands);
+        }
+        const currentConfig = this.getConfig();
+        if (currentConfig) {
+          await this.syncToMongoDB('config', currentConfig);
+        }
+        const currentAlerts = this.getAlerts();
+        if (currentAlerts) {
+          await this.syncToMongoDB('alerts', currentAlerts);
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ [MongoDB Cloud] Error en sincronización inicial:', err.message);
+    }
+  }
+
+  async syncToMongoDB(key, value) {
+    if (!this.isMongoReady || !this.mongoDb) return;
+    const streamerId = this.getStreamerId();
+    try {
+      await this.mongoDb.collection('settings').updateOne(
+        { streamer_id: streamerId, key },
+        {
+          $set: {
+            streamer_id: streamerId,
+            key,
+            value,
+            updated_at: new Date().toISOString()
+          }
+        },
+        { upsert: true }
+      );
+    } catch (err) {
+      console.warn(`⚠️ [MongoDB Cloud] Error al guardar "${key}" para "${streamerId}":`, err.message);
+    }
+  }
+
+  // ================= ⚡ DOBLE RESPALDO SIMULTÁNEO =================
   /**
-   * Re-sincroniza toda la data desde Supabase para el streamer actual.
-   * Llamar después de cambiar el streamer_id (ej: después de autenticación Twitch).
+   * Envía la información a Supabase AND MongoDB al mismo tiempo en paralelo.
+   */
+  async syncToCloud(key, value) {
+    const promises = [];
+    if (this.supabase) {
+      promises.push(this.syncToSupabase(key, value));
+    }
+    if (this.isMongoReady && this.mongoDb) {
+      promises.push(this.syncToMongoDB(key, value));
+    }
+    await Promise.allSettled(promises);
+  }
+
+  /**
+   * Re-sincroniza toda la data desde ambas nubes para el streamer actual.
    */
   async resyncForStreamer(streamerId) {
     this.setStreamerId(streamerId);
-    await this.syncFromSupabase();
+    await Promise.allSettled([
+      this.syncFromSupabase(),
+      this.syncFromMongoDB()
+    ]);
   }
 
+  /**
+   * Devuelve el estado de conexión del doble respaldo.
+   */
+  getBackupStatus() {
+    return {
+      dualBackupEnabled: true,
+      supabase: {
+        configured: Boolean(process.env.SUPABASE_URL),
+        connected: this.isSupabaseReady,
+        name: 'Supabase PostgreSQL'
+      },
+      mongodb: {
+        configured: Boolean(process.env.MONGODB_URI || true),
+        connected: this.isMongoReady,
+        name: 'MongoDB Atlas'
+      },
+      local: {
+        ready: true,
+        name: 'Cache Local JSON'
+      },
+      streamerId: this.getStreamerId(),
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  // ================= GETTERS Y SETTERS =================
   getConfig() {
     const cfg = readJSON('config.json', DEFAULT_CONFIG);
     let changed = false;
@@ -455,7 +564,7 @@ class StorageService {
     };
     if (changed) {
       writeJSON('config.json', merged);
-      this.syncToSupabase('config', merged);
+      this.syncToCloud('config', merged);
     }
     return merged;
   }
@@ -468,7 +577,7 @@ class StorageService {
       widgetToken: newToken
     };
     writeJSON('config.json', cfg);
-    this.syncToSupabase('config', cfg);
+    this.syncToCloud('config', cfg);
     return newToken;
   }
 
@@ -485,7 +594,6 @@ class StorageService {
       security: { ...current.security, ...(newConfig.security || {}) }
     };
 
-    // Actualizar streamer_id cache si cambió el canal de Twitch
     if (newConfig.twitch) {
       if (newConfig.twitch.channel) {
         const newChannel = newConfig.twitch.channel.toLowerCase().replace(/^#/, '').trim();
@@ -498,7 +606,7 @@ class StorageService {
     }
 
     writeJSON('config.json', merged);
-    this.syncToSupabase('config', merged);
+    this.syncToCloud('config', merged);
     return merged;
   }
 
@@ -508,7 +616,7 @@ class StorageService {
 
   saveCommands(commands) {
     writeJSON('commands.json', commands);
-    this.syncToSupabase('commands', commands);
+    this.syncToCloud('commands', commands);
     return commands;
   }
 
@@ -539,7 +647,7 @@ class StorageService {
       });
     }
     writeJSON('alerts.json', merged);
-    this.syncToSupabase('alerts', merged);
+    this.syncToCloud('alerts', merged);
     return merged;
   }
 
@@ -549,7 +657,7 @@ class StorageService {
 
   saveRewards(rewards) {
     writeJSON('channel_points.json', rewards || []);
-    this.syncToSupabase('channel_points', rewards || []);
+    this.syncToCloud('channel_points', rewards || []);
     return rewards || [];
   }
 
@@ -558,7 +666,6 @@ class StorageService {
     if (Array.isArray(goals)) {
       return goals;
     }
-    // Si goals.json aún no existe, leer de config.json o retornar array vacío
     const cfg = readJSON('config.json', DEFAULT_CONFIG);
     if (Array.isArray(cfg.goals)) {
       writeJSON('goals.json', cfg.goals);
@@ -570,7 +677,7 @@ class StorageService {
   saveGoals(goals) {
     const list = Array.isArray(goals) ? goals : [];
     writeJSON('goals.json', list);
-    this.syncToSupabase('goals', list);
+    this.syncToCloud('goals', list);
     return list;
   }
 
@@ -581,7 +688,7 @@ class StorageService {
   saveCustomSounds(sounds) {
     writeJSON('custom_sounds.json', sounds || []);
     this.restoreAudioFiles(sounds);
-    this.syncToSupabase('custom_sounds', sounds || []);
+    this.syncToCloud('custom_sounds', sounds || []);
     return sounds || [];
   }
 
@@ -589,16 +696,28 @@ class StorageService {
     return readJSON('users.json', []);
   }
 
-  registerUser(email, password) {
+  async registerUser(email, password) {
     if (!email || !password) {
       throw new Error('Correo y contraseña son obligatorios.');
     }
     const cleanEmail = email.trim().toLowerCase();
     const users = this.getUsers();
-    const existing = users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    // 1. Verificar existencia local
+    let existing = users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    // 2. Verificar existencia en MongoDB
+    if (!existing && this.isMongoReady && this.mongoDb) {
+      try {
+        const mongoUser = await this.mongoDb.collection('users').findOne({ email: cleanEmail });
+        if (mongoUser) existing = mongoUser;
+      } catch (e) { }
+    }
+
     if (existing) {
       throw new Error('Ya existe una cuenta registrada con este correo electrónico.');
     }
+
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     const newUser = {
       id: 'usr_' + crypto.randomBytes(8).toString('hex'),
@@ -607,19 +726,66 @@ class StorageService {
       passwordHash: hash,
       createdAt: new Date().toISOString()
     };
+
+    // Respaldo Local
     users.push(newUser);
     writeJSON('users.json', users);
+
+    // Respaldo MongoDB Atlas
+    if (this.isMongoReady && this.mongoDb) {
+      try {
+        await this.mongoDb.collection('users').updateOne(
+          { email: cleanEmail },
+          { $set: newUser },
+          { upsert: true }
+        );
+        console.log(`🍃 [MongoDB Cloud] Usuario "${cleanEmail}" registrado y respaldado.`);
+      } catch (e) {
+        console.warn('⚠️ [MongoDB Cloud] Error al guardar usuario:', e.message);
+      }
+    }
+
+    // Respaldo Supabase
+    if (this.supabase) {
+      try {
+        await this.supabase.from('orbibot_users').upsert({
+          id: newUser.id,
+          email: cleanEmail,
+          username: newUser.username,
+          password_hash: hash,
+          created_at: newUser.createdAt
+        }, { onConflict: 'email' });
+      } catch (e) { }
+    }
+
     return { id: newUser.id, email: newUser.email, username: newUser.username };
   }
 
-  loginUser(email, password) {
+  async loginUser(email, password) {
     if (!email || !password) {
       throw new Error('Correo y contraseña son obligatorios.');
     }
     const cleanEmail = email.trim().toLowerCase();
-    const users = this.getUsers();
     const hash = crypto.createHash('sha256').update(password).digest('hex');
-    const user = users.find(u => u.email.toLowerCase() === cleanEmail && u.passwordHash === hash);
+
+    const users = this.getUsers();
+    let user = users.find(u => u.email.toLowerCase() === cleanEmail && u.passwordHash === hash);
+
+    // Si no está en el JSON local, consultar MongoDB Atlas
+    if (!user && this.isMongoReady && this.mongoDb) {
+      try {
+        const mongoUser = await this.mongoDb.collection('users').findOne({ email: cleanEmail, passwordHash: hash });
+        if (mongoUser) {
+          user = mongoUser;
+          // Guardar en copia local
+          if (!users.some(u => u.email.toLowerCase() === cleanEmail)) {
+            users.push(mongoUser);
+            writeJSON('users.json', users);
+          }
+        }
+      } catch (e) { }
+    }
+
     if (!user) {
       throw new Error('Credenciales inválidas. Por favor verifica tu correo y contraseña.');
     }
@@ -628,4 +794,3 @@ class StorageService {
 }
 
 module.exports = new StorageService();
-

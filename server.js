@@ -120,8 +120,28 @@ app.get('/api/status', (req, res) => {
     },
     songRequest: songRequest.getState(),
     config: storage.getConfig(),
-    activeClients: clients.size
+    activeClients: clients.size,
+    backup: storage.getBackupStatus()
   });
+});
+
+// Dual Cloud Database Backup Status & Sync Endpoints
+app.get('/api/backup/status', (req, res) => {
+  res.json(storage.getBackupStatus());
+});
+
+app.post('/api/backup/sync', async (req, res) => {
+  try {
+    const streamerId = req.body?.streamerId || storage.getStreamerId();
+    await storage.resyncForStreamer(streamerId);
+    res.json({
+      success: true,
+      message: 'Sincronización manual de doble respaldo completada.',
+      status: storage.getBackupStatus()
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // Config
@@ -165,17 +185,17 @@ app.post('/api/bot/disconnect', async (req, res) => {
   res.json(result);
 });
 
-// User Registration Endpoint
+// User Registration Endpoint (Doble Respaldo Supabase + MongoDB)
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Correo y contraseña son obligatorios.' });
     }
-    const user = storage.registerUser(email, password);
+    const user = await storage.registerUser(email, password);
     res.json({
       success: true,
-      message: 'Cuenta creada exitosamente. Ahora puedes iniciar sesión.',
+      message: 'Cuenta creada y respaldada en la nube exitosamente.',
       user
     });
   } catch (err) {
@@ -183,14 +203,14 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// User Login Endpoint
+// User Login Endpoint (Verificación en Doble Base de Datos)
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Correo y contraseña son obligatorios.' });
     }
-    const user = storage.loginUser(email, password);
+    const user = await storage.loginUser(email, password);
     res.json({
       success: true,
       message: 'Inicio de sesión exitoso.',
