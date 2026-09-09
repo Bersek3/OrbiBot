@@ -24,8 +24,11 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Smart Media Handler: on-the-fly base64 restore & safe audio fallback
-app.get('/assets/sounds/:file(*)', (req, res, next) => {
-  const relPath = req.params.file;
+app.use('/assets/sounds', (req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const relPath = (req.path || '').replace(/^\/+/, '');
+  if (!relPath) return next();
+
   const filePath = path.join(__dirname, 'public', 'assets', 'sounds', relPath);
   if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
     return res.sendFile(filePath);
@@ -33,7 +36,7 @@ app.get('/assets/sounds/:file(*)', (req, res, next) => {
 
   // 1. Si es un sonido custom, buscar su base64 en storage y restaurarlo al vuelo
   const baseName = path.basename(relPath).toLowerCase();
-  const customSounds = storage.getCustomSounds() || [];
+  const customSounds = (typeof storage.getCustomSounds === 'function' ? storage.getCustomSounds() : []) || [];
   const foundSound = customSounds.find(s => s && (s.name.toLowerCase() === baseName || s.name.toLowerCase() === baseName.replace(/_/g, ' ') || (s.url && s.url.toLowerCase().endsWith(baseName))));
 
   if (foundSound && (foundSound.data || foundSound.dataUrl)) {
@@ -68,8 +71,11 @@ app.get('/assets/sounds/:file(*)', (req, res, next) => {
   next();
 });
 
-app.get('/assets/images/:file(*)', (req, res, next) => {
-  const relPath = req.params.file;
+app.use('/assets/images', (req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const relPath = (req.path || '').replace(/^\/+/, '');
+  if (!relPath) return next();
+
   const filePath = path.join(__dirname, 'public', 'assets', 'images', relPath);
   if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
     return res.sendFile(filePath);
