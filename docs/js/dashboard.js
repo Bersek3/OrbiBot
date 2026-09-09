@@ -82,9 +82,11 @@ async function loadUserDataFromSupabase(userIdentifier) {
             });
           }
         }
-        if (item.key === 'commands' && item.value) {
-          localStorage.setItem('orbibot_commands', JSON.stringify(item.value));
-          renderCommands(item.value);
+        if (item.key === 'commands' && Array.isArray(item.value)) {
+          const isOldDemo = item.value.length === 4 && item.value.some(c => c.name === '!discord') && item.value.some(c => c.name === '!redes');
+          const cleanCmds = isOldDemo ? [] : item.value;
+          localStorage.setItem('orbibot_commands', JSON.stringify(cleanCmds));
+          renderCommands(cleanCmds);
         }
         if (item.key === 'channel_points' && item.value) {
           localStorage.setItem('orbibot_rewards', JSON.stringify(item.value));
@@ -3335,16 +3337,43 @@ function cancelEditCommand() {
 }
 
 async function deleteCommand(cmdId) {
-  const commands = await fetch('/api/commands').then(r => r.json());
+  let commands = [];
+  try {
+    commands = await fetch('/api/commands').then(r => r.json());
+  } catch(e) { }
+  if (!Array.isArray(commands)) {
+    commands = JSON.parse(localStorage.getItem('orbibot_commands') || '[]');
+  }
   const filtered = commands.filter(c => c.id !== cmdId);
-  const res = await fetch('/api/commands', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(filtered)
-  });
-  const data = await res.json();
-  renderCommands(data.commands);
-  showToast('Comando eliminado');
+  try {
+    const res = await fetch('/api/commands', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(filtered)
+    });
+    const data = await res.json();
+    commands = data.commands || filtered;
+  } catch(e) {
+    commands = filtered;
+  }
+
+  localStorage.setItem('orbibot_commands', JSON.stringify(commands));
+
+  if (supabaseClient) {
+    try {
+      const session = getUserSession();
+      const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
+      await supabaseClient.from('orbibot_settings').upsert({
+        streamer_id: streamerId,
+        key: 'commands',
+        value: commands,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'streamer_id,key' });
+    } catch(e) {}
+  }
+
+  renderCommands(commands);
+  showToast('Comando eliminado', 'info');
 }
 
 // ================= REWARDS (PUNTOS DE CANAL) & SOUNDS =================
@@ -4893,13 +4922,33 @@ function setupEventListeners() {
       commands.push(newCmd);
     }
 
-    const res = await fetch('/api/commands', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(commands)
-    });
-    const data = await res.json();
-    renderCommands(data.commands);
+    let finalCommands = commands;
+    try {
+      const res = await fetch('/api/commands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(commands)
+      });
+      const data = await res.json();
+      if (data.commands) finalCommands = data.commands;
+    } catch (e) { }
+
+    localStorage.setItem('orbibot_commands', JSON.stringify(finalCommands));
+
+    if (supabaseClient) {
+      try {
+        const session = getUserSession();
+        const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
+        await supabaseClient.from('orbibot_settings').upsert({
+          streamer_id: streamerId,
+          key: 'commands',
+          value: finalCommands,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'streamer_id,key' });
+      } catch (e) { }
+    }
+
+    renderCommands(finalCommands);
     showToast(`Comando ${formattedName} guardado con éxito`, 'success');
     cancelEditCommand();
   });

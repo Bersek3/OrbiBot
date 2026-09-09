@@ -1,17 +1,16 @@
 {
-  "tts": {
-    "rate": 1,
-    "pitch": 1,
-    "voice": "es_mx_mia",
-    "engine": "streamelements",
-    "volume": 90,
-    "enabled": true,
-    "minBits": 50,
-    "maxLength": 250,
-    "bannedWords": [],
-    "chatCommand": "!tts",
-    "allowChatCommand": true,
-    "channelPointsRewardName": "TTS"
+  "security": {
+    "widgetToken": "sec_cb04c456356689d198f80b1d3c9d86ff"
+  },
+  "twitch": {
+    "channel": "bersek___",
+    "botUsername": "bersek___",
+    "oauthToken": "jutbd9jjk91qw965w4scfpx5a7ondj",
+    "clientId": "yw1vr664ichms8an2x5lhji58v7ozk",
+    "connected": true,
+    "userId": "226055830",
+    "displayName": "Bersek___",
+    "profileImage": "https://static-cdn.jtvnw.net/jtv_user_pictures/92a6561b-8e64-4f5f-a5fe-af7782347288-profile_image-300x300.jpeg"
   },
   "kick": {
     "userId": "2984464",
@@ -23,48 +22,34 @@
     "refreshToken": "ZDEYY2Q4OWITZTC4ZS01NTU2LWFJN2ETMDJMMZY4NJI4ZJC3",
     "profile_picture": "https://files.kick.com/images/user/2984464/profile_image/conversion/8b4e7fba-64d9-469b-b1eb-da87178f4fab-medium.webp"
   },
-  "goals": {
-    "bits": {
-      "color": "#f5a623",
-      "title": "Meta de Bits",
-      "target": 5000,
-      "current": 1500
-    },
-    "subs": {
-      "color": "#9146ff",
-      "title": "Meta de Suscriptores",
-      "target": 50,
-      "current": 12
-    },
-    "followers": {
-      "color": "#00f2fe",
-      "title": "Meta de Seguidores",
-      "target": 300,
-      "current": 185
-    }
-  },
-  "twitch": {
-    "userId": "226055830",
-    "channel": "bersek___",
-    "clientId": "yw1vr664ichms8an2x5lhji58v7ozk",
-    "connected": true,
-    "oauthToken": "43jh824qaqogjil3y12390isywc086",
-    "botUsername": "bersek___",
-    "displayName": "Bersek___",
-    "profileImage": "https://static-cdn.jtvnw.net/jtv_user_pictures/92a6561b-8e64-4f5f-a5fe-af7782347288-profile_image-300x300.jpeg"
-  },
-  "security": {
-    "widgetToken": "sec_cb04c456356689d198f80b1d3c9d86ff"
+  "chatPlatforms": {
+    "kick": true,
+    "twitch": true
   },
   "songRequest": {
     "prefix": "!sr",
-    "volume": 75,
     "enabled": true,
-    "autoplay": true,
-    "userLevel": "all",
+    "maxDurationMinutes": 8,
     "maxPerUser": 5,
-    "maxDurationMinutes": 8
+    "userLevel": "all",
+    "volume": 75,
+    "autoplay": true
   },
+  "tts": {
+    "enabled": true,
+    "engine": "streamelements",
+    "voice": "es_mx_mia",
+    "volume": 90,
+    "rate": 1,
+    "pitch": 1,
+    "minBits": 50,
+    "allowChatCommand": true,
+    "chatCommand": "!tts",
+    "bannedWords": [],
+    "maxLength": 250,
+    "channelPointsRewardName": "TTS"
+  },
+  "goals": {},
   "widgetStyles": {
     "alerts": {
       "images": {
@@ -96,9 +81,5 @@
       "generatedCSS": "/* OrbiBot Custom Styles - Alert Box */\n.alert-card {\n  font-family: 'Outfit', sans-serif !important;\n  background: rgba(11,14,20,0.88) !important;\n  border-radius: 24px !important;\n  border-color: #9146ff !important;\n  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px #9146ff50 !important;\n}\n.alert-title {\n  font-family: 'Outfit', sans-serif !important;\n  color: #ffffff !important;\n  font-size: 32px !important;\n}\n.alert-message {\n  font-family: 'Outfit', sans-serif !important;\n  color: #cbd5e1 !important;\n  font-size: 20px !important;\n}\n.alert-badge {\n  font-family: 'Outfit', sans-serif !important;\n  background: linear-gradient(135deg, #9146ff, #00f2fe) !important;\n}\n.alert-media {\n  max-height: 119px !important;\n}\n",
       "messageColor": "#cbd5e1"
     }
-  },
-  "chatPlatforms": {
-    "kick": true,
-    "twitch": true
   }
 }
