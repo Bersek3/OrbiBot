@@ -294,7 +294,11 @@ async function signInWithGoogle() {
     const { data, error } = await supabaseClient.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectUrl
+        redirectTo: redirectUrl,
+        queryParams: {
+          prompt: 'select_account',
+          access_type: 'offline'
+        }
       }
     });
 
@@ -522,7 +526,7 @@ async function handleAuthLoginSubmit(event) {
 async function handleAuthLogout() {
   if (supabaseClient) {
     try {
-      await supabaseClient.auth.signOut({ scope: 'local' });
+      await supabaseClient.auth.signOut();
     } catch (e) {
       console.warn('Error signing out of Supabase:', e);
     }
@@ -533,10 +537,11 @@ async function handleAuthLogout() {
   try {
     localStorage.removeItem('orbibot_user_session');
     Object.keys(localStorage).forEach(k => {
-      if (k.startsWith('sb-') && k.endsWith('-auth-token')) {
+      if (k.startsWith('sb-') || k.includes('supabase.auth.token')) {
         localStorage.removeItem(k);
       }
     });
+    sessionStorage.clear();
   } catch (e) { }
 
   showToast('Has cerrado tu sesión de OrbyxBot Cloud.', 'info');
