@@ -1,1 +1,14 @@
-null
+[
+  {
+    "id": "goal_1788923778947_clff2",
+    "title": "NUEVO SETUP",
+    "type": "custom",
+    "current": 0,
+    "target": 50,
+    "color": "#9146ff",
+    "color2": "#00f2fe",
+    "enabled": true,
+    "createdAt": "2026-09-09T03:16:18.947Z",
+    "updatedAt": "2026-09-09T03:16:36.960Z"
+  }
+]

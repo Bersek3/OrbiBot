@@ -14,5 +14,13 @@
     "action": "song_request",
     "soundUrl": null,
     "enabled": true
+  },
+  {
+    "id": "reward-1788923837947",
+    "rewardId": "b298a7ca-6c01-477a-80c2-ecfc60b8a483",
+    "rewardName": "TTS",
+    "action": "tts",
+    "soundUrl": null,
+    "enabled": true
   }
 ]

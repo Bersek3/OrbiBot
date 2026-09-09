@@ -13,18 +13,18 @@
     "profileImage": "https://static-cdn.jtvnw.net/jtv_user_pictures/92a6561b-8e64-4f5f-a5fe-af7782347288-profile_image-300x300.jpeg"
   },
   "kick": {
-    "userId": "2984464",
     "channel": "bersek",
-    "clientId": "01M0VT0JC58YQEVGRHM8JFXQX3",
     "username": "Bersek",
-    "connected": true,
+    "profile_picture": "https://files.kick.com/images/user/2984464/profile_image/conversion/8b4e7fba-64d9-469b-b1eb-da87178f4fab-medium.webp",
+    "userId": "2984464",
     "accessToken": "MTI2OTLJZTUTNZRHNY0ZMTY4LTG5NTCTMTHIOTLMZJU4ZWU2",
     "refreshToken": "ZDEYY2Q4OWITZTC4ZS01NTU2LWFJN2ETMDJMMZY4NJI4ZJC3",
-    "profile_picture": "https://files.kick.com/images/user/2984464/profile_image/conversion/8b4e7fba-64d9-469b-b1eb-da87178f4fab-medium.webp"
+    "clientId": "01M0VT0JC58YQEVGRHM8JFXQX3",
+    "connected": true
   },
   "chatPlatforms": {
-    "kick": true,
-    "twitch": true
+    "twitch": true,
+    "kick": true
   },
   "songRequest": {
     "prefix": "!sr",
@@ -49,37 +49,50 @@
     "maxLength": 250,
     "channelPointsRewardName": "TTS"
   },
-  "goals": {},
+  "goals": [
+    {
+      "id": "goal_1788923778947_clff2",
+      "title": "NUEVO SETUP",
+      "type": "custom",
+      "current": 0,
+      "target": 50,
+      "color": "#9146ff",
+      "color2": "#00f2fe",
+      "enabled": true,
+      "createdAt": "2026-09-09T03:16:18.947Z",
+      "updatedAt": "2026-09-09T03:16:36.960Z"
+    }
+  ],
   "widgetStyles": {
     "alerts": {
+      "imageSize": 119,
+      "fontFamily": "'Outfit', sans-serif",
+      "bgColor": "#0b0e14",
+      "bgOpacity": 88,
+      "titleColor": "#ffffff",
+      "messageColor": "#cbd5e1",
+      "accentColor": "#9146ff",
+      "titleSize": 32,
+      "messageSize": 20,
+      "borderRadius": 24,
+      "customCSS": "",
+      "customJS": "",
+      "generatedCSS": "/* OrbiBot Custom Styles - Alert Box */\n.alert-card {\n  font-family: 'Outfit', sans-serif !important;\n  background: rgba(11,14,20,0.88) !important;\n  border-radius: 24px !important;\n  border-color: #9146ff !important;\n  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px #9146ff50 !important;\n}\n.alert-title {\n  font-family: 'Outfit', sans-serif !important;\n  color: #ffffff !important;\n  font-size: 32px !important;\n}\n.alert-message {\n  font-family: 'Outfit', sans-serif !important;\n  color: #cbd5e1 !important;\n  font-size: 20px !important;\n}\n.alert-badge {\n  font-family: 'Outfit', sans-serif !important;\n  background: linear-gradient(135deg, #9146ff, #00f2fe) !important;\n}\n.alert-media {\n  max-height: 119px !important;\n}\n",
+      "finalCSS": "/* OrbiBot Custom Styles - Alert Box */\n.alert-card {\n  font-family: 'Outfit', sans-serif !important;\n  background: rgba(11,14,20,0.88) !important;\n  border-radius: 24px !important;\n  border-color: #9146ff !important;\n  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px #9146ff50 !important;\n}\n.alert-title {\n  font-family: 'Outfit', sans-serif !important;\n  color: #ffffff !important;\n  font-size: 32px !important;\n}\n.alert-message {\n  font-family: 'Outfit', sans-serif !important;\n  color: #cbd5e1 !important;\n  font-size: 20px !important;\n}\n.alert-badge {\n  font-family: 'Outfit', sans-serif !important;\n  background: linear-gradient(135deg, #9146ff, #00f2fe) !important;\n}\n.alert-media {\n  max-height: 119px !important;\n}\n",
       "images": {
-        "sub": "https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif",
+        "follower": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif",
+        "sub": "/assets/images/custom/787923542_18632378995035619_1108831098821865741_n.jpg",
         "bits": "https://media.giphy.com/media/26FPJGjhefSJuaRhu/giphy.gif",
         "raid": "https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif",
-        "follower": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif",
         "channel_points": "https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif"
       },
       "sounds": {
+        "follower": "/assets/sounds/custom/alo-sinaka.mp3",
         "sub": "/assets/sounds/sub.mp3",
         "bits": "/assets/sounds/bits.mp3",
         "raid": "/assets/sounds/raid.mp3",
-        "follower": "/assets/sounds/custom/alo-sinaka.mp3",
         "channel_points": "/assets/sounds/points.mp3"
-      },
-      "bgColor": "#0b0e14",
-      "customJS": "",
-      "finalCSS": "/* OrbiBot Custom Styles - Alert Box */\n.alert-card {\n  font-family: 'Outfit', sans-serif !important;\n  background: rgba(11,14,20,0.88) !important;\n  border-radius: 24px !important;\n  border-color: #9146ff !important;\n  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px #9146ff50 !important;\n}\n.alert-title {\n  font-family: 'Outfit', sans-serif !important;\n  color: #ffffff !important;\n  font-size: 32px !important;\n}\n.alert-message {\n  font-family: 'Outfit', sans-serif !important;\n  color: #cbd5e1 !important;\n  font-size: 20px !important;\n}\n.alert-badge {\n  font-family: 'Outfit', sans-serif !important;\n  background: linear-gradient(135deg, #9146ff, #00f2fe) !important;\n}\n.alert-media {\n  max-height: 119px !important;\n}\n",
-      "bgOpacity": 88,
-      "customCSS": "",
-      "imageSize": 119,
-      "titleSize": 32,
-      "fontFamily": "'Outfit', sans-serif",
-      "titleColor": "#ffffff",
-      "accentColor": "#9146ff",
-      "messageSize": 20,
-      "borderRadius": 24,
-      "generatedCSS": "/* OrbiBot Custom Styles - Alert Box */\n.alert-card {\n  font-family: 'Outfit', sans-serif !important;\n  background: rgba(11,14,20,0.88) !important;\n  border-radius: 24px !important;\n  border-color: #9146ff !important;\n  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px #9146ff50 !important;\n}\n.alert-title {\n  font-family: 'Outfit', sans-serif !important;\n  color: #ffffff !important;\n  font-size: 32px !important;\n}\n.alert-message {\n  font-family: 'Outfit', sans-serif !important;\n  color: #cbd5e1 !important;\n  font-size: 20px !important;\n}\n.alert-badge {\n  font-family: 'Outfit', sans-serif !important;\n  background: linear-gradient(135deg, #9146ff, #00f2fe) !important;\n}\n.alert-media {\n  max-height: 119px !important;\n}\n",
-      "messageColor": "#cbd5e1"
+      }
     }
   }
 }

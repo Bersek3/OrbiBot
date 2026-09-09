@@ -164,6 +164,9 @@ class StorageService {
     // Inicializar ambas bases de datos para Doble Respaldo
     this.initSupabase();
     this.initMongoDB();
+
+    // Iniciar sistema Heartbeat Keep-Alive Anti-Pausa 24/7
+    this.startDatabaseKeepAliveHeartbeat();
   }
 
   /**
@@ -624,11 +627,112 @@ class StorageService {
   }
 
   /**
-   * Devuelve el estado de conexión del doble respaldo.
+   * Inicia el ciclo automático de Heartbeat para evitar que Supabase y MongoDB Atlas
+   * se pausen por inactividad (Anti-Pause 24/7).
+   */
+  startDatabaseKeepAliveHeartbeat() {
+    if (this._dbHeartbeatTimer) clearInterval(this._dbHeartbeatTimer);
+
+    // Heartbeat cada 5 minutos (300,000 ms)
+    const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+
+    this._dbHeartbeatTimer = setInterval(async () => {
+      try {
+        await this.pingDatabases();
+      } catch (err) {
+        console.warn('⚠️ [Keep-Alive DB] Error en ciclo de heartbeat:', err.message);
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+
+    // Ejecutar el primer ping tras 10 segundos del arranque
+    setTimeout(() => {
+      this.pingDatabases().catch(() => {});
+    }, 10000);
+  }
+
+  /**
+   * Envía una consulta de actividad y timestamp a Supabase y MongoDB Atlas
+   * para mantener activos los pools de conexión y evitar suspensiones de proyecto.
+   */
+  async pingDatabases() {
+    const results = {
+      timestamp: new Date().toISOString(),
+      supabase: { status: 'idle', latencyMs: 0 },
+      mongodb: { status: 'idle', latencyMs: 0 }
+    };
+
+    const heartbeatPayload = {
+      service: 'OrbiBot Dual Database KeepAlive',
+      status: 'active',
+      last_activity: new Date().toISOString(),
+      streamer_id: this.getStreamerId()
+    };
+
+    // 1. Ping y actualización en Supabase PostgreSQL
+    if (this.supabase) {
+      const t0 = Date.now();
+      try {
+        const { error } = await this.supabase
+          .from('orbibot_settings')
+          .upsert({
+            streamer_id: 'system',
+            key: '_heartbeat',
+            value: heartbeatPayload,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'streamer_id,key' });
+
+        if (!error) {
+          this.isSupabaseReady = true;
+          results.supabase = { status: 'active', latencyMs: Date.now() - t0 };
+        } else {
+          await this.supabase.from('orbibot_settings').select('key').limit(1);
+          this.isSupabaseReady = true;
+          results.supabase = { status: 'active_read', latencyMs: Date.now() - t0 };
+        }
+      } catch (sbErr) {
+        results.supabase = { status: 'error', error: sbErr.message };
+      }
+    }
+
+    // 2. Ping y comando nativo en MongoDB Atlas
+    if (this.mongoDb) {
+      const t0 = Date.now();
+      try {
+        await this.mongoDb.command({ ping: 1 });
+        await this.mongoDb.collection('settings').updateOne(
+          { streamer_id: 'system', key: '_heartbeat' },
+          {
+            $set: {
+              streamer_id: 'system',
+              key: '_heartbeat',
+              value: heartbeatPayload,
+              updated_at: new Date().toISOString()
+            }
+          },
+          { upsert: true }
+        );
+        this.isMongoReady = true;
+        results.mongodb = { status: 'active', latencyMs: Date.now() - t0 };
+      } catch (mgErr) {
+        results.mongodb = { status: 'error', error: mgErr.message };
+        if (this.mongoClient) {
+          try { this.initMongoDB(); } catch (e) { }
+        }
+      }
+    }
+
+    console.log(`💓 [Keep-Alive DB] Heartbeat activo: Supabase (${results.supabase.status}) | MongoDB (${results.mongodb.status}) - ${results.timestamp}`);
+    return results;
+  }
+
+  /**
+   * Devuelve el estado de conexión del doble respaldo y su actividad.
    */
   getBackupStatus() {
     return {
       dualBackupEnabled: true,
+      keepAliveActive: true,
+      heartbeatInterval: '5m',
       supabase: {
         configured: Boolean(process.env.SUPABASE_URL),
         connected: this.isSupabaseReady,

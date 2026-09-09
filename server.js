@@ -104,9 +104,26 @@ app.use('/assets/images', (req, res, next) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Render Health Check
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', uptime: process.uptime(), botStatus: twitchBot.status });
+// Render Health Check & Dual Database Keep-Alive Heartbeat (Anti-Pausa 24/7)
+app.get(['/health', '/api/heartbeat', '/api/keepalive'], async (req, res) => {
+  const shouldPingDb = req.query.db === '1' || req.path.includes('heartbeat') || req.path.includes('keepalive');
+  let dbResult = null;
+  if (shouldPingDb && typeof storage.pingDatabases === 'function') {
+    try {
+      dbResult = await storage.pingDatabases();
+    } catch (e) {
+      dbResult = { error: e.message };
+    }
+  }
+
+  res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    botStatus: twitchBot.status,
+    timestamp: new Date().toISOString(),
+    backup: typeof storage.getBackupStatus === 'function' ? storage.getBackupStatus() : null,
+    dbHeartbeat: dbResult
+  });
 });
 
 // Set of connected WebSocket clients
@@ -1185,10 +1202,10 @@ server.listen(PORT, () => {
     console.log(`⚡ [Keep-Alive] Anti-sleep activado para: ${keepAliveUrl} (Intervalo: 10m)`);
     setInterval(async () => {
       try {
-        const pingEndpoint = `${keepAliveUrl.replace(/\/$/, '')}/health`;
+        const pingEndpoint = `${keepAliveUrl.replace(/\/$/, '')}/health?db=1`;
         const res = await fetch(pingEndpoint);
         if (res.ok) {
-          console.log(`⚡ [Keep-Alive] Ping exitoso a ${pingEndpoint} - [${new Date().toISOString()}]`);
+          console.log(`⚡ [Keep-Alive Server & DB] Ping exitoso a ${pingEndpoint} - [${new Date().toISOString()}]`);
         }
       } catch (err) {
         console.warn(`⚠️ [Keep-Alive] Error en auto-ping:`, err.message);
