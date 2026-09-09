@@ -378,6 +378,9 @@
                 const matched = Array.isArray(rewards) ? rewards.find(r => r.rewardId === customRewardId || r.id === customRewardId) : null;
                 if (matched && matched.action === 'sound') {
                   showAlert({ type: 'sound', user: username, soundUrl: matched.soundUrl, reward: matched.rewardName, message });
+                } else if (matched && matched.action === 'tts') {
+                  // No mostrar widget de alerta visual para canjes de TTS (solo habla el overlay de TTS)
+                  return;
                 } else {
                   showAlert({ type: 'channel_points', user: username, reward: matched?.rewardName || 'Puntos de Canal', message });
                 }

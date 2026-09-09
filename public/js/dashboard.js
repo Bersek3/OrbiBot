@@ -1676,7 +1676,9 @@ async function handleBrowserChannelPointRedemption(customRewardId, username, mes
         return;
       }
       const voice = ttsConfig.voice || 'es_mx_mia';
-      const textToSpeak = message || `¡${username} canjeó ${matchedReward.rewardName}!`;
+      const textToSpeak = (message || '').trim();
+      if (!textToSpeak) return;
+
       const ttsData = {
         id: 'tts_' + Date.now(),
         user: username,
@@ -1687,12 +1689,7 @@ async function handleBrowserChannelPointRedemption(customRewardId, username, mes
         timestamp: Date.now()
       };
       broadcastEvent('tts', ttsData);
-      broadcastEvent('alert', {
-        type: 'channel_points',
-        user: username,
-        reward: matchedReward.rewardName || 'Voz TTS',
-        message
-      });
+      // No emitir alerta visual para TTS (solo lee el mensaje)
       return;
     } else if (matchedReward.action === 'song_request') {
       if (message) {
@@ -4238,18 +4235,14 @@ async function testReward(rewardId) {
   showToast(`Probando canje: ${r.rewardName}...`, 'info');
 
   if (r.action === 'tts') {
+    const testText = '¡Hola streamer! Este es un mensaje de prueba de voz TTS.';
     broadcastEvent('tts', {
       user: 'VisorDePrueba',
-      text: `¡Hola streamer! Este es un mensaje de prueba con puntos de canal para ${r.rewardName}`,
+      text: testText,
       source: 'channel_points',
-      audioUrl: `https://api.streamelements.com/kappa/v2/speech?voice=Mia&text=${encodeURIComponent(`¡Hola streamer! Este es un mensaje de prueba con puntos de canal para ${r.rewardName}`)}`
+      audioUrl: `https://api.streamelements.com/kappa/v2/speech?voice=Mia&text=${encodeURIComponent(testText)}`
     });
-    broadcastEvent('alert', {
-      type: 'channel_points',
-      user: 'VisorDePrueba',
-      reward: r.rewardName,
-      message: '¡Probando canje de TTS con puntos!'
-    });
+    // No emitir alerta visual para TTS
   } else if (r.action === 'song_request') {
     await fetch('/api/sr/add', {
       method: 'POST',

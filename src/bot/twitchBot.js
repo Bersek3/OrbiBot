@@ -480,17 +480,15 @@ class TwitchBot {
         });
         return;
       } else if (matchedReward.action === 'tts') {
-        ttsService.processRequest({
-          user: username,
-          text: message || `Canje de ${matchedReward.rewardName}`,
-          source: 'channel_points'
-        });
-        this.broadcast('alert', {
-          type: 'channel_points',
-          user: username,
-          reward: matchedReward.rewardName || 'Voz TTS',
-          message
-        });
+        const ttsText = (message || '').trim();
+        if (ttsText) {
+          ttsService.processRequest({
+            user: username,
+            text: ttsText,
+            source: 'channel_points'
+          });
+        }
+        // No emitir alerta visual de widget para canjes de TTS: solo lee el mensaje
         return;
       } else if (matchedReward.action === 'song_request') {
         const srCfg = storage.getConfig().songRequest;
