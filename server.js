@@ -22,6 +22,80 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Smart Media Handler: on-the-fly base64 restore & safe audio fallback
+app.get('/assets/sounds/:file(*)', (req, res, next) => {
+  const relPath = req.params.file;
+  const filePath = path.join(__dirname, 'public', 'assets', 'sounds', relPath);
+  if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
+    return res.sendFile(filePath);
+  }
+
+  // 1. Si es un sonido custom, buscar su base64 en storage y restaurarlo al vuelo
+  const baseName = path.basename(relPath).toLowerCase();
+  const customSounds = storage.getCustomSounds() || [];
+  const foundSound = customSounds.find(s => s && (s.name.toLowerCase() === baseName || s.name.toLowerCase() === baseName.replace(/_/g, ' ') || (s.url && s.url.toLowerCase().endsWith(baseName))));
+
+  if (foundSound && (foundSound.data || foundSound.dataUrl)) {
+    try {
+      const raw = (foundSound.data || foundSound.dataUrl).replace(/^data:[^;]+;base64,/, '');
+      const buf = Buffer.from(raw, 'base64');
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(filePath, buf);
+      const ext = path.extname(baseName).toLowerCase();
+      const mimeMap = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.aac': 'audio/aac' };
+      res.setHeader('Content-Type', mimeMap[ext] || 'audio/mpeg');
+      return res.send(buf);
+    } catch (e) { }
+  }
+
+  // 2. Si el archivo no existe en disco, responder con sonido seguro para evitar "Failed to load because no supported source was found"
+  const campanaPath = path.join(__dirname, 'public', 'assets', 'sounds', 'campana_alerta.wav');
+  const puntosPath = path.join(__dirname, 'public', 'assets', 'sounds', 'notificacion_puntos.wav');
+  const airhornPath = path.join(__dirname, 'public', 'assets', 'sounds', 'airhorn.mp3');
+
+  if (baseName.includes('raid') && fs.existsSync(airhornPath)) {
+    return res.sendFile(airhornPath);
+  }
+  if ((baseName.includes('punto') || baseName.includes('point') || baseName.includes('bits')) && fs.existsSync(puntosPath)) {
+    return res.sendFile(puntosPath);
+  }
+  if (fs.existsSync(campanaPath)) {
+    return res.sendFile(campanaPath);
+  }
+
+  next();
+});
+
+app.get('/assets/images/:file(*)', (req, res, next) => {
+  const relPath = req.params.file;
+  const filePath = path.join(__dirname, 'public', 'assets', 'images', relPath);
+  if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
+    return res.sendFile(filePath);
+  }
+
+  const baseName = path.basename(relPath).toLowerCase();
+  const customImages = typeof storage.getCustomImages === 'function' ? (storage.getCustomImages() || []) : [];
+  const foundImage = customImages.find(img => img && (img.name.toLowerCase() === baseName || (img.url && img.url.toLowerCase().endsWith(baseName))));
+
+  if (foundImage && (foundImage.data || foundImage.dataUrl)) {
+    try {
+      const raw = (foundImage.data || foundImage.dataUrl).replace(/^data:[^;]+;base64,/, '');
+      const buf = Buffer.from(raw, 'base64');
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(filePath, buf);
+      const ext = path.extname(baseName).toLowerCase();
+      const mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
+      res.setHeader('Content-Type', mimeMap[ext] || 'image/png');
+      return res.send(buf);
+    } catch (e) { }
+  }
+
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Render Health Check
@@ -722,17 +796,35 @@ app.post('/api/sounds/delete', (req, res) => {
 // Image files management (Custom GIFs, PNGs, WebPs for widgets & alerts)
 app.get('/api/images', (req, res) => {
   try {
+    const storedImages = (typeof storage.getCustomImages === 'function' ? storage.getCustomImages() : []) || [];
+    if (storedImages.length > 0 && typeof storage.restoreImageFiles === 'function') {
+      storage.restoreImageFiles(storedImages);
+    }
+
     const imagesDir = path.join(__dirname, 'public', 'assets', 'images', 'custom');
     if (!fs.existsSync(imagesDir)) {
       fs.mkdirSync(imagesDir, { recursive: true });
     }
-    const files = fs.readdirSync(imagesDir)
+    const fsFiles = fs.readdirSync(imagesDir)
       .filter(f => /\.(png|jpg|jpeg|gif|webp|svg|bmp)$/i.test(f))
       .map(f => ({
         name: f,
         url: `/assets/images/custom/${f}`
       }));
-    res.json(files);
+
+    const imageMap = new Map();
+    fsFiles.forEach(f => imageMap.set(f.name.toLowerCase(), f));
+    storedImages.forEach(img => {
+      if (img && img.name) {
+        imageMap.set(img.name.toLowerCase(), {
+          name: img.name,
+          url: img.url || `/assets/images/custom/${img.name}`,
+          data: img.data || img.dataUrl
+        });
+      }
+    });
+
+    res.json(Array.from(imageMap.values()));
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -765,9 +857,46 @@ app.post('/api/images/upload', (req, res) => {
     }
 
     const imageUrl = `/assets/images/custom/${cleanName}`;
+
+    // Persist in storage (MongoDB + Supabase + Local JSON)
+    if (typeof storage.saveCustomImages === 'function') {
+      let storedImages = storage.getCustomImages() || [];
+      const imageObj = { name: cleanName, url: imageUrl, data: data, dataUrl: data, createdAt: Date.now() };
+      const existingIdx = storedImages.findIndex(img => img.name.toLowerCase() === cleanName.toLowerCase());
+      if (existingIdx >= 0) {
+        storedImages[existingIdx] = imageObj;
+      } else {
+        storedImages.push(imageObj);
+      }
+      storage.saveCustomImages(storedImages);
+    }
+
     res.json({ success: true, name: cleanName, url: imageUrl });
   } catch (err) {
     console.error('Error al subir imagen:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/images/delete', (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ success: false, message: 'Nombre de archivo requerido.' });
+    const cleanName = path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
+    const imagePath = path.join(__dirname, 'public', 'assets', 'images', 'custom', cleanName);
+    const docsPath = path.join(__dirname, 'docs', 'assets', 'images', 'custom', cleanName);
+
+    if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
+    if (fs.existsSync(docsPath)) fs.unlinkSync(docsPath);
+
+    if (typeof storage.getCustomImages === 'function') {
+      let storedImages = storage.getCustomImages() || [];
+      storedImages = storedImages.filter(img => img.name.toLowerCase() !== cleanName.toLowerCase());
+      storage.saveCustomImages(storedImages);
+    }
+
+    res.json({ success: true, message: 'Imagen eliminada correctamente.' });
+  } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });

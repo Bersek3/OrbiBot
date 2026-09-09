@@ -159,11 +159,24 @@ class StorageService {
     this.isMongoReady = false;
 
     this._streamerId = null; // Cache del streamer_id activo
-    this.restoreAudioFiles(this.getCustomSounds());
+    this.restoreAllMediaFiles();
     
     // Inicializar ambas bases de datos para Doble Respaldo
     this.initSupabase();
     this.initMongoDB();
+  }
+
+  /**
+   * Restaura todos los archivos multimedia (audios e imágenes) en disco.
+   */
+  restoreAllMediaFiles() {
+    try {
+      this.restoreAudioFiles(this.getCustomSounds());
+      this.restoreImageFiles(this.getCustomImages());
+      this.restoreMediaFromAlertsAndRewards();
+    } catch (e) {
+      console.warn('⚠️ [Storage] Error al restaurar archivos multimedia:', e.message);
+    }
   }
 
   /**
@@ -185,7 +198,7 @@ class StorageService {
         if (!s || !s.name) return;
         const cleanName = path.basename(s.name).replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
         const rawData = s.data || s.dataUrl;
-        if (rawData && typeof rawData === 'string' && rawData.includes(';base64,')) {
+        if (rawData && typeof rawData === 'string' && (rawData.includes(';base64,') || rawData.startsWith('data:'))) {
           const base64Data = rawData.replace(/^data:[^;]+;base64,/, '');
           try {
             const buffer = Buffer.from(base64Data, 'base64');
@@ -208,6 +221,83 @@ class StorageService {
     } catch (err) {
       console.warn('⚠️ [Storage] Error en restoreAudioFiles:', err.message);
     }
+  }
+
+  /**
+   * Restaura archivos físicos de imagen en public/assets/images/custom/
+   */
+  restoreImageFiles(images) {
+    if (!Array.isArray(images) || images.length === 0) return;
+    const publicCustomDir = path.join(__dirname, '..', '..', 'public', 'assets', 'images', 'custom');
+    const docsCustomDir = path.join(__dirname, '..', '..', 'docs', 'assets', 'images', 'custom');
+
+    try {
+      if (!fs.existsSync(publicCustomDir)) fs.mkdirSync(publicCustomDir, { recursive: true });
+      if (fs.existsSync(path.join(__dirname, '..', '..', 'docs')) && !fs.existsSync(docsCustomDir)) {
+        fs.mkdirSync(docsCustomDir, { recursive: true });
+      }
+
+      images.forEach(img => {
+        if (!img || !img.name) return;
+        const cleanName = path.basename(img.name).replace(/[^a-zA-Z0-9._-]/g, '_').toLowerCase();
+        const rawData = img.data || img.dataUrl;
+        if (rawData && typeof rawData === 'string' && (rawData.includes(';base64,') || rawData.startsWith('data:'))) {
+          const base64Data = rawData.replace(/^data:[^;]+;base64,/, '');
+          try {
+            const buffer = Buffer.from(base64Data, 'base64');
+            const targetPublic = path.join(publicCustomDir, cleanName);
+            if (!fs.existsSync(targetPublic) || fs.statSync(targetPublic).size === 0) {
+              fs.writeFileSync(targetPublic, buffer);
+              console.log(`🖼️ [Storage] Imagen restaurada en disco: ${cleanName}`);
+            }
+            if (fs.existsSync(path.join(__dirname, '..', '..', 'docs'))) {
+              const targetDocs = path.join(docsCustomDir, cleanName);
+              if (!fs.existsSync(targetDocs) || fs.statSync(targetDocs).size === 0) {
+                fs.writeFileSync(targetDocs, buffer);
+              }
+            }
+          } catch (e) {
+            console.warn(`⚠️ [Storage] Error al restaurar imagen ${cleanName}:`, e.message);
+          }
+        }
+      });
+    } catch (err) {
+      console.warn('⚠️ [Storage] Error en restoreImageFiles:', err.message);
+    }
+  }
+
+  /**
+   * Extrae y restaura cualquier archivo con data base64 presente en alerts, rewards o widgetStyles
+   */
+  restoreMediaFromAlertsAndRewards() {
+    try {
+      // 1. Desde rewards (puntos de canal)
+      const rewards = this.getRewards();
+      if (Array.isArray(rewards)) {
+        rewards.forEach(r => {
+          if (r && r.soundUrl && typeof r.soundUrl === 'string' && r.soundUrl.startsWith('data:audio/')) {
+            const safeName = `reward_${r.id || 'snd'}.mp3`;
+            this.restoreAudioFiles([{ name: safeName, dataUrl: r.soundUrl }]);
+          }
+        });
+      }
+
+      // 2. Desde alerts
+      const alerts = this.getAlerts();
+      if (alerts && typeof alerts === 'object') {
+        Object.keys(alerts).forEach(k => {
+          const item = alerts[k];
+          if (item && item.sound && typeof item.sound === 'string' && item.sound.startsWith('data:audio/')) {
+            const safeName = `alert_${k}.mp3`;
+            this.restoreAudioFiles([{ name: safeName, dataUrl: item.sound }]);
+          }
+          if (item && item.image && typeof item.image === 'string' && item.image.startsWith('data:image/')) {
+            const safeName = `alert_${k}.gif`;
+            this.restoreImageFiles([{ name: safeName, dataUrl: item.image }]);
+          }
+        });
+      }
+    } catch (e) { }
   }
 
   /**
@@ -281,9 +371,12 @@ class StorageService {
           if (item.key === 'goals') writeJSON('goals.json', item.value);
           if (item.key === 'custom_sounds') {
             writeJSON('custom_sounds.json', item.value);
-            this.restoreAudioFiles(item.value);
+          }
+          if (item.key === 'custom_images') {
+            writeJSON('custom_images.json', item.value);
           }
         });
+        this.restoreAllMediaFiles();
       } else {
         this.isSupabaseReady = true;
         if (streamerId !== 'default') {
@@ -293,6 +386,8 @@ class StorageService {
         // Respaldar lo local en Supabase
         const sounds = this.getCustomSounds();
         if (sounds && sounds.length > 0) await this.syncToSupabase('custom_sounds', sounds);
+        const images = this.getCustomImages();
+        if (images && images.length > 0) await this.syncToSupabase('custom_images', images);
         const rwds = this.getRewards();
         if (rwds && rwds.length > 0) await this.syncToSupabase('channel_points', rwds);
         const goals = this.getGoals();
@@ -319,9 +414,12 @@ class StorageService {
           if (item.key === 'goals') writeJSON('goals.json', item.value);
           if (item.key === 'custom_sounds') {
             writeJSON('custom_sounds.json', item.value);
-            this.restoreAudioFiles(item.value);
+          }
+          if (item.key === 'custom_images') {
+            writeJSON('custom_images.json', item.value);
           }
         });
+        this.restoreAllMediaFiles();
       }
     } catch (err) { }
   }
@@ -436,14 +534,21 @@ class StorageService {
           if (item.key === 'goals') writeJSON('goals.json', item.value);
           if (item.key === 'custom_sounds') {
             writeJSON('custom_sounds.json', item.value);
-            this.restoreAudioFiles(item.value);
+          }
+          if (item.key === 'custom_images') {
+            writeJSON('custom_images.json', item.value);
           }
         });
+        this.restoreAllMediaFiles();
       } else {
         // Si MongoDB está vacío, respaldar lo actual local en MongoDB
         const currentCustomSounds = this.getCustomSounds();
         if (currentCustomSounds && currentCustomSounds.length > 0) {
           await this.syncToMongoDB('custom_sounds', currentCustomSounds);
+        }
+        const currentCustomImages = this.getCustomImages();
+        if (currentCustomImages && currentCustomImages.length > 0) {
+          await this.syncToMongoDB('custom_images', currentCustomImages);
         }
         const currentRewards = this.getRewards();
         if (currentRewards && currentRewards.length > 0) {
@@ -647,6 +752,7 @@ class StorageService {
       });
     }
     writeJSON('alerts.json', merged);
+    this.restoreMediaFromAlertsAndRewards();
     this.syncToCloud('alerts', merged);
     return merged;
   }
@@ -657,6 +763,7 @@ class StorageService {
 
   saveRewards(rewards) {
     writeJSON('channel_points.json', rewards || []);
+    this.restoreMediaFromAlertsAndRewards();
     this.syncToCloud('channel_points', rewards || []);
     return rewards || [];
   }
@@ -690,6 +797,17 @@ class StorageService {
     this.restoreAudioFiles(sounds);
     this.syncToCloud('custom_sounds', sounds || []);
     return sounds || [];
+  }
+
+  getCustomImages() {
+    return readJSON('custom_images.json', []);
+  }
+
+  saveCustomImages(images) {
+    writeJSON('custom_images.json', images || []);
+    this.restoreImageFiles(images);
+    this.syncToCloud('custom_images', images || []);
+    return images || [];
   }
 
   getUsers() {

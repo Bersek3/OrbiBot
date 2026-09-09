@@ -3811,26 +3811,26 @@ async function loadSounds() {
         `;
         return;
       }
-      sounds.forEach(s => {
-        const item = document.createElement('div');
-        item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 14px;';
-        item.innerHTML = `
-          <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
-            <span style="font-size: 18px;">🔊</span>
-            <span style="font-size: 13.5px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.name)}</span>
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn btn-secondary btn-sm" onclick="previewSound('${s.url}')" title="Escuchar sonido">▶️ Escuchar</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteCustomSound('${escapeHtml(s.name)}')" title="Eliminar sonido">🗑️</button>
-          </div>
-        `;
-        container.appendChild(item);
-      });
+        sounds.forEach(s => {
+          const item = document.createElement('div');
+          item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 14px;';
+          item.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+              <span style="font-size: 18px;">🔊</span>
+              <span style="font-size: 13.5px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.name)}</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-secondary btn-sm" onclick="previewSound('${s.url}', '${escapeHtml(s.name)}')" title="Escuchar sonido">▶️ Escuchar</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteCustomSound('${escapeHtml(s.name)}')" title="Eliminar sonido">🗑️</button>
+            </div>
+          `;
+          container.appendChild(item);
+        });
+      }
+    } catch (e) {
+      console.warn('Error loading sounds:', e);
     }
-  } catch (e) {
-    console.warn('Error loading sounds:', e);
   }
-}
 
 async function deleteCustomSound(name) {
   if (!confirm(`¿Estás seguro de eliminar el sonido "${name}"?`)) return;
@@ -3872,11 +3872,40 @@ async function deleteCustomSound(name) {
   }
 }
 
-function previewSound(url) {
+function previewSound(url, name) {
   try {
-    const a = new Audio(url);
-    a.play().catch(e => showToast('Error al reproducir audio: ' + e.message, 'error'));
-  } catch (e) { }
+    if (!url && !name) return;
+
+    let customSounds = [];
+    try {
+      customSounds = JSON.parse(localStorage.getItem('orbibot_custom_sounds') || '[]');
+    } catch (e) { }
+
+    const cleanUrl = url ? String(url).trim() : '';
+    const cleanName = name ? String(name).trim().toLowerCase() : (cleanUrl ? cleanUrl.split('/').pop().toLowerCase() : '');
+
+    const found = customSounds.find(s => {
+      if (!s) return false;
+      const sName = (s.name || '').toLowerCase();
+      const sUrl = (s.url || '').toLowerCase();
+      return (cleanName && (sName === cleanName || sUrl.endsWith(cleanName))) || (cleanUrl && (sUrl === cleanUrl.toLowerCase() || s.dataUrl === cleanUrl || s.data === cleanUrl));
+    });
+
+    const primarySrc = cleanUrl || found?.url || found?.dataUrl || found?.data || '/assets/sounds/campana_alerta.wav';
+    const fallbackSrc = found?.dataUrl || found?.data;
+
+    const a = new Audio(primarySrc);
+    a.play().catch(err => {
+      if (fallbackSrc && fallbackSrc !== primarySrc) {
+        const fallbackAudio = new Audio(fallbackSrc);
+        fallbackAudio.play().catch(() => playSynthesizedAlertChime('sound'));
+      } else {
+        playSynthesizedAlertChime('sound');
+      }
+    });
+  } catch (e) {
+    try { playSynthesizedAlertChime('sound'); } catch (err) { }
+  }
 }
 
 async function handleSoundFileUpload(input) {
@@ -5149,7 +5178,7 @@ function handleAlertFileUpload(input) {
       const dataUrl = e.target.result;
       let finalUrl = dataUrl;
 
-      // Intentar subir al servidor backend /api/images/upload
+      // 1. Subir al servidor backend /api/images/upload
       try {
         const res = await fetch('/api/images/upload', {
           method: 'POST',
@@ -5163,6 +5192,17 @@ function handleAlertFileUpload(input) {
       } catch (err) {
         console.warn('Backend image upload fallback to DataURL:', err);
       }
+
+      // 2. Guardar en orbibot_custom_images local
+      try {
+        let customImages = JSON.parse(localStorage.getItem('orbibot_custom_images') || '[]');
+        if (!Array.isArray(customImages)) customImages = [];
+        const imgObj = { name: file.name, url: finalUrl, dataUrl: dataUrl, createdAt: Date.now() };
+        const idx = customImages.findIndex(im => im.name.toLowerCase() === file.name.toLowerCase());
+        if (idx >= 0) customImages[idx] = imgObj;
+        else customImages.push(imgObj);
+        localStorage.setItem('orbibot_custom_images', JSON.stringify(customImages));
+      } catch (e) { }
 
       wcAlertImages[wcActiveAlertEvent] = finalUrl;
       const urlInput = document.getElementById('wc-alert-imageUrl');
@@ -5211,7 +5251,7 @@ function handleAlertSoundUpload(input) {
       const dataUrl = e.target.result;
       let finalUrl = dataUrl;
 
-      // Intentar subir al backend /api/sounds/upload
+      // 1. Subir al backend /api/sounds/upload
       try {
         const res = await fetch('/api/sounds/upload', {
           method: 'POST',
@@ -5226,12 +5266,37 @@ function handleAlertSoundUpload(input) {
         console.warn('Backend sound upload fallback to DataURL:', err);
       }
 
+      // 2. Guardar en orbibot_custom_sounds local y en la nube
+      try {
+        let customSounds = JSON.parse(localStorage.getItem('orbibot_custom_sounds') || '[]');
+        if (!Array.isArray(customSounds)) customSounds = [];
+        const soundObj = { name: file.name, url: finalUrl, dataUrl: dataUrl, createdAt: Date.now() };
+        const idx = customSounds.findIndex(s => s.name.toLowerCase() === file.name.toLowerCase());
+        if (idx >= 0) customSounds[idx] = soundObj;
+        else customSounds.push(soundObj);
+        localStorage.setItem('orbibot_custom_sounds', JSON.stringify(customSounds));
+
+        if (supabaseClient) {
+          try {
+            const session = getUserSession();
+            const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
+            await supabaseClient.from('orbibot_settings').upsert({
+              streamer_id: streamerId,
+              key: 'custom_sounds',
+              value: customSounds,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'streamer_id,key' });
+          } catch (e) { }
+        }
+      } catch (e) { }
+
       wcAlertSounds[wcActiveAlertEvent] = finalUrl;
       addSoundOption(finalUrl, file.name);
       playActiveAlertSound();
 
       // Guardar inmediatamente
       await saveWidgetStyles();
+      await loadSounds();
       showToast(`✅ Audio "${file.name}" guardado para ${WC_EVENT_NAMES[wcActiveAlertEvent]}`, 'success');
     };
     reader.readAsDataURL(file);
@@ -5255,12 +5320,7 @@ function playActiveAlertSound() {
     playSynthesizedAlertChime(wcActiveAlertEvent);
     return;
   }
-  try {
-    const audio = new Audio(sound);
-    audio.play().catch(() => playSynthesizedAlertChime(wcActiveAlertEvent));
-  } catch (e) {
-    playSynthesizedAlertChime(wcActiveAlertEvent);
-  }
+  previewSound(sound, WC_EVENT_NAMES[wcActiveAlertEvent] || 'Alerta');
 }
 
 function playSynthesizedAlertChime(type) {

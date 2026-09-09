@@ -193,14 +193,19 @@
       alertTitle.innerHTML = titleText;
       alertMessage.innerHTML = formattedMessage;
 
-      const mediaUrl = cfg.image || 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif';
+      const defaultAlertGif = 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif';
+      alertImage.onerror = function() {
+        if (this.src !== defaultAlertGif) this.src = defaultAlertGif;
+      };
+      const mediaUrl = cfg.image || defaultAlertGif;
       alertImage.src = mediaUrl;
 
-      // Play Sound (Soporta URLs absolutas y rutas relativas /assets/sounds/...)
+      // Play Sound (Soporta URLs absolutas, data: URLs y rutas relativas /assets/sounds/...)
       const soundToPlay = alertData.soundUrl || cfg.sound;
-      if (soundToPlay) {
+      if (soundToPlay && soundToPlay !== 'synthesizer') {
         try {
           const audio = new Audio(soundToPlay);
+          audio.onerror = () => playChime(type);
           audio.play().catch(() => playChime(type));
         } catch(e) {
           playChime(type);
