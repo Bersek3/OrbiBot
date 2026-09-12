@@ -1,18 +1,1 @@
-[
-  {
-    "id": "reward-1788922894282",
-    "rewardId": "3c3fbdab-bf7d-45ff-9c99-5126d46b5f89",
-    "rewardName": "SONIDO CAMPANA",
-    "action": "sound",
-    "soundUrl": "/assets/sounds/custom/alo-sinaka.mp3",
-    "enabled": true
-  },
-  {
-    "id": "reward-1788922931294",
-    "rewardId": "7e31bff0-1f11-4524-ad0a-8d10ba050d89",
-    "rewardName": "CANCION",
-    "action": "song_request",
-    "soundUrl": null,
-    "enabled": true
-  }
-]
+[]

@@ -1,26 +1,23 @@
 {
   "security": {
-    "widgetToken": "sec_cb04c456356689d198f80b1d3c9d86ff"
+    "widgetToken": ""
   },
   "twitch": {
-    "channel": "bersek___",
-    "botUsername": "bersek___",
-    "oauthToken": "jutbd9jjk91qw965w4scfpx5a7ondj",
+    "channel": "",
+    "botUsername": "",
+    "oauthToken": "",
     "clientId": "yw1vr664ichms8an2x5lhji58v7ozk",
-    "connected": true,
-    "userId": "226055830",
-    "displayName": "Bersek___",
-    "profileImage": "https://static-cdn.jtvnw.net/jtv_user_pictures/92a6561b-8e64-4f5f-a5fe-af7782347288-profile_image-300x300.jpeg"
+    "connected": false
   },
   "kick": {
-    "channel": "bersek",
-    "username": "Bersek",
-    "profile_picture": "https://files.kick.com/images/user/2984464/profile_image/conversion/8b4e7fba-64d9-469b-b1eb-da87178f4fab-medium.webp",
-    "userId": "2984464",
-    "accessToken": "MTI2OTLJZTUTNZRHNY0ZMTY4LTG5NTCTMTHIOTLMZJU4ZWU2",
-    "refreshToken": "ZDEYY2Q4OWITZTC4ZS01NTU2LWFJN2ETMDJMMZY4NJI4ZJC3",
+    "channel": "",
+    "username": "",
+    "profile_picture": "",
+    "userId": "",
+    "accessToken": "",
+    "refreshToken": "",
     "clientId": "01M0VT0JC58YQEVGRHM8JFXQX3",
-    "connected": true
+    "connected": false
   },
   "chatPlatforms": {
     "twitch": true,
@@ -38,31 +35,17 @@
   "tts": {
     "enabled": true,
     "engine": "streamelements",
-    "voice": "es_es_enrique",
+    "voice": "es_mx_mia",
     "volume": 90,
     "rate": 1,
-    "pitch": 0.8,
+    "pitch": 1,
     "minBits": 50,
     "allowChatCommand": true,
     "chatCommand": "!tts",
     "bannedWords": [],
-    "maxLength": 250,
-    "channelPointsRewardName": "TTS"
+    "maxLength": 250
   },
-  "goals": [
-    {
-      "id": "goal_1788923778947_clff2",
-      "title": "NUEVO SETUP",
-      "type": "custom",
-      "current": 0,
-      "target": 50,
-      "color": "#9146ff",
-      "color2": "#00f2fe",
-      "enabled": true,
-      "createdAt": "2026-09-09T03:16:18.947Z",
-      "updatedAt": "2026-09-09T03:16:36.960Z"
-    }
-  ],
+  "goals": [],
   "widgetStyles": {
     "alerts": {
       "imageSize": 119,

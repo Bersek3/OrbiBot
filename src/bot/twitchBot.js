@@ -489,16 +489,18 @@ class TwitchBot {
     if ((!rewards || rewards.length === 0) && storage.supabase) {
       try {
         const streamerId = storage.getStreamerId();
-        const { data } = await storage.supabase
-          .from('orbibot_settings')
-          .select('value')
-          .in('streamer_id', [streamerId, 'default'])
-          .eq('key', 'channel_points');
-        if (data && data.length > 0) {
-          const row = data.find(d => Array.isArray(d.value) && d.value.length > 0);
-          if (row) {
-            rewards = row.value;
-            storage.saveRewards(rewards);
+        if (streamerId && streamerId !== 'default') {
+          const { data } = await storage.supabase
+            .from('orbibot_settings')
+            .select('value')
+            .eq('streamer_id', streamerId)
+            .eq('key', 'channel_points');
+          if (data && data.length > 0) {
+            const row = data.find(d => Array.isArray(d.value) && d.value.length > 0);
+            if (row) {
+              rewards = row.value;
+              storage.saveRewards(rewards);
+            }
           }
         }
       } catch (e) { }

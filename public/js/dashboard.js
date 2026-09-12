@@ -28,23 +28,170 @@ const SUPABASE_URL = 'https://pzrlfuzjkwkrnmqkoaue.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_L6kzW0ZtGyfl6mvKevDX0Q_6G0DCGDP';
 let supabaseClient = null;
 
+function getFreshDefaultConfig() {
+  let freshToken = '';
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    freshToken = 'sec_' + Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+  } else {
+    freshToken = 'sec_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  }
+
+  return {
+    twitch: {
+      channel: '',
+      botUsername: '',
+      oauthToken: '',
+      clientId: 'yw1vr664ichms8an2x5lhji58v7ozk',
+      connected: false
+    },
+    kick: {
+      channel: '',
+      username: '',
+      profile_picture: '',
+      userId: '',
+      accessToken: '',
+      refreshToken: '',
+      clientId: '01M0VT0JC58YQEVGRHM8JFXQX3',
+      connected: false
+    },
+    chatPlatforms: {
+      twitch: true,
+      kick: true
+    },
+    security: {
+      widgetToken: freshToken
+    },
+    songRequest: {
+      prefix: '!sr',
+      enabled: true,
+      maxDurationMinutes: 8,
+      maxPerUser: 5,
+      userLevel: 'all',
+      volume: 75,
+      autoplay: true
+    },
+    tts: {
+      enabled: true,
+      engine: 'streamelements',
+      voice: 'es_mx_mia',
+      volume: 90,
+      rate: 1.0,
+      pitch: 1.0,
+      maxLength: 250,
+      bannedWords: [],
+      allowChatCommand: true,
+      chatCommand: '!tts',
+      minBits: 50
+    },
+    goals: []
+  };
+}
+
+function clearAllUserLocalData() {
+  // 1. Desconectar bots e instancias activas
+  if (browserTmiClient) {
+    try { browserTmiClient.disconnect(); } catch (e) { }
+    browserTmiClient = null;
+  }
+  if (typeof kickSocket !== 'undefined' && kickSocket) {
+    try { kickSocket.close(); } catch (e) { }
+    kickSocket = null;
+  }
+  if (dashboardMqttClient) {
+    try { dashboardMqttClient.disconnect(); } catch (e) { }
+    dashboardMqttClient = null;
+    isMqttConnected = false;
+  }
+
+  // 2. Limpiar todo el almacenamiento local del usuario anterior
+  const keysToRemove = [
+    'orbibot_user_session',
+    'orbibot_active_user_id',
+    'orbibot_twitch_auth',
+    'orbibot_kick_auth',
+    'orbibot_kick_channel',
+    'orbibot_config',
+    'orbibot_commands',
+    'orbibot_rewards',
+    'orbibot_goals',
+    'orbibot_alerts',
+    'orbibot_widget_token',
+    'orbibot_custom_sounds',
+    'orbibot_chat_platforms'
+  ];
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+
+  // 3. Limpiar tokens de sesión de Supabase
+  try {
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('sb-') || k.includes('supabase.auth.token')) {
+        localStorage.removeItem(k);
+      }
+    });
+    sessionStorage.clear();
+  } catch (e) { }
+
+  // 4. Reiniciar appConfig en memoria con estado limpio
+  appConfig = getFreshDefaultConfig();
+
+  // 5. Restablecer UI al estado limpio por defecto
+  resetDashboardUIToDefault();
+}
+
+function resetDashboardUIToDefault() {
+  const twitchChan = document.getElementById('cfgTwitchChannel');
+  if (twitchChan) twitchChan.value = '';
+  const twitchBot = document.getElementById('cfgTwitchBotUsername');
+  if (twitchBot) twitchBot.value = '';
+  const twitchToken = document.getElementById('cfgTwitchBotToken');
+  if (twitchToken) twitchToken.value = '';
+  const kickChan = document.getElementById('cfgKickChannel');
+  if (kickChan) kickChan.value = '';
+
+  updateBotStatusUI({ status: 'disconnected', channel: '' });
+  updatePlatformLinkingUI();
+  updateAuthUI();
+
+  const chatContainer = document.getElementById('liveChatMessages');
+  if (chatContainer) {
+    chatContainer.innerHTML = '<div class="chat-placeholder-box"><p>💬 Conecta tu canal de Twitch o Kick para ver el chat en vivo.</p></div>';
+  }
+  const chatNotice = document.getElementById('chatStatusNotice');
+  if (chatNotice) chatNotice.innerText = '⚪ Desconectado';
+
+  renderCommands([]);
+  renderRewards([]);
+  if (typeof renderGoals === 'function') renderGoals([]);
+  updateSongRequestUI({ currentSong: null, queue: [], isPlaying: false });
+
+  populateWidgetUrls();
+}
+
 async function saveToAllSupabaseScopes(key, value) {
   if (!supabaseClient) return;
-  const scopes = new Set();
   const session = getUserSession();
-  if (session?.email) scopes.add(session.email.toLowerCase().trim());
-  if (appConfig?.twitch?.channel) scopes.add(appConfig.twitch.channel.toLowerCase().replace(/^#/, '').trim());
+  if (!session || (!session.email && !session.id)) {
+    return;
+  }
 
-  try {
-    const localTwitch = localStorage.getItem('orbibot_twitch_auth');
-    if (localTwitch) {
+  const scopes = new Set();
+  if (session.email) scopes.add(session.email.toLowerCase().trim());
+  if (session.id) scopes.add(session.id);
+
+  // Solo asociar al canal de Twitch si fue explícitamente vinculado por este usuario
+  const localTwitch = localStorage.getItem('orbibot_twitch_auth');
+  if (localTwitch) {
+    try {
       const parsed = JSON.parse(localTwitch);
       const chan = (parsed.channel || parsed.login || parsed.displayName || '').toLowerCase().replace(/^#/, '').trim();
       if (chan) scopes.add(chan);
-    }
-  } catch (e) { }
+    } catch (e) { }
+  } else if (appConfig?.twitch?.channel && appConfig?.twitch?.connected) {
+    const chan = appConfig.twitch.channel.toLowerCase().replace(/^#/, '').trim();
+    if (chan) scopes.add(chan);
+  }
 
-  scopes.add('default');
+  // NUNCA agregar 'default'
 
   const promises = Array.from(scopes).filter(Boolean).map(streamerId => {
     return supabaseClient.from('orbibot_settings').upsert({
@@ -66,35 +213,63 @@ async function loadUserDataFromSupabase(userIdentifier) {
   if (!supabaseClient || !userIdentifier) return;
   try {
     const cleanId = (userIdentifier || '').toLowerCase().replace(/^#/, '').trim();
-    let { data, error } = await supabaseClient
+    const session = getUserSession();
+    const userId = session?.id || '';
+
+    // Consultar estrictamente por los identificadores de este usuario
+    const userScopes = [cleanId];
+    if (userId && userId !== cleanId) userScopes.push(userId);
+
+    const { data, error } = await supabaseClient
       .from('orbibot_settings')
       .select('*')
-      .eq('streamer_id', cleanId);
+      .in('streamer_id', userScopes);
 
-    // Si no encuentra por email, intentar por el canal de Twitch si está configurado
-    if ((!data || data.length === 0) && appConfig?.twitch?.channel) {
-      const channelId = appConfig.twitch.channel.toLowerCase().replace(/^#/, '').trim();
-      if (channelId && channelId !== cleanId) {
-        const res = await supabaseClient
-          .from('orbibot_settings')
-          .select('*')
-          .eq('streamer_id', channelId);
-        if (res.data && res.data.length > 0) {
-          data = res.data;
-          error = res.error;
-        }
-      }
+    // Si es una cuenta nueva sin datos en Supabase, inicializar panel limpio y privado
+    if (!data || data.length === 0) {
+      console.log(`✨ [Supabase Cloud] Nuevo usuario detectado ("${cleanId}"). Inicializando panel limpio y privado.`);
+      const freshCfg = getFreshDefaultConfig();
+      appConfig = freshCfg;
+      localStorage.setItem('orbibot_config', JSON.stringify(freshCfg));
+      localStorage.setItem('orbibot_commands', JSON.stringify([]));
+      localStorage.setItem('orbibot_rewards', JSON.stringify([]));
+      localStorage.setItem('orbibot_goals', JSON.stringify([]));
+      localStorage.setItem('orbibot_alerts', JSON.stringify({}));
+      localStorage.removeItem('orbibot_twitch_auth');
+      localStorage.removeItem('orbibot_kick_auth');
+      localStorage.removeItem('orbibot_kick_channel');
+
+      bindConfigToUI(freshCfg);
+      renderCommands([]);
+      renderRewards([]);
+      if (typeof renderGoals === 'function') renderGoals([]);
+      updatePlatformLinkingUI();
+      populateWidgetUrls();
+
+      saveToAllSupabaseScopes('config', freshCfg).catch(() => {});
+      saveToAllSupabaseScopes('commands', []).catch(() => {});
+      saveToAllSupabaseScopes('channel_points', []).catch(() => {});
+      saveToAllSupabaseScopes('goals', []).catch(() => {});
+      return;
     }
 
     if (!error && data && data.length > 0) {
       console.log(`☁️ [Supabase Cloud] ${data.length} ajustes sincronizados para "${cleanId}".`);
+      
+      // Limpiar caches previos de plataformas antes de aplicar datos de este usuario
+      localStorage.removeItem('orbibot_twitch_auth');
+      localStorage.removeItem('orbibot_kick_auth');
+      localStorage.removeItem('orbibot_kick_channel');
+
+      const baseConfig = getFreshDefaultConfig();
+      appConfig = { ...baseConfig };
+
       data.forEach(item => {
         if (item.key === 'twitch_auth' && item.value) {
           try {
             const twData = typeof item.value === 'string' ? JSON.parse(item.value) : item.value;
             if (twData && (twData.channel || twData.login || twData.displayName)) {
               localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twData));
-              if (!appConfig) appConfig = {};
               appConfig.twitch = { ...(appConfig.twitch || {}), ...twData };
               bindConfigToUI(appConfig);
               updatePlatformLinkingUI();
@@ -110,7 +285,6 @@ async function loadUserDataFromSupabase(userIdentifier) {
             if (kData && (kData.channel || kData.username)) {
               localStorage.setItem('orbibot_kick_auth', JSON.stringify(kData));
               if (kData.channel) localStorage.setItem('orbibot_kick_channel', kData.channel);
-              if (!appConfig) appConfig = {};
               appConfig.kick = { ...(appConfig.kick || {}), ...kData };
               updatePlatformLinkingUI();
               if (kData.channel && typeof connectInBrowserKickBot === 'function') {
@@ -183,7 +357,9 @@ async function loadUserDataFromSupabase(userIdentifier) {
           localStorage.setItem('orbibot_custom_sounds', JSON.stringify(item.value));
         }
       });
+      bindConfigToUI(appConfig);
       updatePlatformLinkingUI();
+      populateWidgetUrls();
       if (typeof initWidgetCustomization === 'function') {
         initWidgetCustomization();
       }
@@ -200,10 +376,18 @@ function initSupabaseAuth() {
       supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       console.log('🟢 [Supabase Client] Inicializado en el frontend.');
 
-      // 1. Escuchar cambios de autenticación (ej: regreso exitoso de Google OAuth o Login)
+      // 1. Escuchar cambios de autenticación (Google OAuth, login o logout)
       supabaseClient.auth.onAuthStateChange(async (event, session) => {
         console.log('🔐 [Supabase Auth Event]:', event, session?.user?.email);
         if (session && session.user) {
+          const currentUserId = session.user.id;
+          const previousActiveId = localStorage.getItem('orbibot_active_user_id');
+          if (previousActiveId && previousActiveId !== currentUserId) {
+            console.log('🔄 [Auth] Cambio de cuenta detectado. Limpiando sesión previa...');
+            clearAllUserLocalData();
+          }
+          localStorage.setItem('orbibot_active_user_id', currentUserId);
+
           const userObj = {
             id: session.user.id,
             email: session.user.email,
@@ -216,7 +400,7 @@ function initSupabaseAuth() {
           closeAuthModal();
 
           // Sincronizar ajustes guardados en la nube para este usuario
-          loadUserDataFromSupabase(userObj.email);
+          await loadUserDataFromSupabase(userObj.email);
 
           // Redirigir automáticamente al dashboard
           showDashboardView('tab-dashboard');
@@ -229,14 +413,22 @@ function initSupabaseAuth() {
             } catch (e) { }
           }
         } else if (event === 'SIGNED_OUT') {
-          clearUserSession();
+          clearAllUserLocalData();
           showLandingView();
         }
       });
 
       // 2. Verificar sesión actual al cargar
-      supabaseClient.auth.getSession().then(({ data: { session } }) => {
+      supabaseClient.auth.getSession().then(async ({ data: { session } }) => {
         if (session && session.user) {
+          const currentUserId = session.user.id;
+          const previousActiveId = localStorage.getItem('orbibot_active_user_id');
+          if (previousActiveId && previousActiveId !== currentUserId) {
+            console.log('🔄 [Auth] Cambio de cuenta detectado al iniciar sesión...');
+            clearAllUserLocalData();
+          }
+          localStorage.setItem('orbibot_active_user_id', currentUserId);
+
           const userObj = {
             id: session.user.id,
             email: session.user.email,
@@ -246,7 +438,7 @@ function initSupabaseAuth() {
             loggedInAt: Date.now()
           };
           setUserSession(userObj);
-          loadUserDataFromSupabase(userObj.email);
+          await loadUserDataFromSupabase(userObj.email);
           showDashboardView('tab-dashboard');
           updatePlatformLinkingUI();
         }
@@ -278,8 +470,7 @@ function setUserSession(user) {
 }
 
 function clearUserSession() {
-  localStorage.removeItem('orbibot_user_session');
-  updateAuthUI();
+  clearAllUserLocalData();
 }
 
 function updateAuthUI() {
@@ -625,19 +816,7 @@ async function handleAuthLogout() {
       console.warn('Error signing out of Supabase:', e);
     }
   }
-  clearUserSession();
-
-  // Limpiar tokens y claves de sesión local
-  try {
-    localStorage.removeItem('orbibot_user_session');
-    Object.keys(localStorage).forEach(k => {
-      if (k.startsWith('sb-') || k.includes('supabase.auth.token')) {
-        localStorage.removeItem(k);
-      }
-    });
-    sessionStorage.clear();
-  } catch (e) { }
-
+  clearAllUserLocalData();
   showToast('Has cerrado tu sesión de OrbyxBot Cloud.', 'info');
   showLandingView();
   updateAuthUI();
@@ -1371,7 +1550,7 @@ function handleSocketMessage(msg) {
 
   // Room verification
   const myRoom = getActiveStreamerRoom();
-  if (room && room !== 'default' && room !== myRoom && channel && channel !== myRoom) {
+  if (room && room !== myRoom && channel && channel !== myRoom) {
     return;
   }
 
@@ -1414,7 +1593,21 @@ function handleSocketMessage(msg) {
 
 // ================= LOAD DATA =================
 async function loadStandaloneData() {
-  // Load from localStorage or defaults
+  const session = getUserSession();
+  if (!session || !session.email) {
+    const defaultCfg = getFreshDefaultConfig();
+    appConfig = defaultCfg;
+    bindConfigToUI(defaultCfg);
+    renderCommands([]);
+    renderRewards([]);
+    if (typeof renderGoals === 'function') renderGoals([]);
+    updateSongRequestUI({ currentSong: null, queue: [], isPlaying: false });
+    updatePlatformLinkingUI();
+    populateWidgetUrls();
+    return;
+  }
+
+  // Load from localStorage for the active session
   const localTwitch = localStorage.getItem('orbibot_twitch_auth');
   const localKick = localStorage.getItem('orbibot_kick_auth');
   const localCfg = localStorage.getItem('orbibot_config');
@@ -1441,12 +1634,7 @@ async function loadStandaloneData() {
     kickData = localKick ? JSON.parse(localKick) : null;
   } catch (e) { }
 
-  let cfg = localCfg ? JSON.parse(localCfg) : {
-    twitch: twitchData,
-    songRequest: { prefix: '!sr', enabled: true, maxDurationMinutes: 8, maxPerUser: 5, userLevel: 'all', volume: 75 },
-    tts: { enabled: true, voice: 'es_mx_mia', volume: 90, rate: 1.0, pitch: 1.0, maxLength: 250, bannedWords: [], allowChatCommand: true, chatCommand: '!tts', minBits: 50 },
-    goals: []
-  };
+  let cfg = localCfg ? JSON.parse(localCfg) : getFreshDefaultConfig();
 
   cfg.twitch = { ...(cfg.twitch || {}), ...twitchData };
   if (kickData) {
@@ -1461,9 +1649,10 @@ async function loadStandaloneData() {
 
   updateSongRequestUI({ currentSong: null, queue: [], isPlaying: false });
   updatePlatformLinkingUI();
+  populateWidgetUrls();
   await loadSounds();
 
-  // In-browser Twitch IRC connection (if credentials exist)
+  // In-browser Twitch IRC connection (solo si hay canal explícito)
   if (twitchData.channel && window.tmi && (!browserTmiClient || browserTmiClient.readyState() !== 'OPEN')) {
     connectInBrowserTwitchBot(twitchData);
   }
@@ -1480,6 +1669,20 @@ async function loadInitialData() {
     return;
   }
 
+  const session = getUserSession();
+  if (!session || !session.email) {
+    const defaultCfg = getFreshDefaultConfig();
+    appConfig = defaultCfg;
+    bindConfigToUI(defaultCfg);
+    renderCommands([]);
+    renderRewards([]);
+    if (typeof renderGoals === 'function') renderGoals([]);
+    updateSongRequestUI({ currentSong: null, queue: [], isPlaying: false });
+    updatePlatformLinkingUI();
+    populateWidgetUrls();
+    return;
+  }
+
   try {
     const [cfgRes, cmdRes, rwdRes, srRes, goalsRes] = await Promise.all([
       fetch('/api/config').then(r => r.json()),
@@ -1489,7 +1692,7 @@ async function loadInitialData() {
       fetch('/api/goals').then(r => r.json()).catch(() => [])
     ]);
 
-    // Sync localStorage Twitch auth if present
+    // Sync localStorage Twitch auth if present for active session
     const localTwitch = localStorage.getItem('orbibot_twitch_auth');
     let effectiveTwitch = cfgRes.twitch || {};
     if (localTwitch) {
@@ -1512,7 +1715,6 @@ async function loadInitialData() {
       } catch (e) { }
     }
 
-    // Set effective commands, rewards & goals cleanly
     let effectiveCommands = Array.isArray(cmdRes) ? cmdRes : [];
     let effectiveRewards = Array.isArray(rwdRes) ? rwdRes : [];
     let effectiveGoals = Array.isArray(goalsRes) ? goalsRes : [];
@@ -1540,6 +1742,7 @@ async function loadInitialData() {
     renderGoals(effectiveGoals);
     updateSongRequestUI(srRes);
     updatePlatformLinkingUI();
+    populateWidgetUrls();
     await loadSounds();
 
     if (effectiveTwitch.channel && window.tmi && (!browserTmiClient || browserTmiClient.readyState() !== 'OPEN')) {
@@ -4189,17 +4392,8 @@ async function deleteCustomSound(name) {
       localStorage.setItem('orbibot_custom_sounds', JSON.stringify(customSounds));
     }
 
-    if (supabaseClient) {
-      try {
-        const session = getUserSession();
-        const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
-        await supabaseClient.from('orbibot_settings').upsert({
-          streamer_id: streamerId,
-          key: 'custom_sounds',
-          value: customSounds,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'streamer_id,key' });
-      } catch (e) { }
+    if (typeof saveToAllSupabaseScopes === 'function') {
+      saveToAllSupabaseScopes('custom_sounds', customSounds).catch(() => {});
     }
 
     try {
@@ -5662,17 +5856,8 @@ function handleAlertSoundUpload(input) {
         else customSounds.push(soundObj);
         localStorage.setItem('orbibot_custom_sounds', JSON.stringify(customSounds));
 
-        if (supabaseClient) {
-          try {
-            const session = getUserSession();
-            const streamerId = (session?.email || appConfig?.twitch?.channel || 'default').toLowerCase().replace(/^#/, '');
-            await supabaseClient.from('orbibot_settings').upsert({
-              streamer_id: streamerId,
-              key: 'custom_sounds',
-              value: customSounds,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'streamer_id,key' });
-          } catch (e) { }
+        if (typeof saveToAllSupabaseScopes === 'function') {
+          saveToAllSupabaseScopes('custom_sounds', customSounds).catch(() => {});
         }
       } catch (e) { }
 

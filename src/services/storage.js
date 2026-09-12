@@ -382,21 +382,7 @@ class StorageService {
         this.restoreAllMediaFiles();
       } else {
         this.isSupabaseReady = true;
-        if (streamerId !== 'default') {
-          const migrated = await this.migrateFromDefaultSupabase(streamerId);
-          if (migrated) return;
-        }
-        // Respaldar lo local en Supabase
-        const sounds = this.getCustomSounds();
-        if (sounds && sounds.length > 0) await this.syncToSupabase('custom_sounds', sounds);
-        const images = this.getCustomImages();
-        if (images && images.length > 0) await this.syncToSupabase('custom_images', images);
-        const rwds = this.getRewards();
-        if (rwds && rwds.length > 0) await this.syncToSupabase('channel_points', rwds);
-        const goals = this.getGoals();
-        if (goals && goals.length > 0) await this.syncToSupabase('goals', goals);
-        const cmds = this.getCommands();
-        if (cmds && cmds.length > 0) await this.syncToSupabase('commands', cmds);
+        console.log(`ℹ️ [Supabase Cloud] Streamer "${streamerId}" sin configuraciones previas en la nube.`);
       }
     } catch (err) {
       console.warn('⚠️ [Supabase] Error durante la sincronización inicial:', err.message);
@@ -428,33 +414,15 @@ class StorageService {
   }
 
   async migrateFromDefaultSupabase(newStreamerId) {
-    if (!this.supabase) return false;
-    try {
-      const { data } = await this.supabase
-        .from('orbibot_settings')
-        .select('*')
-        .eq('streamer_id', 'default');
-
-      if (data && data.length > 0) {
-        for (const item of data) {
-          await this.supabase
-            .from('orbibot_settings')
-            .upsert({
-              streamer_id: newStreamerId,
-              key: item.key,
-              value: item.value,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'streamer_id,key' });
-        }
-        return true;
-      }
-    } catch (e) { }
+    // DESACTIVADO POR SEGURIDAD: Nunca heredar datos de 'default' entre streamers
     return false;
   }
 
   async syncToSupabase(key, value) {
     if (!this.supabase) return;
-    const scopes = new Set([this.getStreamerId(), 'default'].filter(Boolean));
+    const streamerId = this.getStreamerId();
+    if (!streamerId || streamerId === 'default') return;
+    const scopes = new Set([streamerId]);
     for (const streamerId of scopes) {
       try {
         const { error } = await this.supabase
