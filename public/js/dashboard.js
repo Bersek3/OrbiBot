@@ -117,7 +117,9 @@ function clearAllUserLocalData() {
     'orbibot_alerts',
     'orbibot_widget_token',
     'orbibot_custom_sounds',
-    'orbibot_chat_platforms'
+    'orbibot_custom_images',
+    'orbibot_chat_platforms',
+    'orbibot_current_tab'
   ];
   keysToRemove.forEach(k => localStorage.removeItem(k));
 
@@ -238,6 +240,8 @@ async function loadUserDataFromSupabase(userIdentifier) {
       localStorage.removeItem('orbibot_twitch_auth');
       localStorage.removeItem('orbibot_kick_auth');
       localStorage.removeItem('orbibot_kick_channel');
+      localStorage.removeItem('orbibot_custom_sounds');
+      localStorage.removeItem('orbibot_custom_images');
 
       bindConfigToUI(freshCfg);
       renderCommands([]);
@@ -250,16 +254,20 @@ async function loadUserDataFromSupabase(userIdentifier) {
       saveToAllSupabaseScopes('commands', []).catch(() => {});
       saveToAllSupabaseScopes('channel_points', []).catch(() => {});
       saveToAllSupabaseScopes('goals', []).catch(() => {});
+      saveToAllSupabaseScopes('custom_sounds', []).catch(() => {});
+      saveToAllSupabaseScopes('custom_images', []).catch(() => {});
       return;
     }
 
     if (!error && data && data.length > 0) {
       console.log(`☁️ [Supabase Cloud] ${data.length} ajustes sincronizados para "${cleanId}".`);
       
-      // Limpiar caches previos de plataformas antes de aplicar datos de este usuario
+      // Limpiar caches previos de plataformas y archivos antes de aplicar datos de este usuario
       localStorage.removeItem('orbibot_twitch_auth');
       localStorage.removeItem('orbibot_kick_auth');
       localStorage.removeItem('orbibot_kick_channel');
+      localStorage.removeItem('orbibot_custom_sounds');
+      localStorage.removeItem('orbibot_custom_images');
 
       const baseConfig = getFreshDefaultConfig();
       appConfig = { ...baseConfig };
@@ -356,6 +364,9 @@ async function loadUserDataFromSupabase(userIdentifier) {
         if (item.key === 'custom_sounds' && Array.isArray(item.value)) {
           localStorage.setItem('orbibot_custom_sounds', JSON.stringify(item.value));
         }
+        if (item.key === 'custom_images' && Array.isArray(item.value)) {
+          localStorage.setItem('orbibot_custom_images', JSON.stringify(item.value));
+        }
       });
       bindConfigToUI(appConfig);
       updatePlatformLinkingUI();
@@ -368,6 +379,37 @@ async function loadUserDataFromSupabase(userIdentifier) {
   } catch (err) {
     console.warn('⚠️ [Supabase Cloud] Error al cargar datos del usuario:', err.message);
   }
+}
+
+// ================= ACTIVE TAB PERSISTENCE =================
+function getActiveDashboardTab() {
+  try {
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#tab-')) {
+      const pane = document.getElementById(hash.substring(1));
+      if (pane) return hash.substring(1);
+    }
+    const savedTab = sessionStorage.getItem('orbibot_current_tab') || localStorage.getItem('orbibot_current_tab');
+    if (savedTab && document.getElementById(savedTab)) {
+      return savedTab;
+    }
+    const activePane = document.querySelector('.tab-pane.active');
+    if (activePane && activePane.id) {
+      return activePane.id;
+    }
+  } catch (e) { }
+  return 'tab-dashboard';
+}
+
+function saveActiveDashboardTab(tabId) {
+  if (!tabId) return;
+  try {
+    sessionStorage.setItem('orbibot_current_tab', tabId);
+    localStorage.setItem('orbibot_current_tab', tabId);
+    if (!window.location.hash || window.location.hash.startsWith('#tab-')) {
+      history.replaceState(null, document.title, window.location.pathname + window.location.search + '#' + tabId);
+    }
+  } catch (e) { }
 }
 
 function initSupabaseAuth() {
@@ -399,17 +441,24 @@ function initSupabaseAuth() {
           setUserSession(userObj);
           closeAuthModal();
 
+          // Si solo es un refresco de token en segundo plano y el dashboard ya está visible, no interrumpir la pantalla del usuario
+          const isDashboardVisible = document.getElementById('dashboardAppView')?.style?.display === 'flex';
+          if (event === 'TOKEN_REFRESHED' && isDashboardVisible) {
+            return;
+          }
+
           // Sincronizar ajustes guardados en la nube para este usuario
           await loadUserDataFromSupabase(userObj.email);
 
-          // Redirigir automáticamente al dashboard
-          showDashboardView('tab-dashboard');
+          // Mantener o abrir la pestaña en la que el usuario estaba trabajando
+          const currentTab = getActiveDashboardTab();
+          showDashboardView(currentTab);
           updatePlatformLinkingUI();
 
           // Limpiar hash de tokens de la URL si venimos de Google OAuth
           if (window.location.hash && window.location.hash.includes('access_token')) {
             try {
-              history.replaceState(null, document.title, window.location.pathname + window.location.search);
+              history.replaceState(null, document.title, window.location.pathname + window.location.search + '#' + currentTab);
             } catch (e) { }
           }
         } else if (event === 'SIGNED_OUT') {
@@ -439,7 +488,8 @@ function initSupabaseAuth() {
           };
           setUserSession(userObj);
           await loadUserDataFromSupabase(userObj.email);
-          showDashboardView('tab-dashboard');
+          const currentTab = getActiveDashboardTab();
+          showDashboardView(currentTab);
           updatePlatformLinkingUI();
         }
       });
@@ -600,11 +650,11 @@ async function signInWithGoogle() {
 }
 
 // Handler for when user clicks "Panel de Control"
-function handleDashboardNavClick(targetTab = 'tab-dashboard') {
+function handleDashboardNavClick(targetTab = null) {
   const session = getUserSession();
   if (session && session.email) {
     // User already authenticated -> direct access to dashboard
-    showDashboardView(targetTab);
+    showDashboardView(targetTab || getActiveDashboardTab());
   } else {
     // User not authenticated -> open login modal
     openAuthModal('login');
@@ -777,7 +827,7 @@ async function handleAuthLoginSubmit(event) {
       showAuthAlert('success', `¡Bienvenido ${sessionData.username}!`);
       setTimeout(() => {
         closeAuthModal();
-        showDashboardView('tab-dashboard');
+        showDashboardView(getActiveDashboardTab());
       }, 500);
     } else {
       // Backend fallback
@@ -793,7 +843,7 @@ async function handleAuthLoginSubmit(event) {
       showAuthAlert('success', `¡Bienvenido!`);
       setTimeout(() => {
         closeAuthModal();
-        showDashboardView('tab-dashboard');
+        showDashboardView(getActiveDashboardTab());
       }, 500);
     }
   } catch (err) {
@@ -1193,7 +1243,7 @@ function showLandingView() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function showDashboardView(targetTab = 'tab-dashboard') {
+function showDashboardView(targetTab = null) {
   const session = getUserSession();
   if (!session || !session.email) {
     showLandingView();
@@ -1206,9 +1256,10 @@ function showDashboardView(targetTab = 'tab-dashboard') {
   const dashboardView = document.getElementById('dashboardAppView');
   if (landingView) landingView.style.display = 'none';
   if (dashboardView) dashboardView.style.display = 'flex';
-  if (targetTab) {
-    switchTab(targetTab);
-  }
+
+  const tabToOpen = targetTab || getActiveDashboardTab();
+  switchTab(tabToOpen);
+
   updateAuthUI();
   updatePlatformLinkingUI();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1224,7 +1275,7 @@ function initLandingPage() {
   if (landingNavDashboardBtn) {
     landingNavDashboardBtn.addEventListener('click', (e) => {
       e.preventDefault();
-      handleDashboardNavClick('tab-dashboard');
+      handleDashboardNavClick(getActiveDashboardTab());
     });
   }
 
@@ -1238,7 +1289,7 @@ function initLandingPage() {
   if (landingHeroDashboardBtn) {
     landingHeroDashboardBtn.addEventListener('click', (e) => {
       e.preventDefault();
-      handleDashboardNavClick('tab-dashboard');
+      handleDashboardNavClick(getActiveDashboardTab());
     });
   }
 
@@ -1263,10 +1314,9 @@ function initLandingPage() {
   });
 
   // Check session on load
-  const hash = window.location.hash;
   const session = getUserSession();
   if (session && session.email) {
-    const tabName = (hash && hash.startsWith('#tab-')) ? hash.substring(1) : 'tab-dashboard';
+    const tabName = getActiveDashboardTab();
     showDashboardView(tabName);
   } else {
     showLandingView();
@@ -1291,12 +1341,28 @@ function setupNavigation() {
         targetPane.classList.add('active');
       }
 
-      titleEl.innerText = item.querySelector('span:last-child').innerText;
+      if (titleEl && item.querySelector('span:last-child')) {
+        titleEl.innerText = item.querySelector('span:last-child').innerText;
+      }
+      saveActiveDashboardTab(targetTabId);
     });
+  });
+
+  window.addEventListener('hashchange', () => {
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#tab-')) {
+      const tabId = hash.substring(1);
+      const target = document.getElementById(tabId);
+      if (target) {
+        switchTab(tabId);
+      }
+    }
   });
 }
 
 function switchTab(tabId) {
+  if (!tabId) tabId = getActiveDashboardTab();
+  saveActiveDashboardTab(tabId);
   const navItem = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
   if (navItem) {
     navItem.click();
@@ -1304,7 +1370,10 @@ function switchTab(tabId) {
     const tabPanes = document.querySelectorAll('.tab-pane');
     tabPanes.forEach(p => p.classList.remove('active'));
     const target = document.getElementById(tabId);
-    if (target) target.classList.add('active');
+    if (target) {
+      target.classList.add('active');
+      saveActiveDashboardTab(tabId);
+    }
   }
 }
 
@@ -4247,28 +4316,16 @@ async function loadSounds() {
       } catch (e) { }
     }
 
-    // 3. Obtener sonidos del servidor backend si responde y NO estamos en GitHub Pages
-    let serverSounds = [];
-    const isStaticHosting = window.location.hostname.includes('github.io') || window.location.protocol === 'file:';
-    if (!isStaticHosting) {
-      try {
-        serverSounds = await fetch('/api/sounds').then(r => r.ok ? r.json() : []).catch(() => []);
-      } catch (e) { }
-    }
-    if (!Array.isArray(serverSounds)) serverSounds = [];
-
-    // 4. Combinar y evitar duplicados
+    // 3. Sonidos predeterminados del sistema disponibles para todos los usuarios
     const soundMap = new Map();
+    const systemDefaults = [
+      { name: 'Campana Alerta', url: './assets/sounds/campana_alerta.wav' },
+      { name: 'Notificación Puntos', url: './assets/sounds/notificacion_puntos.wav' },
+      { name: 'Airhorn', url: './assets/sounds/airhorn.mp3' }
+    ];
+    systemDefaults.forEach(s => soundMap.set(s.name.toLowerCase(), s));
 
-    serverSounds.forEach(s => {
-      if (s && s.name) {
-        soundMap.set(s.name.toLowerCase(), {
-          name: s.name,
-          url: s.url || `./assets/sounds/custom/${s.name}`
-        });
-      }
-    });
-
+    // 4. Sonidos personalizados ÚNICAMENTE del usuario que tiene la sesión activa
     localSounds.forEach(s => {
       if (s && s.name) {
         const key = s.name.toLowerCase();
@@ -5782,6 +5839,9 @@ function handleAlertFileUpload(input) {
         if (idx >= 0) customImages[idx] = imgObj;
         else customImages.push(imgObj);
         localStorage.setItem('orbibot_custom_images', JSON.stringify(customImages));
+        if (typeof saveToAllSupabaseScopes === 'function') {
+          saveToAllSupabaseScopes('custom_images', customImages).catch(() => {});
+        }
       } catch (e) { }
 
       wcAlertImages[wcActiveAlertEvent] = finalUrl;

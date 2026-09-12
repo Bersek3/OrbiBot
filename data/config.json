@@ -63,18 +63,18 @@
       "generatedCSS": "/* OrbiBot Custom Styles - Alert Box */\n.alert-card {\n  font-family: 'Outfit', sans-serif !important;\n  background: rgba(11,14,20,0.88) !important;\n  border-radius: 24px !important;\n  border-color: #9146ff !important;\n  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px #9146ff50 !important;\n}\n.alert-title {\n  font-family: 'Outfit', sans-serif !important;\n  color: #ffffff !important;\n  font-size: 32px !important;\n}\n.alert-message {\n  font-family: 'Outfit', sans-serif !important;\n  color: #cbd5e1 !important;\n  font-size: 20px !important;\n}\n.alert-badge {\n  font-family: 'Outfit', sans-serif !important;\n  background: linear-gradient(135deg, #9146ff, #00f2fe) !important;\n}\n.alert-media {\n  max-height: 119px !important;\n}\n",
       "finalCSS": "/* OrbiBot Custom Styles - Alert Box */\n.alert-card {\n  font-family: 'Outfit', sans-serif !important;\n  background: rgba(11,14,20,0.88) !important;\n  border-radius: 24px !important;\n  border-color: #9146ff !important;\n  box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 35px #9146ff50 !important;\n}\n.alert-title {\n  font-family: 'Outfit', sans-serif !important;\n  color: #ffffff !important;\n  font-size: 32px !important;\n}\n.alert-message {\n  font-family: 'Outfit', sans-serif !important;\n  color: #cbd5e1 !important;\n  font-size: 20px !important;\n}\n.alert-badge {\n  font-family: 'Outfit', sans-serif !important;\n  background: linear-gradient(135deg, #9146ff, #00f2fe) !important;\n}\n.alert-media {\n  max-height: 119px !important;\n}\n",
       "images": {
-        "follower": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif",
-        "sub": "/assets/images/custom/787923542_18632378995035619_1108831098821865741_n.jpg",
-        "bits": "https://media.giphy.com/media/26FPJGjhefSJuaRhu/giphy.gif",
-        "raid": "https://media.giphy.com/media/l41lI4bYmcsPJX9Go/giphy.gif",
-        "channel_points": "https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif"
+        "follower": "https://i.giphy.com/media/artj92V8o75VPL7AeQ/giphy.gif",
+        "sub": "https://i.giphy.com/media/IwAZ6dvvvaNN6/giphy.gif",
+        "bits": "https://i.giphy.com/media/LdOyjZ7io5MFUvcKs2/giphy.gif",
+        "raid": "https://i.giphy.com/media/blSTtZehjAZ8I/giphy.gif",
+        "channel_points": "https://i.giphy.com/media/111ebonMs90YLu/giphy.gif"
       },
       "sounds": {
-        "follower": "/assets/sounds/custom/alo-sinaka.mp3",
-        "sub": "/assets/sounds/sub.mp3",
-        "bits": "/assets/sounds/bits.mp3",
-        "raid": "/assets/sounds/raid.mp3",
-        "channel_points": "/assets/sounds/points.mp3"
+        "follower": "./assets/sounds/campana_alerta.wav",
+        "sub": "./assets/sounds/campana_alerta.wav",
+        "bits": "./assets/sounds/notificacion_puntos.wav",
+        "raid": "./assets/sounds/airhorn.mp3",
+        "channel_points": "./assets/sounds/notificacion_puntos.wav"
       }
     }
   }

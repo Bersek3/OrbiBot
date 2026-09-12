@@ -713,40 +713,8 @@ app.put('/api/commands/:id', (req, res) => {
 
 // Sound files management (Custom user uploaded sounds)
 app.get('/api/sounds', (req, res) => {
-  try {
-    const storedSounds = storage.getCustomSounds() || [];
-    if (storedSounds.length > 0 && typeof storage.restoreAudioFiles === 'function') {
-      storage.restoreAudioFiles(storedSounds);
-    }
-
-    const soundsDir = path.join(__dirname, 'public', 'assets', 'sounds', 'custom');
-    if (!fs.existsSync(soundsDir)) {
-      fs.mkdirSync(soundsDir, { recursive: true });
-    }
-    const fsFiles = fs.readdirSync(soundsDir)
-      .filter(f => /\.(mp3|wav|ogg|m4a|aac)$/i.test(f))
-      .map(f => ({
-        name: f,
-        url: `/assets/sounds/custom/${f}`
-      }));
-
-    const soundMap = new Map();
-
-    fsFiles.forEach(f => soundMap.set(f.name.toLowerCase(), f));
-    storedSounds.forEach(s => {
-      if (s && s.name) {
-        soundMap.set(s.name.toLowerCase(), {
-          name: s.name,
-          url: s.url || `/assets/sounds/custom/${s.name}`,
-          data: s.data || s.dataUrl
-        });
-      }
-    });
-
-    res.json(Array.from(soundMap.values()));
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
+  // Aislamiento multi-usuario: cada usuario gestiona sus propios sonidos en su cuenta privada
+  res.json([]);
 });
 
 app.post('/api/sounds/upload', (req, res) => {
@@ -818,39 +786,8 @@ app.post('/api/sounds/delete', (req, res) => {
 
 // Image files management (Custom GIFs, PNGs, WebPs for widgets & alerts)
 app.get('/api/images', (req, res) => {
-  try {
-    const storedImages = (typeof storage.getCustomImages === 'function' ? storage.getCustomImages() : []) || [];
-    if (storedImages.length > 0 && typeof storage.restoreImageFiles === 'function') {
-      storage.restoreImageFiles(storedImages);
-    }
-
-    const imagesDir = path.join(__dirname, 'public', 'assets', 'images', 'custom');
-    if (!fs.existsSync(imagesDir)) {
-      fs.mkdirSync(imagesDir, { recursive: true });
-    }
-    const fsFiles = fs.readdirSync(imagesDir)
-      .filter(f => /\.(png|jpg|jpeg|gif|webp|svg|bmp)$/i.test(f))
-      .map(f => ({
-        name: f,
-        url: `/assets/images/custom/${f}`
-      }));
-
-    const imageMap = new Map();
-    fsFiles.forEach(f => imageMap.set(f.name.toLowerCase(), f));
-    storedImages.forEach(img => {
-      if (img && img.name) {
-        imageMap.set(img.name.toLowerCase(), {
-          name: img.name,
-          url: img.url || `/assets/images/custom/${img.name}`,
-          data: img.data || img.dataUrl
-        });
-      }
-    });
-
-    res.json(Array.from(imageMap.values()));
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
+  // Aislamiento multi-usuario: cada usuario gestiona sus propias imágenes en su cuenta privada
+  res.json([]);
 });
 
 app.post('/api/images/upload', (req, res) => {

@@ -3,9 +3,9 @@
     "enabled": true,
     "title": "Nuevo Seguidor",
     "message": "¡{user} ahora sigue el canal!",
-    "sound": "/assets/sounds/custom/alo-sinaka.mp3",
+    "sound": "./assets/sounds/campana_alerta.wav",
     "duration": 6,
-    "image": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif",
+    "image": "https://i.giphy.com/media/artj92V8o75VPL7AeQ/giphy.gif",
     "textColor": "#ffffff",
     "accentColor": "#00f2fe"
   },
@@ -13,9 +13,9 @@
     "enabled": true,
     "title": "¡Nueva Suscripción!",
     "message": "¡{user} se ha suscrito al canal! (Nivel {tier})",
-    "sound": "/assets/sounds/sub.mp3",
+    "sound": "./assets/sounds/campana_alerta.wav",
     "duration": 7,
-    "image": "/assets/images/custom/787923542_18632378995035619_1108831098821865741_n.jpg",
+    "image": "https://i.giphy.com/media/IwAZ6dvvvaNN6/giphy.gif",
     "textColor": "#ffffff",
     "accentColor": "#9146ff"
   },
