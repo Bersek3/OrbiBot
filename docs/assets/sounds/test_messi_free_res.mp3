@@ -1,0 +1,19 @@
+HTTP/1.1 401 Unauthorized
+Date: Sat, 12 Sep 2026 08:36:50 GMT
+Content-Type: application/json
+Content-Length: 99
+Connection: keep-alive
+x-fish-error-code: missing_api_key
+x-fish-error-source: gateway
+x-fish-trace-id: 415612cb11ecda20b481ea7be1b4445c
+x-xss-protection: 1; mode=block
+x-frame-options: SAMEORIGIN
+cf-cache-status: DYNAMIC
+expect-ct: max-age=86400, enforce
+referrer-policy: same-origin
+x-content-type-options: nosniff
+Server: cloudflare
+CF-RAY: a39d96387f41c828-SCL
+alt-svc: h3=":443"; ma=86400
+
+{"status":401,"message":"this route requires an api-key or Authorization: Bearer <api key> header"}

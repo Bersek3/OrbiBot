@@ -1061,7 +1061,7 @@ app.get('/api/tts/audio', async (req, res) => {
           headers: {
             'Authorization': `Bearer ${fishApiKey}`,
             'Content-Type': 'application/json',
-            'model': 's2-pro'
+            'model': 's2.1-pro-free'
           },
           body: JSON.stringify({
             text: rawText,
