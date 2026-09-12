@@ -215,20 +215,41 @@ class TTSService {
     }
 
     let rawText = (text || '').trim();
-    let selectedVoice = voiceOverride || this.normalizeVoice(config.voice) || 'es_mx_mia';
+    let selectedVoice = voiceOverride ? this.normalizeVoice(voiceOverride) : (this.normalizeVoice(config.voice) || 'es_mx_mia');
 
-    // Detección automática de voz en el comando de chat (ej: "!tts messi Hola" o "!tts dross Hola streamer")
+    // Detección automática de voz en el comando de chat (ej: "!tts messi Hola" o "!tts dross Hola streamer" o "!tts voz homero")
     if (source === 'chat' && rawText) {
       const parts = rawText.split(/\s+/);
-      const possibleVoiceToken = parts[0].toLowerCase().replace(/^[-@/]/, '').replace(/^voice:/, '');
+      let possibleVoiceToken = parts[0].toLowerCase().replace(/^[-@/]/, '').replace(/^voice:/, '');
+      let hasText = parts.length > 1;
+
+      if ((possibleVoiceToken === 'voz' || possibleVoiceToken === 'voice') && parts.length > 1) {
+        possibleVoiceToken = parts[1].toLowerCase().replace(/^[-@/]/, '');
+        hasText = parts.length > 2;
+        if (hasText) {
+          rawText = parts.slice(2).join(' ');
+        } else {
+          rawText = `Voz TTS cambiada a ${possibleVoiceToken}`;
+        }
+      }
+
       const detectedVoice = this.normalizeVoice(possibleVoiceToken);
       if (detectedVoice && (this.isFishAudioVoice(detectedVoice) || detectedVoice.startsWith('es_') || detectedVoice.startsWith('en_') || detectedVoice.startsWith('pt_') || detectedVoice.startsWith('fr_') || detectedVoice.startsWith('it_') || detectedVoice.startsWith('de_') || detectedVoice.startsWith('ja_'))) {
-        if (parts.length > 1) {
-          selectedVoice = detectedVoice;
+        selectedVoice = detectedVoice;
+        if (hasText && !(parts[0].toLowerCase().replace(/^[-@/]/, '') === 'voz' || parts[0].toLowerCase().replace(/^[-@/]/, '') === 'voice')) {
           rawText = parts.slice(1).join(' ');
         }
       }
     }
+
+    // Mantener fija la última voz escogida en la configuración activa hasta que el usuario decida cambiarla
+    try {
+      const currentCfg = storage.getConfig();
+      if (currentCfg.tts && currentCfg.tts.voice !== selectedVoice) {
+        currentCfg.tts.voice = selectedVoice;
+        storage.saveConfig({ tts: currentCfg.tts });
+      }
+    } catch (e) { }
 
     const cleanText = this.sanitizeText(rawText, config);
     if (!cleanText || cleanText.length < 2) {

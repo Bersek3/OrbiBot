@@ -332,6 +332,11 @@ async function loadUserDataFromSupabase(userIdentifier) {
         }
         if (item.key === 'config' && item.value) {
           appConfig = { ...(appConfig || {}), ...item.value };
+          const localSavedVoice = localStorage.getItem('orbibot_active_tts_voice');
+          if (localSavedVoice) {
+            if (!appConfig.tts) appConfig.tts = {};
+            appConfig.tts.voice = localSavedVoice;
+          }
           if (item.value.twitch && (item.value.twitch.channel || item.value.twitch.displayName)) {
             localStorage.setItem('orbibot_twitch_auth', JSON.stringify(item.value.twitch));
           }
@@ -342,6 +347,13 @@ async function loadUserDataFromSupabase(userIdentifier) {
           localStorage.setItem('orbibot_config', JSON.stringify(appConfig));
           bindConfigToUI(appConfig);
           updatePlatformLinkingUI();
+        }
+        if (item.key === 'active_tts_voice' && item.value) {
+          localStorage.setItem('orbibot_active_tts_voice', item.value);
+          if (!appConfig.tts) appConfig.tts = {};
+          appConfig.tts.voice = item.value;
+          const vSel = document.getElementById('cfgTtsVoice');
+          if (vSel) vSel.value = item.value;
         }
         if (item.key === 'widgetStyles' && item.value) {
           if (typeof wcWidgetStyles !== 'undefined') {
@@ -2393,7 +2405,8 @@ function bindConfigToUI(cfg) {
   // TTS
   if (cfg.tts) {
     document.getElementById('cfgTtsEnabled').checked = cfg.tts.enabled !== false;
-    let vVal = cfg.tts.voice || 'es_mx_mia';
+    const savedActiveVoice = localStorage.getItem('orbibot_active_tts_voice');
+    let vVal = savedActiveVoice || cfg.tts.voice || 'es_mx_mia';
     if (vVal === 'es_001' || vVal === 'es_female') vVal = 'es_mx_mia';
     if (vVal === 'es_male') vVal = 'es_us_miguel';
     if (vVal === 'es_002') vVal = 'es_es_conchita';
@@ -2403,7 +2416,11 @@ function bindConfigToUI(cfg) {
     const voiceSelect = document.getElementById('cfgTtsVoice');
     if (voiceSelect) {
       voiceSelect.value = vVal;
-      if (!voiceSelect.value) voiceSelect.value = 'es_mx_mia';
+      if (!voiceSelect.value) {
+        voiceSelect.value = 'es_mx_mia';
+      } else {
+        localStorage.setItem('orbibot_active_tts_voice', voiceSelect.value);
+      }
     }
     document.getElementById('cfgTtsVolume').value = cfg.tts.volume !== undefined ? cfg.tts.volume : 90;
     document.getElementById('valTtsVolume').innerText = `${document.getElementById('cfgTtsVolume').value}%`;
@@ -5082,6 +5099,15 @@ function setupAutoSaveListeners() {
   configInputIds.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
+    if (id === 'cfgTtsVoice') {
+      el.addEventListener('change', (e) => {
+        const v = e.target.value;
+        localStorage.setItem('orbibot_active_tts_voice', v);
+        if (appConfig?.tts) appConfig.tts.voice = v;
+        saveAllConfig(true);
+      });
+      return;
+    }
     if (el.type === 'checkbox') {
       el.addEventListener('change', () => triggerAutoSave(100, true));
     } else if (el.tagName === 'SELECT') {
@@ -5132,6 +5158,10 @@ async function saveAllConfig(showNotification = true) {
     connected: effectiveConnected
   };
 
+  const selectedVoiceEl = document.getElementById('cfgTtsVoice');
+  const chosenVoice = selectedVoiceEl?.value || localStorage.getItem('orbibot_active_tts_voice') || 'es_mx_mia';
+  localStorage.setItem('orbibot_active_tts_voice', chosenVoice);
+
   const payload = {
     twitch: twitchPayload,
     songRequest: {
@@ -5143,7 +5173,7 @@ async function saveAllConfig(showNotification = true) {
     },
     tts: {
       enabled: Boolean(document.getElementById('cfgTtsEnabled')?.checked),
-      voice: document.getElementById('cfgTtsVoice')?.value || 'es_mx_mia',
+      voice: chosenVoice,
       volume: Number(document.getElementById('cfgTtsVolume')?.value ?? 90),
       rate: Number(document.getElementById('cfgTtsRate')?.value ?? 1),
       pitch: Number(document.getElementById('cfgTtsPitch')?.value ?? 1),
@@ -5165,6 +5195,11 @@ async function saveAllConfig(showNotification = true) {
       localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twAuth));
     }
   } catch (e) { }
+
+  if (typeof saveToAllSupabaseScopes === 'function') {
+    saveToAllSupabaseScopes('config', payload).catch(() => {});
+    saveToAllSupabaseScopes('active_tts_voice', chosenVoice).catch(() => {});
+  }
 
   populateWidgetUrls();
   initDashboardMqtt();
