@@ -252,8 +252,19 @@
       return false;
     }
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
+    const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
+
     function handleIncomingMessage(msg) {
       if (!msg) return;
+
+      // Room / Channel Verification: descartar alertas de otros canales
+      if (channel) {
+        const target = (msg.room || msg.channel || msg.data?.channel || '').toLowerCase().replace(/^#/, '').trim();
+        if (target && target !== 'default' && target !== channel) return;
+      }
+
       if (msg.event === 'alert') {
         if (isDuplicateEvent(msg)) return;
         alertQueue.push(msg.data);
@@ -265,9 +276,6 @@
 
     // ================= MULTI-CHANNEL CONNECTION =================
     function connectChannels() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
-      const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
 
       // Check if test alert requested via URL (e.g. ?test=1)
       if (urlParams.get('test') === '1') {

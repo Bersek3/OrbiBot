@@ -139,7 +139,7 @@ class TTSService {
     return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
   }
 
-  processRequest({ user, text, source = 'chat', bits = 0, voiceOverride = null }) {
+  processRequest({ user, text, source = 'chat', bits = 0, voiceOverride = null, channel = null }) {
     const config = storage.getConfig().tts;
     if (!config.enabled) {
       return { success: false, reason: 'TTS está deshabilitado en la configuración' };
@@ -180,8 +180,11 @@ class TTSService {
     const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
     const fallbackUrl = audioUrl;
 
+    const cleanChannel = channel ? channel.toLowerCase().replace(/^#/, '').trim() : null;
     const ttsItem = {
       id: 'tts-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+      channel: cleanChannel,
+      room: cleanChannel,
       user: user || 'Anónimo',
       text: cleanText,
       source,

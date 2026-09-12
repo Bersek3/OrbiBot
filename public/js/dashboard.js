@@ -119,7 +119,11 @@ function clearAllUserLocalData() {
     'orbibot_custom_sounds',
     'orbibot_custom_images',
     'orbibot_chat_platforms',
-    'orbibot_current_tab'
+    'orbibot_current_tab',
+    'orbibot_sr_state',
+    'orbibot_current_song',
+    'orbibot_song_history',
+    'orbibot_last_event'
   ];
   keysToRemove.forEach(k => localStorage.removeItem(k));
 
@@ -164,7 +168,12 @@ function resetDashboardUIToDefault() {
   renderCommands([]);
   renderRewards([]);
   if (typeof renderGoals === 'function') renderGoals([]);
-  updateSongRequestUI({ currentSong: null, queue: [], isPlaying: false });
+
+  currentSrState = { currentSong: null, queue: [], isPlaying: false, history: [] };
+  updateSongRequestUI(currentSrState, false);
+  if (typeof ytPlayer !== 'undefined' && ytPlayer && ytPlayer.stopVideo) {
+    try { ytPlayer.stopVideo(); } catch(e) {}
+  }
 
   populateWidgetUrls();
 }
@@ -242,6 +251,15 @@ async function loadUserDataFromSupabase(userIdentifier) {
       localStorage.removeItem('orbibot_kick_channel');
       localStorage.removeItem('orbibot_custom_sounds');
       localStorage.removeItem('orbibot_custom_images');
+      localStorage.removeItem('orbibot_sr_state');
+      localStorage.removeItem('orbibot_current_song');
+      localStorage.removeItem('orbibot_song_history');
+
+      currentSrState = { currentSong: null, queue: [], isPlaying: false, history: [] };
+      updateSongRequestUI(currentSrState, false);
+      if (typeof ytPlayer !== 'undefined' && ytPlayer && ytPlayer.stopVideo) {
+        try { ytPlayer.stopVideo(); } catch(e) {}
+      }
 
       bindConfigToUI(freshCfg);
       renderCommands([]);
@@ -256,18 +274,27 @@ async function loadUserDataFromSupabase(userIdentifier) {
       saveToAllSupabaseScopes('goals', []).catch(() => {});
       saveToAllSupabaseScopes('custom_sounds', []).catch(() => {});
       saveToAllSupabaseScopes('custom_images', []).catch(() => {});
+      saveToAllSupabaseScopes('sr_state', currentSrState).catch(() => {});
       return;
     }
 
     if (!error && data && data.length > 0) {
       console.log(`☁️ [Supabase Cloud] ${data.length} ajustes sincronizados para "${cleanId}".`);
       
-      // Limpiar caches previos de plataformas y archivos antes de aplicar datos de este usuario
+      // Limpiar caches previos de plataformas, archivos y song request antes de aplicar datos de este usuario
       localStorage.removeItem('orbibot_twitch_auth');
       localStorage.removeItem('orbibot_kick_auth');
       localStorage.removeItem('orbibot_kick_channel');
       localStorage.removeItem('orbibot_custom_sounds');
       localStorage.removeItem('orbibot_custom_images');
+      localStorage.removeItem('orbibot_sr_state');
+      localStorage.removeItem('orbibot_current_song');
+      localStorage.removeItem('orbibot_song_history');
+      currentSrState = { currentSong: null, queue: [], isPlaying: false, history: [] };
+      updateSongRequestUI(currentSrState, false);
+      if (typeof ytPlayer !== 'undefined' && ytPlayer && ytPlayer.stopVideo) {
+        try { ytPlayer.stopVideo(); } catch(e) {}
+      }
 
       const baseConfig = getFreshDefaultConfig();
       appConfig = { ...baseConfig };
@@ -366,6 +393,21 @@ async function loadUserDataFromSupabase(userIdentifier) {
         }
         if (item.key === 'custom_images' && Array.isArray(item.value)) {
           localStorage.setItem('orbibot_custom_images', JSON.stringify(item.value));
+        }
+        if (item.key === 'sr_state' && item.value) {
+          try {
+            const parsedSr = typeof item.value === 'string' ? JSON.parse(item.value) : item.value;
+            if (parsedSr && typeof parsedSr === 'object') {
+              currentSrState = {
+                currentSong: parsedSr.currentSong || null,
+                queue: Array.isArray(parsedSr.queue) ? parsedSr.queue : [],
+                isPlaying: !!parsedSr.isPlaying,
+                history: Array.isArray(parsedSr.history) ? parsedSr.history : []
+              };
+              localStorage.setItem('orbibot_sr_state', JSON.stringify(currentSrState));
+              updateSongRequestUI(currentSrState, false);
+            }
+          } catch (e) { }
         }
       });
       bindConfigToUI(appConfig);
@@ -1617,9 +1659,10 @@ function handleSocketMessage(msg) {
     return;
   }
 
-  // Room verification
-  const myRoom = getActiveStreamerRoom();
-  if (room && room !== myRoom && channel && channel !== myRoom) {
+  // Room verification: Asegurar aislamiento estricto por streamer
+  const myRoom = (getActiveStreamerRoom() || '').toLowerCase().replace(/^#/, '').trim();
+  const targetRoom = (room || channel || data?.channel || data?.room || '').toLowerCase().replace(/^#/, '').trim();
+  if (targetRoom && targetRoom !== 'default' && myRoom && myRoom !== 'default' && targetRoom !== myRoom) {
     return;
   }
 
@@ -1752,12 +1795,24 @@ async function loadInitialData() {
     return;
   }
 
+  // Prioridad Absoluta de Aislamiento: Si el usuario tiene sesión activa y Supabase está configurado,
+  // cargar exclusivamente sus datos privados desde Supabase para evitar contaminar con datos globales del backend.
+  if (supabaseClient) {
+    try {
+      await loadUserDataFromSupabase(session.email);
+      return;
+    } catch (sbErr) {
+      console.warn('⚠️ [loadInitialData] Error al cargar desde Supabase, intentando fallback:', sbErr);
+    }
+  }
+
   try {
+    const streamerRoom = getActiveStreamerRoom();
     const [cfgRes, cmdRes, rwdRes, srRes, goalsRes] = await Promise.all([
       fetch('/api/config').then(r => r.json()),
       fetch('/api/commands').then(r => r.json()),
       fetch('/api/rewards').then(r => r.json()),
-      fetch('/api/sr/state').then(r => r.json()),
+      fetch(`/api/sr/state?channel=${encodeURIComponent(streamerRoom)}`).then(r => r.json()),
       fetch('/api/goals').then(r => r.json()).catch(() => [])
     ]);
 
@@ -2751,11 +2806,14 @@ function getLocalSrState() {
   return currentSrState || { currentSong: null, queue: [], isPlaying: false };
 }
 
-function saveLocalSrState(state) {
+function saveLocalSrState(state, syncCloud = true) {
   currentSrState = state;
   try {
     localStorage.setItem('orbibot_sr_state', JSON.stringify(state));
   } catch(e) {}
+  if (syncCloud) {
+    saveToAllSupabaseScopes('sr_state', state).catch(() => {});
+  }
 }
 
 function extractYouTubeVideoId(input) {
@@ -2836,10 +2894,12 @@ function handleClientSongRequest(query, requester, isPriority = false) {
 }
 window.handleClientSongRequest = handleClientSongRequest;
 
-function updateSongRequestUI(state) {
+function updateSongRequestUI(state, shouldSave = true) {
   if (!state) return;
   currentSrState = state;
-  saveLocalSrState(state);
+  if (shouldSave) {
+    saveLocalSrState(state);
+  }
 
   const current = state.currentSong;
   const queue = state.queue || [];
@@ -2981,8 +3041,13 @@ function playYouTubeSong(videoId) {
 }
 
 async function skipCurrentSong() {
+  const myRoom = getActiveStreamerRoom();
   try {
-    const res = await fetch('/api/sr/skip', { method: 'POST' });
+    const res = await fetch('/api/sr/skip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel: myRoom })
+    });
     if (res.ok) {
       const data = await res.json();
       showToast(data.message || 'Canción saltada');
@@ -3016,11 +3081,12 @@ async function skipCurrentSong() {
 }
 
 async function removeSongFromQueue(songId) {
+  const myRoom = getActiveStreamerRoom();
   try {
     const res = await fetch('/api/sr/remove', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: songId })
+      body: JSON.stringify({ id: songId, channel: myRoom })
     });
     if (res.ok) {
       const data = await res.json();
@@ -5458,8 +5524,13 @@ function setupEventListeners() {
 
   document.getElementById('btnSrClear').addEventListener('click', async () => {
     if (confirm('¿Seguro que deseas vaciar toda la cola de canciones?')) {
+      const myRoom = getActiveStreamerRoom();
       try {
-        const res = await fetch('/api/sr/clear', { method: 'POST' });
+        const res = await fetch('/api/sr/clear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel: myRoom })
+        });
         if (res.ok) {
           const data = await res.json();
           showToast(`Cola vaciada (${data.count} canciones eliminadas)`);
@@ -5481,13 +5552,14 @@ function setupEventListeners() {
     const query = input.value.trim();
     if (!query) return;
 
+    const myRoom = getActiveStreamerRoom();
     showToast('Buscando y añadiendo canción...', 'info');
     let added = false;
     try {
       const res = await fetch('/api/sr/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, requester: 'Streamer' })
+        body: JSON.stringify({ query, requester: 'Streamer', channel: myRoom })
       });
       if (res.ok) {
         const data = await res.json();

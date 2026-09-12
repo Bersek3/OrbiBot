@@ -290,14 +290,26 @@
       }
     }
 
+    const songStorageKey = channel ? ('orbibot_current_song_' + channel) : 'orbibot_current_song';
+
     function notifySongEnded() {
-      // 1. Intentar API local
-      fetch('/api/sr/skip', { method: 'POST' }).catch(() => { });
+      // 1. Intentar API local pasando canal explícito
+      fetch('/api/sr/skip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel })
+      }).catch(() => { });
 
       // 2. BroadcastChannel para sincronizar pestañas locales
       if (typeof BroadcastChannel !== 'undefined') {
         const bc = new BroadcastChannel('orbibot_stream_channel');
-        bc.postMessage({ event: 'sr_ended', source: 'obs_audio_player' });
+        bc.postMessage({ event: 'sr_ended', source: 'obs_audio_player', channel });
+        if (channel) {
+          try {
+            const scopedBc = new BroadcastChannel('orbyxbot_stream_' + channel);
+            scopedBc.postMessage({ event: 'sr_ended', source: 'obs_audio_player', channel });
+          } catch(e) {}
+        }
       }
     }
 
@@ -305,13 +317,13 @@
       if (!song) {
         trackTitle.innerText = 'Esperando canciones con !sr...';
         trackRequester.innerText = 'La cola de música está vacía';
-        try { localStorage.removeItem('orbibot_current_song'); } catch(e) {}
+        try { localStorage.removeItem(songStorageKey); } catch(e) {}
         stopYouTubeVideo();
         return;
       }
 
       currentSongData = song;
-      try { localStorage.setItem('orbibot_current_song', JSON.stringify(song)); } catch(e) {}
+      try { localStorage.setItem(songStorageKey, JSON.stringify(song)); } catch(e) {}
       trackThumb.src = song.thumbnail || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80';
       trackTitle.innerText = song.title || 'Canción desconocida';
       trackRequester.innerText = `Pedida por @${song.requester || 'Anónimo'}`;
@@ -323,7 +335,7 @@
 
     // Cargar estado inicial desde localStorage de inmediato
     try {
-      const saved = localStorage.getItem('orbibot_current_song');
+      const saved = localStorage.getItem(songStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.videoId) {
@@ -350,6 +362,12 @@
     // Manejar mensajes entrantes
     function handleIncomingMessage(msg) {
       if (!msg) return;
+
+      // Room / Channel Verification: descartar eventos de otros canales
+      if (channel) {
+        const target = (msg.room || msg.channel || msg.data?.channel || '').toLowerCase().replace(/^#/, '').trim();
+        if (target && target !== 'default' && target !== channel) return;
+      }
 
       if (msg.event === 'init_state' && msg.data?.srState?.currentSong) {
         updateSongDisplay(msg.data.srState.currentSong);
@@ -388,6 +406,11 @@
         if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
         try {
           wsInstance = new WebSocket(url);
+          wsInstance.onopen = () => {
+            if (channel) {
+              wsInstance.send(JSON.stringify({ action: 'join', channel, room: channel }));
+            }
+          };
           wsInstance.onmessage = (event) => {
             try { handleIncomingMessage(JSON.parse(event.data)); } catch (e) { }
           };
@@ -407,7 +430,7 @@
 
       const isGitHubPages = location.hostname.endsWith('github.io');
       const wsUrl = !isGitHubPages
-        ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`
+        ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}${channel ? '?channel=' + encodeURIComponent(channel) : ''}`
         : 'ws://localhost:3000';
 
       connectLocalWs(wsUrl);

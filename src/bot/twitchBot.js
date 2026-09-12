@@ -41,6 +41,11 @@ class TwitchBot {
   }
 
   broadcast(event, payload) {
+    if (payload && typeof payload === 'object') {
+      const activeChan = (this.channel || storage.getConfig()?.twitch?.channel || '').toLowerCase().replace(/^#/, '').trim();
+      if (!payload.channel && activeChan) payload.channel = activeChan;
+      if (!payload.room && activeChan) payload.room = activeChan;
+    }
     for (const cb of this.eventCallbacks) {
       try {
         cb(event, payload);
@@ -285,7 +290,8 @@ class TwitchBot {
             user: username,
             text: message,
             source: 'bits',
-            bits: bitCount
+            bits: bitCount,
+            channel: channel ? channel.toLowerCase().replace(/^#/, '') : null
           });
         }
       }
@@ -315,6 +321,7 @@ class TwitchBot {
         }
 
         const result = await songRequest.addSong({
+          channel,
           query,
           requester: username,
           isMod,
@@ -328,7 +335,7 @@ class TwitchBot {
       // Check !song (current playing)
       if (trimmed.toLowerCase() === '!song' || trimmed.toLowerCase() === '!cancion') {
         if (!isSrEnabled) return;
-        const state = songRequest.getState();
+        const state = songRequest.getState(channel);
         if (state.currentSong) {
           this.sendMessage(channel, `🎶 Sonando ahora: ${state.currentSong.title} (pedida por @${state.currentSong.requester})`);
         } else {
@@ -341,10 +348,10 @@ class TwitchBot {
       if (trimmed.toLowerCase() === '!skip' || trimmed.toLowerCase() === '!saltar') {
         if (!isSrEnabled) return;
         if (isMod) {
-          const res = songRequest.skip(username, true);
+          const res = songRequest.skip(channel, username, true);
           this.sendMessage(channel, res.message);
         } else {
-          const res = songRequest.voteSkip(username);
+          const res = songRequest.voteSkip(channel, username);
           this.sendMessage(channel, res.message);
         }
         return;
@@ -353,7 +360,7 @@ class TwitchBot {
       // Check !queue
       if (trimmed.toLowerCase() === '!queue' || trimmed.toLowerCase() === '!cola') {
         if (!isSrEnabled) return;
-        const state = songRequest.getState();
+        const state = songRequest.getState(channel);
         if (state.queue.length === 0) {
           this.sendMessage(channel, `La cola de reproducción está vacía.`);
         } else {
@@ -371,7 +378,8 @@ class TwitchBot {
           ttsService.processRequest({
             user: username,
             text: ttsText,
-            source: 'chat'
+            source: 'chat',
+            channel: channel ? channel.toLowerCase().replace(/^#/, '') : null
           });
         }
         return;
@@ -578,7 +586,8 @@ class TwitchBot {
           ttsService.processRequest({
             user: username,
             text: ttsText,
-            source: 'channel_points'
+            source: 'channel_points',
+            channel: channel ? channel.toLowerCase().replace(/^#/, '') : null
           });
         }
         // No emitir alerta visual de widget para canjes de TTS: solo lee el mensaje
@@ -592,6 +601,7 @@ class TwitchBot {
         if (!cleanMsg) return;
 
         const result = await songRequest.addSong({
+          channel,
           query: cleanMsg,
           requester: username,
           isMod: true,

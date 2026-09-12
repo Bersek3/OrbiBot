@@ -172,32 +172,42 @@ wss.on('connection', (ws, req) => {
 });
 
 function broadcast(event, data, targetRoom) {
-  const payload = JSON.stringify({ event, data, room: targetRoom || 'default', timestamp: Date.now() });
   const cleanTarget = targetRoom ? targetRoom.toLowerCase().replace(/^#/, '').trim() : null;
+  const payload = JSON.stringify({ event, data, room: cleanTarget || 'default', timestamp: Date.now() });
   for (const client of clients) {
     if (client.readyState === 1) { // OPEN
-      if (!cleanTarget || cleanTarget === 'default' || !client.room || client.room === 'default' || client.room === cleanTarget) {
+      if (cleanTarget && cleanTarget !== 'default') {
+        // Broadcast con destinatario específico: SOLO enviar a clientes asignados a ese streamer / sala
+        if (client.room && client.room.toLowerCase().replace(/^#/, '').trim() === cleanTarget) {
+          client.send(payload);
+        }
+      } else {
+        // Mensaje global del sistema (ej. reinicio de servidor)
         client.send(payload);
       }
     }
   }
 }
 
-// Connect internal services to WebSocket broadcaster
+// Connect internal services to WebSocket broadcaster strictly scoped per streamer
 twitchBot.onEvent((event, payload) => {
-  broadcast(event, payload);
+  const room = payload?.channel || payload?.room || payload?.streamer;
+  broadcast(event, payload, room);
 });
 
 kickBot.onEvent((event, payload) => {
-  broadcast(event, payload);
+  const room = payload?.channel || payload?.room || payload?.streamer;
+  broadcast(event, payload, room);
 });
 
 songRequest.onUpdate((payload) => {
-  broadcast('sr_update', payload);
+  const room = payload?.channel || payload?.room;
+  broadcast('sr_update', payload, room);
 });
 
 ttsService.onTTS((payload) => {
-  broadcast('tts', payload);
+  const room = payload?.channel || payload?.room;
+  broadcast('tts', payload, room);
 });
 
 function handleClientMessage(ws, message) {
@@ -208,14 +218,14 @@ function handleClientMessage(ws, message) {
 
 // ================= API ROUTES =================
 
-// Status
 app.get('/api/status', (req, res) => {
+  const channel = (req.query.channel || req.query.streamer || req.headers['x-streamer-id'] || 'default').toLowerCase().replace(/^#/, '').trim();
   res.json({
     bot: {
       status: twitchBot.status,
       message: twitchBot.statusMessage
     },
-    songRequest: songRequest.getState(),
+    songRequest: songRequest.getState(channel),
     config: storage.getConfig(),
     activeClients: clients.size,
     backup: storage.getBackupStatus()
@@ -950,14 +960,17 @@ app.get('/api/rewards/twitch', async (req, res) => {
   }
 });
 
-// Song Request API
+// Song Request API (Aislamiento por canal / streamer)
 app.get('/api/sr/state', (req, res) => {
-  res.json(songRequest.getState());
+  const target = req.query.channel || req.query.streamer || req.headers['x-streamer-id'] || 'default';
+  res.json(songRequest.getState(target));
 });
 
 app.post('/api/sr/add', async (req, res) => {
-  const { query, requester, isPriority } = req.body;
+  const { query, requester, isPriority, channel, streamer } = req.body;
+  const target = channel || streamer || req.query.channel || req.headers['x-streamer-id'] || 'default';
   const result = await songRequest.addSong({
+    channel: target,
     query,
     requester: requester || 'Streamer',
     isMod: true,
@@ -968,24 +981,28 @@ app.post('/api/sr/add', async (req, res) => {
 });
 
 app.post('/api/sr/skip', (req, res) => {
-  const result = songRequest.skip('Streamer', true);
+  const target = req.body.channel || req.body.streamer || req.query.channel || req.headers['x-streamer-id'] || 'default';
+  const result = songRequest.skip(target, 'Streamer', true);
   res.json(result);
 });
 
 app.post('/api/sr/remove', (req, res) => {
-  const { id } = req.body;
-  const result = songRequest.removeSong(id);
+  const { id, channel, streamer } = req.body;
+  const target = channel || streamer || req.query.channel || req.headers['x-streamer-id'] || 'default';
+  const result = songRequest.removeSong(target, id);
   res.json(result);
 });
 
 app.post('/api/sr/clear', (req, res) => {
-  const result = songRequest.clearQueue();
+  const target = req.body.channel || req.body.streamer || req.query.channel || req.headers['x-streamer-id'] || 'default';
+  const result = songRequest.clearQueue(target);
   res.json(result);
 });
 
 app.post('/api/sr/playback-state', (req, res) => {
-  const { isPlaying } = req.body;
-  songRequest.setPlayingState(isPlaying);
+  const { isPlaying, channel, streamer } = req.body;
+  const target = channel || streamer || req.query.channel || req.headers['x-streamer-id'] || 'default';
+  songRequest.setPlayingState(target, isPlaying);
   res.json({ success: true });
 });
 

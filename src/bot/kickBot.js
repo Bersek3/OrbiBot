@@ -18,6 +18,10 @@ class KickBot {
   }
 
   broadcast(event, payload) {
+    if (payload && typeof payload === 'object') {
+      if (!payload.channel && this.channel) payload.channel = this.channel;
+      if (!payload.room && this.channel) payload.room = this.channel;
+    }
     for (const cb of this.eventCallbacks) {
       try {
         cb(event, payload);

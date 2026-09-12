@@ -264,8 +264,19 @@
       })
       .catch(() => {});
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
+    const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
+
     function handleIncomingMessage(msg) {
       if (!msg) return;
+
+      // Room / Channel Verification: descartar TTS de otros canales
+      if (channel) {
+        const target = (msg.room || msg.channel || msg.data?.channel || '').toLowerCase().replace(/^#/, '').trim();
+        if (target && target !== 'default' && target !== channel) return;
+      }
+
       if (msg.event === 'tts') {
         if (!ttsEnabled) {
           console.log('[TTS Overlay] TTS está deshabilitado en la configuración. Mensaje ignorado.');
@@ -283,9 +294,6 @@
     }
 
     function connectChannels() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
-      const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
 
       // 1. Local WebSocket con reconexión automática en segundo plano
       let wsInstance = null;

@@ -161,6 +161,13 @@
 
     function handleIncomingMessage(msg) {
       if (!msg) return;
+
+      // Room / Channel Verification: descartar metas de otros canales
+      if (channel) {
+        const target = (msg.room || msg.channel || msg.data?.channel || '').toLowerCase().replace(/^#/, '').trim();
+        if (target && target !== 'default' && target !== channel) return;
+      }
+
       const data = msg.data || msg;
 
       if (msg.event === 'goal_update' || data.goal) {

@@ -154,13 +154,19 @@
       }
     }
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
+    const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
+    const songStorageKey = channel ? ('orbibot_current_song_' + channel) : 'orbibot_current_song';
+
     // Initial check from localStorage or API
     try {
-      const saved = localStorage.getItem('orbibot_current_song');
+      const saved = localStorage.getItem(songStorageKey);
       if (saved) updateSong(JSON.parse(saved));
     } catch(e) {}
 
-    fetch('/api/sr/state')
+    const stateUrl = channel ? `/api/sr/state?channel=${encodeURIComponent(channel)}` : '/api/sr/state';
+    fetch(stateUrl)
       .then(r => r.json())
       .then(state => {
         if (state.currentSong && state.isPlaying) {
@@ -171,6 +177,13 @@
 
     function handleIncomingMessage(msg) {
       if (!msg) return;
+
+      // Room / Channel Verification: descartar eventos de otros canales
+      if (channel) {
+        const target = (msg.room || msg.channel || msg.data?.channel || '').toLowerCase().replace(/^#/, '').trim();
+        if (target && target !== 'default' && target !== channel) return;
+      }
+
       if (msg.event === 'init_state' && msg.data?.srState?.currentSong) {
         updateSong(msg.data.srState.currentSong);
       } else if (msg.event === 'sr_update') {
@@ -186,10 +199,6 @@
     }
 
     function connectChannels() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
-      const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
-
       // 1. Local WebSocket con reconexión automática en segundo plano
       let wsInstance = null;
       let wsReconnectTimeout = null;
@@ -198,6 +207,11 @@
         if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
         try {
           wsInstance = new WebSocket(url);
+          wsInstance.onopen = () => {
+            if (channel) {
+              wsInstance.send(JSON.stringify({ action: 'join', channel, room: channel }));
+            }
+          };
           wsInstance.onmessage = (event) => {
             try { handleIncomingMessage(JSON.parse(event.data)); } catch(e) {}
           };
@@ -217,7 +231,7 @@
 
       const isGitHubPages = location.hostname.endsWith('github.io');
       const wsUrl = !isGitHubPages
-        ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`
+        ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}${channel ? '?channel=' + encodeURIComponent(channel) : ''}`
         : 'ws://localhost:3000';
 
       connectLocalWs(wsUrl);

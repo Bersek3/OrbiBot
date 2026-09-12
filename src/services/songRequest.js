@@ -2,35 +2,49 @@ const storage = require('./storage');
 
 class SongRequestService {
   constructor() {
-    this.queue = [];
-    this.history = [];
-    this.currentSong = null;
-    this.isPlaying = false;
+    this.sessions = new Map();
     this.eventListeners = [];
-    this.skipVotes = new Set();
+  }
+
+  getSession(channelOrUser = 'default') {
+    const key = (channelOrUser || 'default').toLowerCase().replace(/^#/, '').trim() || 'default';
+    if (!this.sessions.has(key)) {
+      this.sessions.set(key, {
+        queue: [],
+        history: [],
+        currentSong: null,
+        isPlaying: false,
+        skipVotes: new Set()
+      });
+    }
+    return this.sessions.get(key);
   }
 
   onUpdate(callback) {
     this.eventListeners.push(callback);
   }
 
-  emitUpdate(action, data) {
+  emitUpdate(action, data, channelOrUser = 'default') {
+    const key = (channelOrUser || 'default').toLowerCase().replace(/^#/, '').trim() || 'default';
+    const state = this.getState(key);
     for (const listener of this.eventListeners) {
       try {
-        listener({ action, data, state: this.getState() });
+        listener({ action, data, channel: key, streamer: key, state });
       } catch (err) {
         console.error('Error in songRequest listener:', err);
       }
     }
   }
 
-  getState() {
+  getState(channelOrUser = 'default') {
+    const session = this.getSession(channelOrUser);
     return {
-      currentSong: this.currentSong,
-      queue: this.queue,
-      history: this.history.slice(-10),
-      isPlaying: this.isPlaying,
-      skipVotesCount: this.skipVotes.size
+      channel: (channelOrUser || 'default').toLowerCase().replace(/^#/, '').trim() || 'default',
+      currentSong: session.currentSong,
+      queue: session.queue,
+      history: session.history.slice(-10),
+      isPlaying: session.isPlaying,
+      skipVotesCount: session.skipVotes.size
     };
   }
 
@@ -66,7 +80,7 @@ class SongRequestService {
             title: data.title || 'Canción de YouTube',
             author: data.author_name || 'Artista desconocido',
             thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-            durationSeconds: 240, // Estimated when oembed doesn't provide it
+            durationSeconds: 240,
             durationFormatted: '4:00'
           };
         }
@@ -84,8 +98,7 @@ class SongRequestService {
       };
     }
 
-    // It's a text query search (e.g. "Daft Punk One More Time")
-    // Use YouTube search scraping with both modern JSON videoId and classic watch regex
+    // Text search scraping
     const searchEncoded = encodeURIComponent(videoIdOrQuery);
     try {
       const searchUrl = `https://www.youtube.com/results?search_query=${searchEncoded}`;
@@ -97,7 +110,6 @@ class SongRequestService {
       });
       if (res.ok) {
         const html = await res.text();
-        // 1. Intentar capturar ID desde el JSON Polymer embebido ("videoId":"...")
         const jsonMatches = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/g);
         let foundId = null;
         if (jsonMatches && jsonMatches.length > 0) {
@@ -110,7 +122,6 @@ class SongRequestService {
           }
         }
 
-        // 2. Si no se halló por JSON, intentar por enlace clásico /watch?v=
         if (!foundId) {
           const idMatches = html.match(/\/watch\?v=([a-zA-Z0-9_-]{11})/g);
           if (idMatches && idMatches.length > 0) {
@@ -126,13 +137,20 @@ class SongRequestService {
       console.warn('Search scrape error:', e.message);
     }
 
-    // Si la búsqueda falla o está bloqueada, NO engañar con Rick Astley; retornar null
     return null;
   }
 
-  async addSong({ query, requester, isMod = false, isSub = false, isPriority = false }) {
-    const config = storage.getConfig().songRequest;
-    if (!config.enabled) {
+  async addSong({ channel = 'default', query, requester, isMod = false, isSub = false, isPriority = false }) {
+    const cleanChan = (channel || 'default').toLowerCase().replace(/^#/, '').trim() || 'default';
+    const session = this.getSession(cleanChan);
+
+    let config = { enabled: true, userLevel: 'all', maxPerUser: 5, maxDurationMinutes: 8 };
+    try {
+      const storedCfg = storage.getConfig();
+      if (storedCfg && storedCfg.songRequest) config = storedCfg.songRequest;
+    } catch(e) {}
+
+    if (config.enabled === false) {
       return { success: false, message: 'El sistema de Song Request está desactivado.' };
     }
 
@@ -150,8 +168,7 @@ class SongRequestService {
         return { success: false, message: 'Solo suscriptores y moderadores pueden pedir canciones.' };
       }
 
-      // Check user limit
-      const userSongsInQueue = this.queue.filter(s => s.requester.toLowerCase() === requester.toLowerCase());
+      const userSongsInQueue = session.queue.filter(s => s.requester && s.requester.toLowerCase() === (requester || '').toLowerCase());
       if (userSongsInQueue.length >= (config.maxPerUser || 5) && !isMod) {
         return { success: false, message: `@${requester}, ya alcanzaste tu límite de canciones en cola (${config.maxPerUser}).` };
       }
@@ -162,7 +179,6 @@ class SongRequestService {
       return { success: false, message: `No se pudo encontrar la canción "${cleanQuery}" en YouTube.` };
     }
 
-    // Check duration limit
     const maxSec = (config.maxDurationMinutes || 8) * 60;
     if (videoDetails.durationSeconds > maxSec && !isMod && !isPriority) {
       return { success: false, message: `La canción excede el límite máximo de ${config.maxDurationMinutes} minutos.` };
@@ -170,6 +186,7 @@ class SongRequestService {
 
     const song = {
       id: 'sr-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+      channel: cleanChan,
       videoId: videoDetails.videoId,
       title: videoDetails.title,
       author: videoDetails.author,
@@ -181,32 +198,29 @@ class SongRequestService {
       requestedAt: new Date().toLocaleTimeString()
     };
 
-    // If nothing is playing, make it current or add to queue
-    if (!this.currentSong) {
-      this.currentSong = song;
-      this.isPlaying = true;
-      this.emitUpdate('play', song);
+    if (!session.currentSong) {
+      session.currentSong = song;
+      session.isPlaying = true;
+      this.emitUpdate('play', song, cleanChan);
     } else if (isPriority) {
-      // Prioridad VIP (Puntos de Canal): ubicar por delante de todas las canciones normales de !sr
-      // Si ya hay canciones VIP esperando, se ubica ordenadamente tras la última VIP
-      const lastPriorityIdx = this.queue.map(s => !!s.isPriority).lastIndexOf(true);
+      const lastPriorityIdx = session.queue.map(s => !!s.isPriority).lastIndexOf(true);
       if (lastPriorityIdx === -1) {
-        this.queue.unshift(song);
+        session.queue.unshift(song);
       } else {
-        this.queue.splice(lastPriorityIdx + 1, 0, song);
+        session.queue.splice(lastPriorityIdx + 1, 0, song);
       }
-      this.emitUpdate('queue_add', song);
+      this.emitUpdate('queue_add', song, cleanChan);
     } else {
-      this.queue.push(song);
-      this.emitUpdate('queue_add', song);
+      session.queue.push(song);
+      this.emitUpdate('queue_add', song, cleanChan);
     }
 
-    const position = this.currentSong === song ? 0 : (this.queue.indexOf(song) + 1);
+    const position = session.currentSong === song ? 0 : (session.queue.indexOf(song) + 1);
     return {
       success: true,
       song,
       position,
-      message: this.currentSong === song
+      message: session.currentSong === song
         ? `▶️ Reproduciendo ahora: ${song.title}`
         : (isPriority
             ? `🌟 [PRIORIDAD VIP] Próxima en sonar (Puesto #${position} en cola): ${song.title}`
@@ -214,28 +228,31 @@ class SongRequestService {
     };
   }
 
-  skip(byUser = 'Streamer', isMod = false) {
-    if (!this.currentSong) {
+  skip(channelOrUser = 'default', byUser = 'Streamer', isMod = false) {
+    const cleanChan = (channelOrUser || 'default').toLowerCase().replace(/^#/, '').trim() || 'default';
+    const session = this.getSession(cleanChan);
+
+    if (!session.currentSong) {
       return { success: false, message: 'No hay ninguna canción reproduciéndose actualmente.' };
     }
 
-    const skippedSong = this.currentSong;
-    this.history.push(skippedSong);
-    this.skipVotes.clear();
+    const skippedSong = session.currentSong;
+    session.history.push(skippedSong);
+    session.skipVotes.clear();
 
-    if (this.queue.length > 0) {
-      this.currentSong = this.queue.shift();
-      this.isPlaying = true;
-      this.emitUpdate('skip', { skipped: skippedSong, current: this.currentSong });
+    if (session.queue.length > 0) {
+      session.currentSong = session.queue.shift();
+      session.isPlaying = true;
+      this.emitUpdate('skip', { skipped: skippedSong, current: session.currentSong }, cleanChan);
       return {
         success: true,
-        message: `⏭️ Canción saltada. Ahora suena: ${this.currentSong.title}`,
-        current: this.currentSong
+        message: `⏭️ Canción saltada. Ahora suena: ${session.currentSong.title}`,
+        current: session.currentSong
       };
     } else {
-      this.currentSong = null;
-      this.isPlaying = false;
-      this.emitUpdate('stop', { skipped: skippedSong });
+      session.currentSong = null;
+      session.isPlaying = false;
+      this.emitUpdate('stop', { skipped: skippedSong }, cleanChan);
       return {
         success: true,
         message: '⏭️ Canción saltada. La cola está vacía.',
@@ -244,50 +261,65 @@ class SongRequestService {
     }
   }
 
-  voteSkip(username) {
-    if (!this.currentSong) {
+  voteSkip(channelOrUser = 'default', username = 'viewer') {
+    const cleanChan = (channelOrUser || 'default').toLowerCase().replace(/^#/, '').trim() || 'default';
+    const session = this.getSession(cleanChan);
+
+    if (!session.currentSong) {
       return { success: false, message: 'No hay canciones sonando para votar.' };
     }
 
-    this.skipVotes.add(username.toLowerCase());
+    session.skipVotes.add((username || '').toLowerCase());
     const requiredVotes = 3;
 
-    if (this.skipVotes.size >= requiredVotes) {
-      return this.skip(`Voto de la comunidad (${this.skipVotes.size}/${requiredVotes})`, true);
+    if (session.skipVotes.size >= requiredVotes) {
+      return this.skip(cleanChan, `Voto de la comunidad (${session.skipVotes.size}/${requiredVotes})`, true);
     }
 
     return {
       success: true,
-      message: `🗳️ @${username} ha votado para saltar (${this.skipVotes.size}/${requiredVotes} votos necesarios).`
+      message: `🗳️ @${username} ha votado para saltar (${session.skipVotes.size}/${requiredVotes} votos necesarios).`
     };
   }
 
-  removeSong(songId) {
-    const index = this.queue.findIndex(s => s.id === songId);
+  removeSong(channelOrUser = 'default', songId) {
+    const cleanChan = (channelOrUser || 'default').toLowerCase().replace(/^#/, '').trim() || 'default';
+    const session = this.getSession(cleanChan);
+
+    const index = session.queue.findIndex(s => s.id === songId);
     if (index !== -1) {
-      const removed = this.queue.splice(index, 1)[0];
-      this.emitUpdate('queue_remove', removed);
+      const removed = session.queue.splice(index, 1)[0];
+      this.emitUpdate('queue_remove', removed, cleanChan);
       return { success: true, song: removed };
     }
     return { success: false, message: 'Canción no encontrada en la cola.' };
   }
 
-  clearQueue() {
-    const count = this.queue.length;
-    this.queue = [];
-    this.emitUpdate('queue_clear', { count });
+  clearQueue(channelOrUser = 'default') {
+    const cleanChan = (channelOrUser || 'default').toLowerCase().replace(/^#/, '').trim() || 'default';
+    const session = this.getSession(cleanChan);
+
+    const count = session.queue.length;
+    session.queue = [];
+    this.emitUpdate('queue_clear', { count }, cleanChan);
     return { success: true, count };
   }
 
-  setCurrent(song) {
-    this.currentSong = song;
-    this.isPlaying = true;
-    this.emitUpdate('play', song);
+  setCurrent(channelOrUser = 'default', song) {
+    const cleanChan = (channelOrUser || 'default').toLowerCase().replace(/^#/, '').trim() || 'default';
+    const session = this.getSession(cleanChan);
+
+    session.currentSong = song;
+    session.isPlaying = true;
+    this.emitUpdate('play', song, cleanChan);
   }
 
-  setPlayingState(isPlaying) {
-    this.isPlaying = isPlaying;
-    this.emitUpdate('state_change', { isPlaying });
+  setPlayingState(channelOrUser = 'default', isPlaying) {
+    const cleanChan = (channelOrUser || 'default').toLowerCase().replace(/^#/, '').trim() || 'default';
+    const session = this.getSession(cleanChan);
+
+    session.isPlaying = isPlaying;
+    this.emitUpdate('state_change', { isPlaying }, cleanChan);
   }
 }
 
