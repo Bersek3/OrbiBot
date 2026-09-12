@@ -725,6 +725,16 @@ input[type=range]::-webkit-slider-thumb {
   transform: translateX(4px);
 }
 
+.queue-item.queue-item-vip {
+  border-left: 3px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+  box-shadow: inset 0 0 16px rgba(245, 158, 11, 0.05);
+}
+
+.queue-item.queue-item-vip .queue-index {
+  color: #f59e0b;
+}
+
 .queue-index {
   font-family: var(--font-mono);
   font-weight: 800;

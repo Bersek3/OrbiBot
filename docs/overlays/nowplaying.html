@@ -138,7 +138,7 @@
         return;
       }
 
-      npThumb.src = song.thumbnail || 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
+      npThumb.src = song.thumbnail || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80';
       npTitle.innerText = song.title || 'Canción desconocida';
       npRequester.innerHTML = `Pedida por <strong>@${song.requester || 'Anónimo'}</strong>`;
       npCard.classList.add('visible');

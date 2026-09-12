@@ -1019,12 +1019,13 @@ app.get('/api/sr/state', (req, res) => {
 });
 
 app.post('/api/sr/add', async (req, res) => {
-  const { query, requester } = req.body;
+  const { query, requester, isPriority } = req.body;
   const result = await songRequest.addSong({
     query,
     requester: requester || 'Streamer',
     isMod: true,
-    isSub: true
+    isSub: true,
+    isPriority: !!isPriority
   });
   res.json(result);
 });

@@ -85,40 +85,60 @@ class SongRequestService {
     }
 
     // It's a text query search (e.g. "Daft Punk One More Time")
-    // Use YouTube search scraping or fallback search representation
+    // Use YouTube search scraping with both modern JSON videoId and classic watch regex
     const searchEncoded = encodeURIComponent(videoIdOrQuery);
     try {
       const searchUrl = `https://www.youtube.com/results?search_query=${searchEncoded}`;
       const res = await fetch(searchUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'
+        }
       });
       if (res.ok) {
         const html = await res.text();
-        const idMatches = html.match(/\/watch\?v=([a-zA-Z0-9_-]{11})/g);
-        if (idMatches && idMatches.length > 0) {
-          const firstId = idMatches[0].replace('/watch?v=', '');
-          return await this.fetchVideoDetails(firstId);
+        // 1. Intentar capturar ID desde el JSON Polymer embebido ("videoId":"...")
+        const jsonMatches = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/g);
+        let foundId = null;
+        if (jsonMatches && jsonMatches.length > 0) {
+          for (const m of jsonMatches) {
+            const clean = m.replace(/"videoId":"|"/g, '');
+            if (clean && clean.length === 11) {
+              foundId = clean;
+              break;
+            }
+          }
+        }
+
+        // 2. Si no se halló por JSON, intentar por enlace clásico /watch?v=
+        if (!foundId) {
+          const idMatches = html.match(/\/watch\?v=([a-zA-Z0-9_-]{11})/g);
+          if (idMatches && idMatches.length > 0) {
+            foundId = idMatches[0].replace('/watch?v=', '');
+          }
+        }
+
+        if (foundId) {
+          return await this.fetchVideoDetails(foundId);
         }
       }
     } catch (e) {
       console.warn('Search scrape error:', e.message);
     }
 
-    // Default fallback if search blocked
-    return {
-      videoId: 'dQw4w9WgXcQ',
-      title: videoIdOrQuery,
-      author: 'YouTube Request',
-      thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
-      durationSeconds: 212,
-      durationFormatted: '3:32'
-    };
+    // Si la búsqueda falla o está bloqueada, NO engañar con Rick Astley; retornar null
+    return null;
   }
 
   async addSong({ query, requester, isMod = false, isSub = false, isPriority = false }) {
     const config = storage.getConfig().songRequest;
     if (!config.enabled) {
       return { success: false, message: 'El sistema de Song Request está desactivado.' };
+    }
+
+    const cleanQuery = (query || '').trim();
+    if (!cleanQuery) {
+      return { success: false, message: 'Debes indicar el nombre o enlace de una canción.' };
     }
 
     // Check user permission level (bypassed if priority/channel points)
@@ -137,9 +157,9 @@ class SongRequestService {
       }
     }
 
-    const videoDetails = await this.fetchVideoDetails(query);
+    const videoDetails = await this.fetchVideoDetails(cleanQuery);
     if (!videoDetails || !videoDetails.videoId) {
-      return { success: false, message: 'No se pudo encontrar o validar la canción solicitada.' };
+      return { success: false, message: `No se pudo encontrar la canción "${cleanQuery}" en YouTube.` };
     }
 
     // Check duration limit
@@ -153,7 +173,7 @@ class SongRequestService {
       videoId: videoDetails.videoId,
       title: videoDetails.title,
       author: videoDetails.author,
-      thumbnail: videoDetails.thumbnail,
+      thumbnail: videoDetails.thumbnail || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80',
       durationSeconds: videoDetails.durationSeconds,
       durationFormatted: videoDetails.durationFormatted,
       requester: requester || 'Anónimo',
@@ -167,15 +187,21 @@ class SongRequestService {
       this.isPlaying = true;
       this.emitUpdate('play', song);
     } else if (isPriority) {
-      // Prioridad VIP: colocar al frente de la cola (#1) para que suene la siguiente
-      this.queue.unshift(song);
+      // Prioridad VIP (Puntos de Canal): ubicar por delante de todas las canciones normales de !sr
+      // Si ya hay canciones VIP esperando, se ubica ordenadamente tras la última VIP
+      const lastPriorityIdx = this.queue.map(s => !!s.isPriority).lastIndexOf(true);
+      if (lastPriorityIdx === -1) {
+        this.queue.unshift(song);
+      } else {
+        this.queue.splice(lastPriorityIdx + 1, 0, song);
+      }
       this.emitUpdate('queue_add', song);
     } else {
       this.queue.push(song);
       this.emitUpdate('queue_add', song);
     }
 
-    const position = this.currentSong === song ? 0 : (isPriority ? 1 : this.queue.length);
+    const position = this.currentSong === song ? 0 : (this.queue.indexOf(song) + 1);
     return {
       success: true,
       song,
@@ -183,8 +209,8 @@ class SongRequestService {
       message: this.currentSong === song
         ? `▶️ Reproduciendo ahora: ${song.title}`
         : (isPriority
-            ? `🌟 [PRIORIDAD VIP] Próxima en sonar (#1 en cola): ${song.title}`
-            : `🎵 Añadida a la cola en posición #${this.queue.length}: ${song.title}`)
+            ? `🌟 [PRIORIDAD VIP] Próxima en sonar (Puesto #${position} en cola): ${song.title}`
+            : `🎵 Añadida a la cola en posición #${position}: ${song.title}`)
     };
   }
 

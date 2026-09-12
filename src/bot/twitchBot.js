@@ -483,12 +483,6 @@ class TwitchBot {
    * Procesa la ejecución de un canje de Puntos de Canal (Sonido, TTS, Song Request).
    */
   async handleChannelPointRedemption(customRewardId, username, message = '', rewardTitle = '', channel = '') {
-    const dedupeKey = `${customRewardId || rewardTitle}_${username}_${Math.floor(Date.now() / 2500)}`;
-    if (this.recentRedemptions && this.recentRedemptions.has(dedupeKey)) return;
-    if (!this.recentRedemptions) this.recentRedemptions = new Set();
-    this.recentRedemptions.add(dedupeKey);
-    setTimeout(() => this.recentRedemptions.delete(dedupeKey), 10000);
-
     let rewards = storage.getRewards() || [];
 
     // Si rewards local está vacío, consultar Supabase si está disponible
@@ -548,6 +542,22 @@ class TwitchBot {
       }
     }
 
+    // Si la recompensa requiere texto del usuario (Song Request o TTS) y viene vacía
+    // (típico del evento USERNOTICE que Twitch dispara antes del mensaje de chat),
+    // NO registramos deduplicación ni ejecutamos nada: esperamos al evento PRIVMSG del chat.
+    const isTextAction = matchedReward && (matchedReward.action === 'song_request' || matchedReward.action === 'tts');
+    const cleanMsg = (message || '').trim();
+    if (isTextAction && !cleanMsg) {
+      console.log(`[TwitchBot] ⏳ Canje de "${matchedReward.rewardName}" detectado sin texto aún. Esperando mensaje del espectador...`);
+      return;
+    }
+
+    const dedupeKey = `${customRewardId || rewardTitle}_${username}_${Math.floor(Date.now() / 2500)}`;
+    if (this.recentRedemptions && this.recentRedemptions.has(dedupeKey)) return;
+    if (!this.recentRedemptions) this.recentRedemptions = new Set();
+    this.recentRedemptions.add(dedupeKey);
+    setTimeout(() => this.recentRedemptions.delete(dedupeKey), 10000);
+
     if (matchedReward && matchedReward.enabled) {
       console.log(`[TwitchBot] 🎁 Canje procesado: "${matchedReward.rewardName}" (${matchedReward.action}) por @${username}`);
       if (matchedReward.action === 'sound') {
@@ -561,7 +571,7 @@ class TwitchBot {
         });
         return;
       } else if (matchedReward.action === 'tts') {
-        const ttsText = (message || '').trim();
+        const ttsText = cleanMsg;
         if (ttsText) {
           ttsService.processRequest({
             user: username,
@@ -577,19 +587,21 @@ class TwitchBot {
           if (channel) this.sendMessage(channel, `@${username}, el sistema de Song Request está desactivado en este momento.`);
           return;
         }
+        if (!cleanMsg) return;
+
         const result = await songRequest.addSong({
-          query: message,
+          query: cleanMsg,
           requester: username,
           isMod: true,
           isSub: true,
           isPriority: true
         });
-        if (channel) this.sendMessage(channel, `🌟 [PUNTOS DE CANAL VIP] @${username} pidió con prioridad: ${result.message}`);
+        if (channel) this.sendMessage(channel, `@${username} ${result.message}`);
         this.broadcast('alert', {
           type: 'channel_points',
           user: username,
           reward: matchedReward.rewardName || 'Pedir Canción VIP',
-          message
+          message: cleanMsg
         });
         return;
       }

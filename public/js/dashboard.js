@@ -1667,6 +1667,28 @@ function connectInBrowserTwitchBot(twitchData) {
             }
           }
         }
+
+        // Procesamiento de comando !sr desde el chat en cliente de navegador
+        const srCfg = currentCfg.songRequest || {};
+        const srPrefix = (srCfg.prefix || '!sr').toLowerCase();
+        if (srCfg.enabled !== false && message.trim().toLowerCase().startsWith(srPrefix)) {
+          const q = message.trim().slice(srPrefix.length).trim();
+          if (q) {
+            fetch('/api/sr/add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: q, requester: username, isMod, isSub })
+            }).then(r => {
+              if (!r.ok && typeof handleClientSongRequest === 'function') {
+                handleClientSongRequest(q, username, false);
+              }
+            }).catch(() => {
+              if (typeof handleClientSongRequest === 'function') {
+                handleClientSongRequest(q, username, false);
+              }
+            });
+          }
+        }
       } catch (e) { }
     });
 
@@ -1738,11 +1760,6 @@ function connectInBrowserTwitchBot(twitchData) {
 
 let browserRecentRedemptions = new Set();
 async function handleBrowserChannelPointRedemption(customRewardId, username, message = '', rewardTitle = '') {
-  const dedupeKey = `${customRewardId || rewardTitle}_${username}_${Math.floor(Date.now() / 2500)}`;
-  if (browserRecentRedemptions.has(dedupeKey)) return;
-  browserRecentRedemptions.add(dedupeKey);
-  setTimeout(() => browserRecentRedemptions.delete(dedupeKey), 10000);
-
   let rewards = [];
   try {
     rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
@@ -1766,6 +1783,20 @@ async function handleBrowserChannelPointRedemption(customRewardId, username, mes
     }
   }
 
+  // Si la recompensa requiere texto del usuario (Song Request o TTS) y viene vacía
+  // (típico del evento USERNOTICE previo a PRIVMSG), NO deduplicar ni procesar: esperamos al evento PRIVMSG
+  const isTextAction = matchedReward && (matchedReward.action === 'song_request' || matchedReward.action === 'tts');
+  const cleanMsg = (message || '').trim();
+  if (isTextAction && !cleanMsg) {
+    console.log(`[Dashboard] ⏳ Canje de "${matchedReward.rewardName}" detectado sin texto aún. Esperando mensaje del chat...`);
+    return;
+  }
+
+  const dedupeKey = `${customRewardId || rewardTitle}_${username}_${Math.floor(Date.now() / 2500)}`;
+  if (browserRecentRedemptions.has(dedupeKey)) return;
+  browserRecentRedemptions.add(dedupeKey);
+  setTimeout(() => browserRecentRedemptions.delete(dedupeKey), 10000);
+
   if (matchedReward && matchedReward.enabled) {
     console.log(`[Dashboard] 🎁 Canje procesado: "${matchedReward.rewardName}" (${matchedReward.action}) por @${username}`);
     if (matchedReward.action === 'sound') {
@@ -1787,7 +1818,7 @@ async function handleBrowserChannelPointRedemption(customRewardId, username, mes
         return;
       }
       const voice = ttsConfig.voice || 'es_mx_mia';
-      const textToSpeak = (message || '').trim();
+      const textToSpeak = cleanMsg;
       if (!textToSpeak) return;
 
       const ttsData = {
@@ -1803,20 +1834,35 @@ async function handleBrowserChannelPointRedemption(customRewardId, username, mes
       // No emitir alerta visual para TTS (solo lee el mensaje)
       return;
     } else if (matchedReward.action === 'song_request') {
-      if (message) {
-        try {
-          await fetch('/api/sr/add', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: message, requester: username, isPriority: true })
-          });
-        } catch(e) {}
+      const songQuery = cleanMsg;
+      if (!songQuery) return;
+
+      let addedViaBackend = false;
+      try {
+        const res = await fetch('/api/sr/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: songQuery, requester: username, isPriority: true })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success) {
+            addedViaBackend = true;
+            showToast(`🌟 [VIP] @${username} pidió canción: ${data.song?.title || songQuery}`, 'success');
+          }
+        }
+      } catch(e) {}
+
+      // Si falla la API backend o estamos en GitHub Pages, procesar localmente
+      if (!addedViaBackend && typeof handleClientSongRequest === 'function') {
+        handleClientSongRequest(songQuery, username, true);
       }
+
       broadcastEvent('alert', {
         type: 'channel_points',
         user: username,
         reward: matchedReward.rewardName || 'Pedir Canción VIP',
-        message
+        message: songQuery
       });
       return;
     }
@@ -2418,8 +2464,110 @@ function triggerTestChat() {
 window.triggerTestChat = triggerTestChat;
 
 // ================= SONG REQUEST UI & YOUTUBE =================
+const DEFAULT_SONG_THUMB = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80';
+let currentSrState = {
+  currentSong: null,
+  queue: [],
+  isPlaying: false
+};
+
+function getLocalSrState() {
+  try {
+    const saved = localStorage.getItem('orbibot_sr_state');
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return currentSrState || { currentSong: null, queue: [], isPlaying: false };
+}
+
+function saveLocalSrState(state) {
+  currentSrState = state;
+  try {
+    localStorage.setItem('orbibot_sr_state', JSON.stringify(state));
+  } catch(e) {}
+}
+
+function extractYouTubeVideoId(input) {
+  if (!input || typeof input !== 'string') return null;
+  const str = input.trim();
+  const watchMatch = str.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+  if (watchMatch && watchMatch[1]) return watchMatch[1];
+  if (/^[a-zA-Z0-9_-]{11}$/.test(str)) return str;
+  return null;
+}
+
+function handleClientSongRequest(query, requester, isPriority = false) {
+  const cleanQuery = (query || '').trim();
+  if (!cleanQuery) return;
+
+  const videoId = extractYouTubeVideoId(cleanQuery);
+  const song = {
+    id: 'sr-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+    videoId: videoId || null,
+    query: cleanQuery,
+    title: cleanQuery,
+    author: 'YouTube',
+    thumbnail: videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : DEFAULT_SONG_THUMB,
+    durationSeconds: 210,
+    durationFormatted: '3:30',
+    requester: requester || 'Anónimo',
+    isPriority: !!isPriority,
+    requestedAt: new Date().toLocaleTimeString()
+  };
+
+  // Si se reconoció un ID de video, consultar oEmbed para obtener título y autor reales
+  if (videoId) {
+    fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.title) song.title = d.title;
+        if (d.author_name) song.author = d.author_name;
+        updateSongRequestUI(currentSrState);
+      })
+      .catch(() => {});
+  }
+
+  const state = getLocalSrState();
+  state.queue = state.queue || [];
+
+  if (!state.currentSong) {
+    state.currentSong = song;
+    state.isPlaying = true;
+    saveLocalSrState(state);
+    updateSongRequestUI(state);
+    if (song.videoId) {
+      playYouTubeSong(song.videoId);
+    } else if (ytPlayer && ytPlayer.loadPlaylist) {
+      ytPlayer.loadPlaylist({ listType: 'search', list: song.query });
+    }
+    broadcastEvent('sr_update', { action: 'play', data: song, state });
+    showToast(isPriority ? `🌟 [VIP] Reproduciendo ahora: ${song.title}` : `▶️ Reproduciendo ahora: ${song.title}`, 'success');
+  } else if (isPriority) {
+    // Prioridad VIP (Puntos de Canal): ubicar por delante de canciones normales
+    const lastPriorityIdx = state.queue.map(s => !!s.isPriority).lastIndexOf(true);
+    if (lastPriorityIdx === -1) {
+      state.queue.unshift(song);
+    } else {
+      state.queue.splice(lastPriorityIdx + 1, 0, song);
+    }
+    saveLocalSrState(state);
+    updateSongRequestUI(state);
+    broadcastEvent('sr_update', { action: 'queue_add', data: song, state });
+    const pos = state.queue.indexOf(song) + 1;
+    showToast(`🌟 [VIP] @${requester} pidió canción con prioridad (#${pos} en cola): ${song.title}`, 'success');
+  } else {
+    state.queue.push(song);
+    saveLocalSrState(state);
+    updateSongRequestUI(state);
+    broadcastEvent('sr_update', { action: 'queue_add', data: song, state });
+    showToast(`🎵 Canción añadida (#${state.queue.length} en cola): ${song.title}`, 'info');
+  }
+}
+window.handleClientSongRequest = handleClientSongRequest;
+
 function updateSongRequestUI(state) {
   if (!state) return;
+  currentSrState = state;
+  saveLocalSrState(state);
 
   const current = state.currentSong;
   const queue = state.queue || [];
@@ -2437,10 +2585,10 @@ function updateSongRequestUI(state) {
   const requester = document.getElementById('srCurrentRequester');
 
   if (current) {
-    thumb.src = current.thumbnail || 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
-    title.innerText = current.title;
-    author.innerText = current.author || 'YouTube';
-    requester.innerHTML = `Pedida por: <strong>@${current.requester}</strong> (${current.durationFormatted || '3:30'})`;
+    if (thumb) thumb.src = current.thumbnail || DEFAULT_SONG_THUMB;
+    if (title) title.innerText = current.title;
+    if (author) author.innerText = current.author || 'YouTube';
+    if (requester) requester.innerHTML = `${current.isPriority ? '<span class="badge badge-accent" style="margin-right: 4px;">🌟 VIP</span> ' : ''}Pedida por: <strong>@${current.requester}</strong> (${current.durationFormatted || '3:30'})`;
 
     if (ytPlayer && ytApiReady && current.videoId) {
       const currentVideoId = ytPlayer.getVideoData ? ytPlayer.getVideoData().video_id : null;
@@ -2449,10 +2597,10 @@ function updateSongRequestUI(state) {
       }
     }
   } else {
-    thumb.src = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
-    title.innerText = 'No hay canción sonando';
-    author.innerText = 'Pide una canción con !sr en el chat';
-    requester.innerText = 'Esperando solicitudes...';
+    if (thumb) thumb.src = DEFAULT_SONG_THUMB;
+    if (title) title.innerText = 'No hay canción sonando';
+    if (author) author.innerText = 'Pide una canción con !sr o puntos del canal';
+    if (requester) requester.innerText = 'Esperando solicitudes...';
   }
 
   // Visualizer wave
@@ -2470,7 +2618,7 @@ function updateSongRequestUI(state) {
       <div style="text-align: center; color: var(--text-muted); padding: 36px 20px;">
         <div style="font-size: 32px; margin-bottom: 8px;">🎵</div>
         <div style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">No hay canciones en cola actualmente</div>
-        <div style="font-size: 12px; margin-top: 4px;">Tus espectadores pueden usar <code>!sr nombre de la canción</code> en Twitch.</div>
+        <div style="font-size: 12px; margin-top: 4px;">Tus espectadores pueden usar <code>!sr nombre de la canción</code> o canjear Puntos de Canal en Twitch.</div>
       </div>
     `;
     return;
@@ -2479,13 +2627,13 @@ function updateSongRequestUI(state) {
   queueContainer.innerHTML = '';
   queue.forEach((song, idx) => {
     const item = document.createElement('div');
-    item.className = 'queue-item';
-    const thumbUrl = song.thumbnail || 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
+    item.className = 'queue-item' + (song.isPriority ? ' queue-item-vip' : '');
+    const thumbUrl = song.thumbnail || DEFAULT_SONG_THUMB;
     item.innerHTML = `
       <div class="queue-index">#${idx + 1}</div>
       <img class="queue-thumb" src="${escapeHtml(thumbUrl)}" alt="Thumb">
       <div class="queue-info">
-        <div class="queue-title">${escapeHtml(song.title)}</div>
+        <div class="queue-title">${escapeHtml(song.title)} ${song.isPriority ? '<span class="badge badge-accent" style="font-size: 10px; margin-left: 6px;">🌟 VIP</span>' : ''}</div>
         <div class="queue-req">Pedida por <strong style="color: var(--cyan-accent);">@${escapeHtml(song.requester)}</strong> • ⏱️ ${song.durationFormatted || '3:30'}</div>
       </div>
       <button class="btn btn-danger btn-sm" onclick="removeSongFromQueue('${song.id}')" title="Eliminar de la cola">🗑️</button>
@@ -2563,10 +2711,35 @@ function playYouTubeSong(videoId) {
 async function skipCurrentSong() {
   try {
     const res = await fetch('/api/sr/skip', { method: 'POST' });
-    const data = await res.json();
-    showToast(data.message || 'Canción saltada');
-  } catch (e) {
-    showToast('Error saltando canción', 'error');
+    if (res.ok) {
+      const data = await res.json();
+      showToast(data.message || 'Canción saltada');
+      return;
+    }
+  } catch (e) { }
+
+  // Modo local / standalone si no hay backend activo
+  const state = getLocalSrState();
+  state.queue = state.queue || [];
+  if (state.queue.length > 0) {
+    state.currentSong = state.queue.shift();
+    state.isPlaying = true;
+    saveLocalSrState(state);
+    updateSongRequestUI(state);
+    if (state.currentSong.videoId) {
+      playYouTubeSong(state.currentSong.videoId);
+    } else if (ytPlayer && ytPlayer.loadPlaylist) {
+      ytPlayer.loadPlaylist({ listType: 'search', list: state.currentSong.query });
+    }
+    broadcastEvent('sr_update', { action: 'skip', data: { current: state.currentSong }, state });
+    showToast(`⏭️ Saltada. Ahora suena: ${state.currentSong.title}`);
+  } else {
+    state.currentSong = null;
+    state.isPlaying = false;
+    saveLocalSrState(state);
+    updateSongRequestUI(state);
+    broadcastEvent('sr_update', { action: 'stop', state });
+    showToast('⏭️ Cola vacía');
   }
 }
 
@@ -2577,12 +2750,25 @@ async function removeSongFromQueue(songId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: songId })
     });
-    const data = await res.json();
-    if (data.success) {
-      showToast('Canción eliminada de la cola');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        showToast('Canción eliminada de la cola');
+        return;
+      }
     }
-  } catch (e) {
-    showToast('Error al eliminar canción', 'error');
+  } catch (e) { }
+
+  // Fallback local
+  const state = getLocalSrState();
+  state.queue = state.queue || [];
+  const idx = state.queue.findIndex(s => s.id === songId);
+  if (idx !== -1) {
+    const removed = state.queue.splice(idx, 1)[0];
+    saveLocalSrState(state);
+    updateSongRequestUI(state);
+    broadcastEvent('sr_update', { action: 'queue_remove', data: removed, state });
+    showToast('Canción eliminada de la cola');
   }
 }
 
@@ -4995,9 +5181,21 @@ function setupEventListeners() {
 
   document.getElementById('btnSrClear').addEventListener('click', async () => {
     if (confirm('¿Seguro que deseas vaciar toda la cola de canciones?')) {
-      const res = await fetch('/api/sr/clear', { method: 'POST' });
-      const data = await res.json();
-      showToast(`Cola vaciada (${data.count} canciones eliminadas)`);
+      try {
+        const res = await fetch('/api/sr/clear', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          showToast(`Cola vaciada (${data.count} canciones eliminadas)`);
+          return;
+        }
+      } catch (e) { }
+      const state = getLocalSrState();
+      const count = (state.queue || []).length;
+      state.queue = [];
+      saveLocalSrState(state);
+      updateSongRequestUI(state);
+      broadcastEvent('sr_update', { action: 'queue_clear', data: { count }, state });
+      showToast(`Cola vaciada (${count} canciones eliminadas)`);
     }
   });
 
@@ -5007,21 +5205,29 @@ function setupEventListeners() {
     if (!query) return;
 
     showToast('Buscando y añadiendo canción...', 'info');
+    let added = false;
     try {
       const res = await fetch('/api/sr/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, requester: 'Streamer' })
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast(data.message, 'success');
-        input.value = '';
-      } else {
-        showToast(data.message, 'warn');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message, 'success');
+          input.value = '';
+          added = true;
+        } else {
+          showToast(data.message, 'warn');
+          return;
+        }
       }
-    } catch (e) {
-      showToast('Error al añadir canción', 'error');
+    } catch (e) { }
+
+    if (!added) {
+      handleClientSongRequest(query, 'Streamer', false);
+      input.value = '';
     }
   });
 
