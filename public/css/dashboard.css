@@ -3202,6 +3202,25 @@ input[type=range]::-webkit-slider-thumb {
   flex-shrink: 0;
 }
 
+/* Alert Test Dropdown in Widgets Section */
+.alert-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #f1f5f9;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
 
-
-
+.alert-dropdown-item:hover {
+  background: rgba(0, 242, 254, 0.15);
+  color: #00f2fe;
+}

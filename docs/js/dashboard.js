@@ -289,7 +289,7 @@ function updateAuthUI() {
 
   if (session && session.email) {
     if (authAccountPill) authAccountPill.style.display = 'inline-flex';
-    if (authAccountEmail) authAccountEmail.textContent = session.email;
+    if (authAccountEmail) authAccountEmail.textContent = session.username || 'Mi Cuenta';
   } else {
     if (authAccountPill) authAccountPill.style.display = 'none';
   }
@@ -648,7 +648,7 @@ function updatePlatformLinkingUI() {
   const session = getUserSession();
   const userLoggedInEmail = document.getElementById('userLoggedInEmail');
   if (userLoggedInEmail && session) {
-    userLoggedInEmail.textContent = session.email || session.username || 'Sesión activa';
+    userLoggedInEmail.textContent = session.username || 'Sesión activa';
   }
 
   // 1. Twitch Status
@@ -2425,8 +2425,10 @@ function updateSongRequestUI(state) {
   const queue = state.queue || [];
 
   // Update Stats
-  document.getElementById('statQueueCount').innerText = queue.length;
-  document.getElementById('queueBadgeTotal').innerText = `${queue.length} canciones`;
+  const statQ = document.getElementById('statQueueCount');
+  if (statQ) statQ.innerText = queue.length;
+  const qBadge = document.getElementById('queueBadgeTotal');
+  if (qBadge) qBadge.innerText = `${queue.length} canciones`;
 
   // Update Current Song Banner
   const thumb = document.getElementById('srCurrentThumb');
@@ -2816,6 +2818,37 @@ async function triggerTestAlert(type) {
     });
   } catch (e) { }
 }
+
+function toggleAlertTestDropdown(event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const menu = document.getElementById('alertTestDropdownMenu');
+  if (!menu) return;
+  const isVisible = menu.style.display === 'block';
+  menu.style.display = isVisible ? 'none' : 'block';
+}
+
+function selectAlertTest(type) {
+  const menu = document.getElementById('alertTestDropdownMenu');
+  if (menu) menu.style.display = 'none';
+  triggerTestAlert(type);
+}
+
+// Cerrar el menú desplegable si se hace clic afuera
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('alertTestDropdownMenu');
+  const btn = document.getElementById('btnOpenAlertTestMenu');
+  if (menu && menu.style.display === 'block') {
+    if (!menu.contains(e.target) && (!btn || !btn.contains(e.target))) {
+      menu.style.display = 'none';
+    }
+  }
+});
+
+window.toggleAlertTestDropdown = toggleAlertTestDropdown;
+window.selectAlertTest = selectAlertTest;
 
 const VOICE_PROFILES = {
   // Español Latino

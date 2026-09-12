@@ -125,7 +125,6 @@
         <div class="landing-brand-minimal" onclick="showLandingView()" style="cursor: pointer; display: flex; align-items: center; gap: 10px;">
           <img src="./assets/logo.png" alt="OrbyxBot Logo" class="landing-brand-logo-img" style="width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 0 10px rgba(0, 242, 254, 0.4));">
           <span class="landing-brand-title">OrbyxBot</span>
-          <span class="landing-version-tag">v2.5 CLOUD</span>
         </div>
 
         <nav class="landing-nav-links">
@@ -713,7 +712,7 @@
             style="display:none; align-items:center; gap:8px; padding:4px 12px; background:rgba(0,242,254,0.12); border:1px solid rgba(0,242,254,0.3); border-radius:999px; font-size:12px; font-weight:700;">
             <span style="color:#00f2fe;">👤</span>
             <span id="authAccountEmail"
-              style="color:#fff; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">usuario</span>
+              style="color:#fff; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Mi Cuenta</span>
             <button id="authLogoutBtn" type="button" onclick="handleAuthLogout()"
               title="Cerrar sesión y volver al inicio" class="btn btn-sm btn-secondary"
               style="padding:2px 8px; font-size:11px; margin-left:4px; border-radius:999px; background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid rgba(239,68,68,0.3);">Cerrar
@@ -758,10 +757,6 @@
                 <div id="multiChatIndicatorBadge"
                   style="display: flex; align-items: center; gap: 6px; background: rgba(145, 70, 255, 0.15); border: 1px solid rgba(145, 70, 255, 0.4); padding: 5px 12px; border-radius: 999px; font-size: 12px; color: #e2e8f0; font-weight: 700;">
                   <span id="multiChatIcon">✨</span> <span id="multiChatText">Multi-Chat OBS: Twitch + Kick</span>
-                </div>
-                <div id="userLoggedInBadge"
-                  style="display: flex; align-items: center; gap: 8px; background: rgba(0, 242, 254, 0.1); border: 1px solid rgba(0, 242, 254, 0.3); padding: 5px 12px; border-radius: 999px; font-size: 12px; color: #00f2fe; font-weight: 700;">
-                  <span>👤</span> <span id="userLoggedInEmail">Sesión activa</span>
                 </div>
               </div>
             </div>
@@ -898,57 +893,13 @@
             </div>
           </div>
 
-          <div class="grid-4" style="margin-bottom: 24px;">
-            <div class="card stat-card">
-              <div class="stat-icon">🤖</div>
-              <div class="stat-info">
-                <h4>Estado del Bot</h4>
-                <div id="statBotStatus" class="stat-number" style="font-size: 18px; color: var(--yellow-warn);">Inactivo
-                </div>
-              </div>
-            </div>
-            <div class="card stat-card">
-              <div class="stat-icon"
-                style="background: rgba(0, 242, 254, 0.15); color: var(--cyan-accent); border-color: rgba(0,242,254,0.3);">
-                🎵</div>
-              <div class="stat-info">
-                <h4>Canciones en Cola</h4>
-                <div id="statQueueCount" class="stat-number">0</div>
-              </div>
-            </div>
-            <div class="card stat-card">
-              <div class="stat-icon"
-                style="background: rgba(245, 166, 35, 0.15); color: var(--yellow-warn); border-color: rgba(245,166,35,0.3);">
-                💬</div>
-              <div class="stat-info">
-                <h4>Canal Conectado</h4>
-                <div id="statChannelName" class="stat-number" style="font-size: 18px;">Ninguno</div>
-              </div>
-            </div>
-            <div class="card stat-card">
-              <div class="stat-icon"
-                style="background: rgba(16, 185, 129, 0.15); color: var(--green-success); border-color: rgba(16,185,129,0.3);">
-                👁️</div>
-              <div class="stat-info">
-                <h4>Widgets Activos</h4>
-                <div class="stat-number">5</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid-2">
+          <div style="margin-bottom: 24px;">
             <!-- Chat en vivo y Registro -->
             <div class="card">
               <div class="card-header">
                 <span class="card-title">💬 Chat de Twitch en Vivo</span>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                  <button class="btn btn-secondary" onclick="triggerTestChat()"
-                    title="Probar chat con emblemas originales de Twitch"
-                    style="font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; background: rgba(145, 70, 255, 0.15); border-color: var(--primary-purple); color: #fff;">
-                    ⚡ Probar Emblemas
-                  </button>
-                  <span id="chatStatusNotice" style="font-size: 12px; color: var(--text-muted);">Esperando
-                    mensajes...</span>
+                  <span id="chatStatusNotice" style="font-size: 12px; color: var(--text-muted);">Esperando mensajes...</span>
                 </div>
               </div>
               <div class="chat-box">
@@ -957,83 +908,6 @@
                     <em>Conecta tu canal de Twitch para ver los mensajes del chat en tiempo real.</em>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            <!-- Pruebas Rápidas de Alertas y Eventos -->
-            <div class="card">
-              <div class="card-header">
-                <span class="card-title">⚡ Disparador de Pruebas (Test Studio)</span>
-              </div>
-              <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">
-                Prueba tus overlays de OBS Studio en vivo sin necesidad de esperar un evento real:
-              </p>
-
-              <div style="display: flex; flex-direction: column; gap: 10px;">
-                <!-- Twitch Tests -->
-                <div style="font-size: 11px; font-weight: 700; color: #a78bfa; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Twitch Events</div>
-                <div style="display: flex; gap: 10px;">
-                  <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('follower')">
-                    👤 Test Follower
-                  </button>
-                  <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('sub')">
-                    ⭐ Test Sub
-                  </button>
-                </div>
-                <div style="display: flex; gap: 10px;">
-                  <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('bits')">
-                    💎 Test 500 Bits
-                  </button>
-                  <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('raid')">
-                    🚀 Test Raid (50)
-                  </button>
-                </div>
-                <div style="display: flex; gap: 10px;">
-                  <button class="btn btn-secondary" style="flex:1" onclick="triggerTestAlert('channel_points')">
-                    🎟️ Test Puntos de Canal
-                  </button>
-                </div>
-
-                <!-- Kick Tests -->
-                <div style="font-size: 11px; font-weight: 700; color: #53fc18; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">Kick Events</div>
-                <div style="display: flex; gap: 10px;">
-                  <button class="btn btn-secondary" style="flex:1; border-color: rgba(83, 252, 24, 0.4); color: #53fc18; background: rgba(83, 252, 24, 0.08);" onclick="triggerTestAlert('kick_follower')">
-                    🟢 Test Follower
-                  </button>
-                  <button class="btn btn-secondary" style="flex:1; border-color: rgba(83, 252, 24, 0.4); color: #53fc18; background: rgba(83, 252, 24, 0.08);" onclick="triggerTestAlert('kick_sub')">
-                    🟢 Test Sub
-                  </button>
-                </div>
-                <div style="display: flex; gap: 10px;">
-                  <button class="btn btn-secondary" style="flex:1; border-color: rgba(83, 252, 24, 0.4); color: #53fc18; background: rgba(83, 252, 24, 0.08);" onclick="triggerTestAlert('kick_gift')">
-                    🎁 Test 5 Subs Gift
-                  </button>
-                  <button class="btn btn-secondary" style="flex:1; border-color: rgba(83, 252, 24, 0.4); color: #53fc18; background: rgba(83, 252, 24, 0.08);" onclick="triggerTestAlert('kick_raid')">
-                    🚀 Test Raid (Kick)
-                  </button>
-                </div>
-
-                <!-- Studio Tools -->
-                <div style="font-size: 11px; font-weight: 700; color: #00f2fe; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">Audio & Chat</div>
-                <div style="display: flex; gap: 10px;">
-                  <button class="btn btn-primary" style="flex:1" onclick="triggerTestTTS()">
-                    🗣️ Test Mensaje TTS
-                  </button>
-                  <button class="btn btn-secondary"
-                    style="flex:1; border-color: var(--primary-purple); color: #fff; background: rgba(145, 70, 255, 0.15);"
-                    onclick="triggerTestChat()">
-                    💬 Test Chat
-                  </button>
-                </div>
-              </div>
-
-              <div
-                style="margin-top: 24px; padding: 16px; background: rgba(0,0,0,0.3); border-radius: var(--radius-md); border-left: 3px solid var(--cyan-accent);">
-                <h5 style="font-size: 13px; margin-bottom: 6px; color: #fff;">💡 ¿Cómo agregar a OBS Studio?</h5>
-                <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
-                  Ve a la pestaña <strong>Widgets y Escenas OBS</strong>, haz clic en <em>Copiar URL</em> y en OBS
-                  agrega una nueva fuente de tipo <strong>Navegador (Browser Source)</strong>.
-                </p>
               </div>
             </div>
           </div>
@@ -1418,10 +1292,31 @@
                 </div>
                 <div style="font-size: 11px; color: var(--text-muted);">Resolución OBS recomendada: 800 x 600</div>
               </div>
-              <div style="margin-top: 16px; display: flex; gap: 8px;">
+              <div style="margin-top: 16px; display: flex; gap: 8px; position: relative;">
                 <a id="btnPreviewAlerts" href="./overlays/alerts.html" target="_blank" class="btn btn-secondary btn-sm"
                   style="flex:1">Vista Previa ↗</a>
-                <button class="btn btn-accent btn-sm" onclick="triggerTestAlert('follower')">Probar</button>
+                <div style="position: relative; display: inline-block;">
+                  <button id="btnOpenAlertTestMenu" class="btn btn-accent btn-sm" onclick="toggleAlertTestDropdown(event)"
+                    style="display: inline-flex; align-items: center; gap: 6px;">
+                    <span>⚡ Probar</span>
+                    <span style="font-size: 9px;">▼</span>
+                  </button>
+                  <div id="alertTestDropdownMenu" class="alert-test-dropdown"
+                    style="display: none; position: absolute; right: 0; bottom: 100%; margin-bottom: 8px; background: rgba(14, 20, 34, 0.98); border: 1px solid rgba(0, 242, 254, 0.4); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 20px rgba(0,242,254,0.2); width: 220px; z-index: 9999; padding: 8px; backdrop-filter: blur(12px);">
+                    <div style="font-size: 10px; font-weight: 800; color: #a78bfa; text-transform: uppercase; padding: 4px 8px; letter-spacing: 0.5px;">Twitch Alertas</div>
+                    <button type="button" class="alert-dropdown-item" onclick="selectAlertTest('follower')">👤 Seguidor</button>
+                    <button type="button" class="alert-dropdown-item" onclick="selectAlertTest('sub')">⭐ Suscripción</button>
+                    <button type="button" class="alert-dropdown-item" onclick="selectAlertTest('bits')">💎 Donación de Bits (500)</button>
+                    <button type="button" class="alert-dropdown-item" onclick="selectAlertTest('raid')">🚀 Raid Entrante (50)</button>
+                    <button type="button" class="alert-dropdown-item" onclick="selectAlertTest('channel_points')">🎟️ Puntos de Canal</button>
+                    <div style="height: 1px; background: rgba(255,255,255,0.08); margin: 6px 0;"></div>
+                    <div style="font-size: 10px; font-weight: 800; color: #53fc18; text-transform: uppercase; padding: 4px 8px; letter-spacing: 0.5px;">Kick Alertas</div>
+                    <button type="button" class="alert-dropdown-item" onclick="selectAlertTest('kick_follower')" style="color: #53fc18;">🟢 Seguidor Kick</button>
+                    <button type="button" class="alert-dropdown-item" onclick="selectAlertTest('kick_sub')" style="color: #53fc18;">🟢 Suscripción Kick</button>
+                    <button type="button" class="alert-dropdown-item" onclick="selectAlertTest('kick_gift')" style="color: #53fc18;">🎁 5 Subs Gift Kick</button>
+                    <button type="button" class="alert-dropdown-item" onclick="selectAlertTest('kick_raid')" style="color: #53fc18;">🚀 Raid Kick</button>
+                  </div>
+                </div>
               </div>
             </div>
 
