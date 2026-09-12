@@ -97,16 +97,22 @@
             }
           },
           onStateChange: (event) => {
-            // YT.PlayerState.ENDED is 0
-            if (event.data === 0) {
-              fetch('/api/sr/skip', { method: 'POST' }).catch(() => {});
+            // Solo notificar fin si el audio está activo en este widget y realmente se reprodujo
+            if (enableAudio && event.data === 0) {
+              const curTime = (event.target && event.target.getCurrentTime) ? event.target.getCurrentTime() : 0;
+              if (curTime > 5) {
+                fetch('/api/sr/skip', { method: 'POST' }).catch(() => {});
+              }
             }
           },
           onError: (event) => {
-            console.warn('YouTube OBS Player error, skipping:', event.data);
-            setTimeout(() => {
-              fetch('/api/sr/skip', { method: 'POST' }).catch(() => {});
-            }, 3000);
+            console.warn('YouTube OBS Player error:', event.data);
+            // Solo saltar si el audio está activo y es un error irrecuperable (100, 101, 150)
+            if (enableAudio && (event.data === 100 || event.data === 101 || event.data === 150)) {
+              setTimeout(() => {
+                fetch('/api/sr/skip', { method: 'POST' }).catch(() => {});
+              }, 3000);
+            }
           }
         }
       });

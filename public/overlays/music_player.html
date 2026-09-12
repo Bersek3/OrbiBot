@@ -109,22 +109,30 @@
       margin-top: 4px;
     }
 
-    /* Reproductor embebido de YouTube invisible */
+    /* Reproductor embebido de YouTube: visible para Chromium/OBS pero sutil en pantalla */
     #ytContainer {
-      position: fixed;
-      top: -9999px;
-      left: -9999px;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      width: 200px;
+      height: 200px;
+      opacity: 0.01;
       pointer-events: none;
+      overflow: hidden;
+      z-index: -1;
     }
   </style>
 </head>
 
 <body>
 
-  <div class="player-card" id="playerCard">
+  <div class="player-card" id="playerCard" style="position: relative;">
+    <div id="autoplayBanner" style="display: none; position: absolute; inset: 0; background: rgba(10, 10, 20, 0.92); backdrop-filter: blur(6px); border-radius: 16px; align-items: center; justify-content: center; z-index: 50; cursor: pointer; text-align: center; padding: 12px;">
+      <div style="font-size: 13px; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 20px;">🔊</span> Haz clic para activar audio
+      </div>
+    </div>
+
     <div class="thumb-box">
       <img id="trackThumb" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80" alt="Portada">
     </div>
@@ -154,15 +162,26 @@
     const trackRequester = document.getElementById('trackRequester');
     const statusText = document.getElementById('statusText');
     const statusDot = document.getElementById('statusDot');
+    const autoplayBanner = document.getElementById('autoplayBanner');
 
     let ytPlayer = null;
     let ytApiReady = false;
     let pendingVideoId = null;
     let currentSongData = null;
 
+    // Desbloqueo de audio al hacer clic en cualquier parte (política de navegadores)
+    document.body.addEventListener('click', () => {
+      if (ytPlayer) {
+        if (ytPlayer.unMute) ytPlayer.unMute();
+        if (ytPlayer.playVideo) ytPlayer.playVideo();
+      }
+      if (autoplayBanner) autoplayBanner.style.display = 'none';
+    });
+
     // Inicializar YouTube IFrame Player
     window.onYouTubeIframeAPIReady = function () {
-      ytPlayer = new YT.Player('ytPlayer', {
+      const initVideoId = pendingVideoId || (currentSongData && currentSongData.videoId) || undefined;
+      const playerConfig = {
         height: '200',
         width: '200',
         playerVars: {
@@ -170,37 +189,71 @@
           controls: 0,
           disablekb: 1,
           fs: 0,
-          rel: 0
+          rel: 0,
+          enablejsapi: 1,
+          origin: window.location.origin
         },
         events: {
           onReady: (event) => {
             ytApiReady = true;
             statusText.innerText = 'Audio Player Conectado';
+            try {
+              event.target.setVolume(100);
+            } catch(e) {}
+
             if (pendingVideoId) {
-              playYouTubeVideo(pendingVideoId);
+              const vid = pendingVideoId;
               pendingVideoId = null;
+              playYouTubeVideo(vid);
             }
           },
           onStateChange: (event) => {
-            // YT.PlayerState.ENDED === 0
-            if (event.data === 0) {
-              statusText.innerText = 'Canción Finalizada';
-              notifySongEnded();
-            } else if (event.data === 1) {
-            } else if (event.data === 2) {
+            // YT.PlayerState.PLAYING === 1
+            if (event.data === 1) {
+              statusText.innerText = 'Reproduciendo Audio';
+              statusDot.style.background = '#00ff88';
+              if (autoplayBanner) autoplayBanner.style.display = 'none';
+            }
+            // YT.PlayerState.PAUSED === 2
+            else if (event.data === 2) {
               statusText.innerText = 'Pausado';
               statusDot.style.background = '#ffb700';
+              // Si el navegador pausó automáticamente al inicio (bloqueo de autoplay):
+              const curTime = (event.target && event.target.getCurrentTime) ? event.target.getCurrentTime() : 0;
+              if (curTime < 1) {
+                if (autoplayBanner) autoplayBanner.style.display = 'flex';
+                statusText.innerText = 'Autoplay bloqueado - Haz clic para activar';
+              }
+            }
+            // YT.PlayerState.ENDED === 0
+            else if (event.data === 0) {
+              // PREVENIR SALTO FALSO EN F5: Solo saltar si el video realmente se reprodujo al menos 5 segundos
+              const curTime = (event.target && event.target.getCurrentTime) ? event.target.getCurrentTime() : 0;
+              if (currentSongData && curTime > 5) {
+                statusText.innerText = 'Canción Finalizada';
+                notifySongEnded();
+              }
             }
           },
           onError: (event) => {
             console.warn('YouTube Audio Player error:', event.data);
-            statusText.innerText = 'Error en video - Saltando...';
-            setTimeout(() => {
-              notifySongEnded();
-            }, 2500);
+            // Solo saltar si es un error irrecuperable de video (100: no encontrado, 101/150: no permitido embeber)
+            // NO saltar en error 2 (parámetro de inicio) ni error 5 (error transitorio de HTML5)
+            if (currentSongData && (event.data === 100 || event.data === 101 || event.data === 150)) {
+              statusText.innerText = 'Video no reproducible en stream - Saltando...';
+              setTimeout(() => {
+                notifySongEnded();
+              }, 3000);
+            }
           }
         }
-      });
+      };
+
+      if (initVideoId) {
+        playerConfig.videoId = initVideoId;
+      }
+
+      ytPlayer = new YT.Player('ytPlayer', playerConfig);
     };
 
     function playYouTubeVideo(videoId) {
@@ -208,6 +261,7 @@
       if (ytPlayer && ytApiReady && ytPlayer.loadVideoById) {
         try {
           ytPlayer.loadVideoById(videoId);
+          if (ytPlayer.unMute) ytPlayer.unMute();
           ytPlayer.playVideo();
         } catch (e) {
           console.error('Error al reproducir en YT:', e);
@@ -251,11 +305,13 @@
       if (!song) {
         trackTitle.innerText = 'Esperando canciones con !sr...';
         trackRequester.innerText = 'La cola de música está vacía';
+        try { localStorage.removeItem('orbibot_current_song'); } catch(e) {}
         stopYouTubeVideo();
         return;
       }
 
       currentSongData = song;
+      try { localStorage.setItem('orbibot_current_song', JSON.stringify(song)); } catch(e) {}
       trackThumb.src = song.thumbnail || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80';
       trackTitle.innerText = song.title || 'Canción desconocida';
       trackRequester.innerText = `Pedida por @${song.requester || 'Anónimo'}`;
@@ -265,16 +321,27 @@
       }
     }
 
-    // Cargar estado inicial
+    // Cargar estado inicial desde localStorage de inmediato
     try {
       const saved = localStorage.getItem('orbibot_current_song');
-      if (saved) updateSongDisplay(JSON.parse(saved));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.videoId) {
+          currentSongData = parsed;
+          pendingVideoId = parsed.videoId;
+          trackThumb.src = parsed.thumbnail || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80';
+          trackTitle.innerText = parsed.title || 'Cargando canción...';
+          trackRequester.innerText = `Pedida por @${parsed.requester || 'Anónimo'}`;
+        }
+      }
     } catch (e) { }
 
-    fetch('/api/sr/state')
+    // Consultar estado actual del servidor
+    const stateUrl = channel ? `/api/sr/state?channel=${encodeURIComponent(channel)}` : '/api/sr/state';
+    fetch(stateUrl)
       .then(r => r.json())
       .then(state => {
-        if (state.currentSong && state.isPlaying) {
+        if (state && state.currentSong) {
           updateSongDisplay(state.currentSong);
         }
       })
