@@ -4289,73 +4289,33 @@ function handleRewardActionChange(action) {
 
 async function loadSounds() {
   try {
-    // 1. Obtener sonidos guardados localmente
+    // 1. Obtener sonidos personalizados guardados localmente del usuario activo
     let localSounds = [];
     try {
       localSounds = JSON.parse(localStorage.getItem('orbibot_custom_sounds') || '[]');
     } catch (e) { }
     if (!Array.isArray(localSounds)) localSounds = [];
 
-    // 2. Si hay cliente de Supabase y localSounds está vacío, consultar si hay en la nube
-    if (supabaseClient && localSounds.length === 0) {
-      try {
-        const session = getUserSession();
-        const streamerId = (session?.email || appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '').trim();
-        if (streamerId) {
-          const { data } = await supabaseClient
-            .from('orbibot_settings')
-            .select('value')
-            .eq('streamer_id', streamerId)
-            .eq('key', 'custom_sounds')
-            .maybeSingle();
-          if (data && Array.isArray(data.value) && data.value.length > 0) {
-            localSounds = data.value;
-            localStorage.setItem('orbibot_custom_sounds', JSON.stringify(localSounds));
-          }
-        }
-      } catch (e) { }
-    }
-
-    // 3. Sonidos predeterminados del sistema disponibles para todos los usuarios
+    // 2. Sonidos predeterminados del sistema disponibles para todos los usuarios
     const soundMap = new Map();
     const systemDefaults = [
-      { name: 'Campana Alerta', url: './assets/sounds/campana_alerta.wav' },
-      { name: 'Notificación Puntos', url: './assets/sounds/notificacion_puntos.wav' },
-      { name: 'Airhorn', url: './assets/sounds/airhorn.mp3' }
+      { name: 'Campana Alerta', url: './assets/sounds/campana_alerta.wav', isDefault: true },
+      { name: 'Notificación Puntos', url: './assets/sounds/notificacion_puntos.wav', isDefault: true },
+      { name: 'Airhorn', url: './assets/sounds/airhorn.mp3', isDefault: true }
     ];
     systemDefaults.forEach(s => soundMap.set(s.name.toLowerCase(), s));
 
-    // 4. Sonidos personalizados ÚNICAMENTE del usuario que tiene la sesión activa
+    // 3. Sonidos personalizados ÚNICAMENTE del usuario que tiene la sesión activa
     localSounds.forEach(s => {
       if (s && s.name) {
         const key = s.name.toLowerCase();
         soundMap.set(key, {
           name: s.name,
-          url: s.url || s.dataUrl || s.data || `./assets/sounds/custom/${s.name}`
+          url: s.url || s.dataUrl || s.data || `./assets/sounds/custom/${s.name}`,
+          isDefault: false
         });
       }
     });
-
-    // 5. También incluir soundUrls configuradas en recompensas de Puntos de Canal
-    try {
-      const rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
-      if (Array.isArray(rewards)) {
-        rewards.forEach(r => {
-          if (r.action === 'sound' && r.soundUrl) {
-            const rawName = r.soundUrl.startsWith('data:')
-              ? (r.rewardName ? `Audio - ${r.rewardName}` : 'Sonido Personalizado')
-              : (r.soundUrl.split('/').pop() || 'Sonido');
-            const key = rawName.toLowerCase();
-            if (!soundMap.has(key)) {
-              soundMap.set(key, {
-                name: rawName,
-                url: r.soundUrl
-              });
-            }
-          }
-        });
-      }
-    } catch (e) { }
 
     const sounds = Array.from(soundMap.values());
 
@@ -4363,50 +4323,51 @@ async function loadSounds() {
     const select = document.getElementById('rewardSoundSelect');
     const alertSoundSelect = document.getElementById('wc-alert-soundSelect');
 
+    // Poblar selector de recompensas de Puntos de Canal
     if (select) {
       const currentSelected = select.value;
       select.innerHTML = '';
-      if (sounds.length === 0) {
-        select.innerHTML = '<option value="">⚠️ No has subido sonidos personalizados aún</option>';
-      } else {
-        const placeholderOpt = document.createElement('option');
-        placeholderOpt.value = '';
-        placeholderOpt.innerText = `✨ -- Seleccionar sonido personalizado (${sounds.length} disponibles) --`;
-        select.appendChild(placeholderOpt);
+      const placeholderOpt = document.createElement('option');
+      placeholderOpt.value = '';
+      placeholderOpt.innerText = `✨ -- Seleccionar sonido (${sounds.length} disponibles) --`;
+      select.appendChild(placeholderOpt);
 
-        sounds.forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.url;
-          opt.innerText = `🔊 ${s.name}`;
-          select.appendChild(opt);
-        });
+      sounds.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.url;
+        opt.innerText = s.isDefault ? `🔔 ${s.name} (Predeterminado)` : `🔊 ${s.name}`;
+        select.appendChild(opt);
+      });
 
-        if (currentSelected) {
-          select.value = currentSelected;
-        }
+      if (currentSelected) {
+        select.value = currentSelected;
       }
     }
 
+    // Poblar selector de alertas de OBS
     if (alertSoundSelect) {
       const customOpt = alertSoundSelect.querySelector('option[value="custom"]');
       Array.from(alertSoundSelect.querySelectorAll('option.custom-uploaded-sound-opt')).forEach(o => o.remove());
 
-      sounds.forEach(s => {
-        const opt = document.createElement('option');
-        opt.className = 'custom-uploaded-sound-opt';
-        opt.value = s.url;
-        opt.innerText = `🎵 ${s.name}`;
-        if (customOpt) {
-          alertSoundSelect.insertBefore(opt, customOpt);
-        } else {
-          alertSoundSelect.appendChild(opt);
+      localSounds.forEach(s => {
+        if (s && s.name) {
+          const opt = document.createElement('option');
+          opt.className = 'custom-uploaded-sound-opt';
+          opt.value = s.url || s.dataUrl || `./assets/sounds/custom/${s.name}`;
+          opt.innerText = `🎵 ${s.name}`;
+          if (customOpt) {
+            alertSoundSelect.insertBefore(opt, customOpt);
+          } else {
+            alertSoundSelect.appendChild(opt);
+          }
         }
       });
     }
 
+    // Lista de gestión de "Mis Sonidos Personalizados" (SOLO sonidos propios subidos por el usuario)
     if (container) {
       container.innerHTML = '';
-      if (sounds.length === 0) {
+      if (localSounds.length === 0) {
         container.innerHTML = `
           <div style="font-size: 12.5px; color: var(--text-muted); text-align: center; padding: 32px 16px;">
             <div style="font-size: 32px; margin-bottom: 8px;">🎵</div>
@@ -4414,9 +4375,10 @@ async function loadSounds() {
             <div style="font-size: 12px; color: #94a3b8;">Haz clic en <strong>📤 Subir Sonido</strong> arriba para añadir tus audios (.mp3, .wav) y asignarlos a tus recompensas de puntos de canal o alertas de OBS.</div>
           </div>
         `;
-        return;
-      }
-        sounds.forEach(s => {
+      } else {
+        localSounds.forEach(s => {
+          if (!s || !s.name) return;
+          const soundUrl = s.url || s.dataUrl || s.data || `./assets/sounds/custom/${s.name}`;
           const item = document.createElement('div');
           item.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 14px;';
           item.innerHTML = `
@@ -4425,34 +4387,96 @@ async function loadSounds() {
               <span style="font-size: 13.5px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.name)}</span>
             </div>
             <div style="display: flex; gap: 8px;">
-              <button class="btn btn-secondary btn-sm" onclick="previewSound('${s.url}', '${escapeHtml(s.name)}')" title="Escuchar sonido">▶️ Escuchar</button>
+              <button class="btn btn-secondary btn-sm" onclick="previewSound('${soundUrl}', '${escapeHtml(s.name)}')" title="Escuchar sonido">▶️ Escuchar</button>
               <button class="btn btn-danger btn-sm" onclick="deleteCustomSound('${escapeHtml(s.name)}')" title="Eliminar sonido">🗑️</button>
             </div>
           `;
           container.appendChild(item);
         });
       }
-    } catch (e) {
-      console.warn('Error loading sounds:', e);
     }
+  } catch (e) {
+    console.warn('Error loading sounds:', e);
   }
+}
 
 async function deleteCustomSound(name) {
-  if (!confirm(`¿Estás seguro de eliminar el sonido "${name}"?`)) return;
+  if (!name) return;
+  if (!confirm(`¿Estás seguro de eliminar el sonido "${name}" de tu cuenta?`)) return;
+
   try {
+    const targetName = String(name).trim().toLowerCase();
+
+    // 1. Filtrar de orbibot_custom_sounds
     let customSounds = [];
     try {
       customSounds = JSON.parse(localStorage.getItem('orbibot_custom_sounds') || '[]');
     } catch (e) { }
-    if (Array.isArray(customSounds)) {
-      customSounds = customSounds.filter(s => s.name.toLowerCase() !== name.toLowerCase());
-      localStorage.setItem('orbibot_custom_sounds', JSON.stringify(customSounds));
-    }
+    if (!Array.isArray(customSounds)) customSounds = [];
 
+    customSounds = customSounds.filter(s => {
+      if (!s) return false;
+      const sName = (s.name || '').trim().toLowerCase();
+      const sUrl = (s.url || '').trim().toLowerCase();
+      return sName !== targetName && !sUrl.endsWith('/' + targetName) && !sUrl.endsWith(targetName);
+    });
+
+    localStorage.setItem('orbibot_custom_sounds', JSON.stringify(customSounds));
+
+    // 2. Limpiar de recompensas de Puntos de Canal si alguna lo estaba usando
+    try {
+      let rewards = JSON.parse(localStorage.getItem('orbibot_rewards') || '[]');
+      if (Array.isArray(rewards)) {
+        let rewardsModified = false;
+        rewards.forEach(r => {
+          if (r.action === 'sound' && r.soundUrl) {
+            const urlLower = String(r.soundUrl).toLowerCase();
+            if (urlLower.includes(targetName) || (r.rewardName && targetName.includes(r.rewardName.toLowerCase()))) {
+              r.soundUrl = './assets/sounds/campana_alerta.wav';
+              rewardsModified = true;
+            }
+          }
+        });
+        if (rewardsModified) {
+          localStorage.setItem('orbibot_rewards', JSON.stringify(rewards));
+          if (typeof renderRewards === 'function') renderRewards(rewards);
+          if (typeof saveToAllSupabaseScopes === 'function') {
+            await saveToAllSupabaseScopes('channel_points', rewards);
+          }
+        }
+      }
+    } catch (e) { }
+
+    // 3. Limpiar de estilos de alertas OBS si alguna lo estaba usando
+    try {
+      let alertSoundsModified = false;
+      if (typeof wcAlertSounds !== 'undefined' && wcAlertSounds) {
+        Object.keys(wcAlertSounds).forEach(evt => {
+          if (wcAlertSounds[evt] && String(wcAlertSounds[evt]).toLowerCase().includes(targetName)) {
+            wcAlertSounds[evt] = './assets/sounds/campana_alerta.wav';
+            alertSoundsModified = true;
+          }
+        });
+      }
+      if (typeof wcWidgetStyles !== 'undefined' && wcWidgetStyles?.alerts?.sounds) {
+        Object.keys(wcWidgetStyles.alerts.sounds).forEach(evt => {
+          if (wcWidgetStyles.alerts.sounds[evt] && String(wcWidgetStyles.alerts.sounds[evt]).toLowerCase().includes(targetName)) {
+            wcWidgetStyles.alerts.sounds[evt] = './assets/sounds/campana_alerta.wav';
+            alertSoundsModified = true;
+          }
+        });
+      }
+      if (alertSoundsModified && typeof saveToAllSupabaseScopes === 'function') {
+        await saveToAllSupabaseScopes('widgetStyles', wcWidgetStyles);
+      }
+    } catch (e) { }
+
+    // 4. Guardar lista actualizada en Supabase esperando confirmación
     if (typeof saveToAllSupabaseScopes === 'function') {
-      saveToAllSupabaseScopes('custom_sounds', customSounds).catch(() => {});
+      await saveToAllSupabaseScopes('custom_sounds', customSounds);
     }
 
+    // 5. Notificar al backend si estuviera ejecutándose localmente
     try {
       await fetch('/api/sounds/delete', {
         method: 'POST',
@@ -4461,12 +4485,14 @@ async function deleteCustomSound(name) {
       });
     } catch (e) { }
 
-    showToast(`Sonido "${name}" eliminado`, 'success');
+    showToast(`Sonido "${name}" eliminado correctamente de tu cuenta.`, 'success');
     await loadSounds();
   } catch (e) {
+    console.error('Error al eliminar sonido:', e);
     showToast('Error al eliminar sonido: ' + e.message, 'error');
   }
 }
+window.deleteCustomSound = deleteCustomSound;
 
 function previewSound(url, name) {
   try {
