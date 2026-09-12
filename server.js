@@ -1050,10 +1050,44 @@ app.get('/api/tts/audio', async (req, res) => {
       return res.status(400).send('Texto requerido');
     }
 
-    if (voice === 'es_ar_messi' || voice === 'messi') {
+    const FISH_MODELS = {
+      'es_ar_messi': 'e3ded66586764591a457fcdaba8a268b',
+      'messi': 'e3ded66586764591a457fcdaba8a268b',
+      'lionel_messi': 'e3ded66586764591a457fcdaba8a268b',
+      'leo_messi': 'e3ded66586764591a457fcdaba8a268b',
+
+      'es_ve_maduro': 'b011ad1198284358b766a597f6fdd171',
+      'maduro': 'b011ad1198284358b766a597f6fdd171',
+      'nicolas_maduro': 'b011ad1198284358b766a597f6fdd171',
+
+      'es_tiktok': '1505e291ec504760a285fd163a78b5eb',
+      'tiktok': '1505e291ec504760a285fd163a78b5eb',
+      'voz_tiktok': '1505e291ec504760a285fd163a78b5eb',
+
+      'es_mx_homero': '134d19eda4c64cb0b2a84d93e327be3b',
+      'homero': '134d19eda4c64cb0b2a84d93e327be3b',
+      'homero_simpson': '134d19eda4c64cb0b2a84d93e327be3b',
+      'homer': '134d19eda4c64cb0b2a84d93e327be3b',
+
+      'es_dross': 'd9f0d3d3fe734af6acb5ecc9129bc49a',
+      'dross': 'd9f0d3d3fe734af6acb5ecc9129bc49a',
+      'drossrotzank': 'd9f0d3d3fe734af6acb5ecc9129bc49a',
+
+      'es_badbunny': '9b30f7190dbe49acb731345e70366cf7',
+      'badbunny': '9b30f7190dbe49acb731345e70366cf7',
+      'bad_bunny': '9b30f7190dbe49acb731345e70366cf7',
+      'benito': '9b30f7190dbe49acb731345e70366cf7',
+
+      'es_rubius': '39382efbc7584d428f0f789d882cd3b8',
+      'rubius': '39382efbc7584d428f0f789d882cd3b8',
+      'elrubius': '39382efbc7584d428f0f789d882cd3b8',
+      'el_rubius': '39382efbc7584d428f0f789d882cd3b8'
+    };
+
+    const fishRefId = FISH_MODELS[voice];
+    if (fishRefId) {
       const config = storage.getConfig();
       const fishApiKey = config.tts?.fishApiKey || process.env.FISH_AUDIO_API_KEY || 'sk-fish-rOpXPwPZLXZAk5SPYaeSKBue6QfPM3l4i6Q3VG8ZbGI';
-      const referenceId = 'e3ded66586764591a457fcdaba8a268b'; // Lionel Messi Model
 
       try {
         const fishRes = await fetch('https://api.fish.audio/v1/tts', {
@@ -1065,7 +1099,7 @@ app.get('/api/tts/audio', async (req, res) => {
           },
           body: JSON.stringify({
             text: rawText,
-            reference_id: referenceId,
+            reference_id: fishRefId,
             format: 'mp3'
           })
         });
@@ -1077,24 +1111,37 @@ app.get('/api/tts/audio', async (req, res) => {
           res.setHeader('Cache-Control', 'public, max-age=3600');
           return res.send(buffer);
         } else {
-          console.warn(`[Fish Audio TTS] API devolvió status ${fishRes.status}. (Si es 402: requiere recarga de créditos en fish.audio)`);
-          const samplePath = path.join(__dirname, 'public', 'assets', 'sounds', 'messi_sample.mp3');
-          if (fs.existsSync(samplePath) && (rawText.toLowerCase().includes('hola') || rawText.toLowerCase().includes('prueba') || rawText.toLowerCase().includes('messi') || rawText.length < 60)) {
-            res.setHeader('Content-Type', 'audio/mpeg');
-            return res.sendFile(samplePath);
+          console.warn(`[Fish Audio TTS] API devolvió status ${fishRes.status} para voz ${voice}`);
+          if (voice.includes('messi')) {
+            const samplePath = path.join(__dirname, 'public', 'assets', 'sounds', 'messi_sample.mp3');
+            if (fs.existsSync(samplePath) && (rawText.toLowerCase().includes('hola') || rawText.toLowerCase().includes('prueba') || rawText.toLowerCase().includes('messi') || rawText.length < 60)) {
+              res.setHeader('Content-Type', 'audio/mpeg');
+              return res.sendFile(samplePath);
+            }
           }
         }
       } catch (fishErr) {
         console.warn('[Fish Audio TTS] Error de conexión:', fishErr.message);
       }
 
-      // Fallback si la API de Fish Audio no responde o tiene 0 créditos
-      const samplePath = path.join(__dirname, 'public', 'assets', 'sounds', 'messi_sample.mp3');
-      if (fs.existsSync(samplePath)) {
-        res.setHeader('Content-Type', 'audio/mpeg');
-        return res.sendFile(samplePath);
+      // Fallback a muestra local si la API de Fish Audio no responde
+      let sampleFile = null;
+      if (voice.includes('messi')) sampleFile = 'messi_sample.mp3';
+      else if (voice.includes('maduro')) sampleFile = 'maduro_sample.mp3';
+      else if (voice.includes('tiktok')) sampleFile = 'tiktok_sample.mp3';
+      else if (voice.includes('homero') || voice.includes('homer')) sampleFile = 'homero_sample.mp3';
+      else if (voice.includes('dross')) sampleFile = 'dross_sample.mp3';
+      else if (voice.includes('badbunny') || voice.includes('bad_bunny') || voice.includes('benito')) sampleFile = 'badbunny_sample.mp3';
+      else if (voice.includes('rubius')) sampleFile = 'rubius_sample.mp3';
+
+      if (sampleFile) {
+        const samplePath = path.join(__dirname, 'public', 'assets', 'sounds', sampleFile);
+        if (fs.existsSync(samplePath)) {
+          res.setHeader('Content-Type', 'audio/mpeg');
+          return res.sendFile(samplePath);
+        }
       }
-      return res.redirect(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(rawText)}&tl=es-AR&client=tw-ob`);
+      return res.redirect(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(rawText)}&tl=es-ES&client=tw-ob`);
     }
 
     // Google Translate TTS fallback para otras voces

@@ -85,12 +85,42 @@
       }
 
       const VOICE_PROFILES = {
-        // Lionel Messi (Fish Audio IA 🇦🇷)
+        // Voces IA (Fish Audio S2.1 Pro Free)
         es_ar_messi: { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
         messi: { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
         lionel_messi: { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
         'lionel messi': { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
         'leo messi': { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
+
+        es_ve_maduro: { id: 'es_ve_maduro', name: 'Nicolás Maduro', lang: 'es-VE', gender: 'male', pitch: 0.72, rate: 0.95 },
+        maduro: { id: 'es_ve_maduro', name: 'Nicolás Maduro', lang: 'es-VE', gender: 'male', pitch: 0.72, rate: 0.95 },
+        nicolas_maduro: { id: 'es_ve_maduro', name: 'Nicolás Maduro', lang: 'es-VE', gender: 'male', pitch: 0.72, rate: 0.95 },
+        'nicolas maduro': { id: 'es_ve_maduro', name: 'Nicolás Maduro', lang: 'es-VE', gender: 'male', pitch: 0.72, rate: 0.95 },
+
+        es_tiktok: { id: 'es_tiktok', name: 'Voz TikTok', lang: 'es-MX', gender: 'female', pitch: 1.2, rate: 1.05 },
+        tiktok: { id: 'es_tiktok', name: 'Voz TikTok', lang: 'es-MX', gender: 'female', pitch: 1.2, rate: 1.05 },
+        voz_tiktok: { id: 'es_tiktok', name: 'Voz TikTok', lang: 'es-MX', gender: 'female', pitch: 1.2, rate: 1.05 },
+        'voz tiktok': { id: 'es_tiktok', name: 'Voz TikTok', lang: 'es-MX', gender: 'female', pitch: 1.2, rate: 1.05 },
+
+        es_mx_homero: { id: 'es_mx_homero', name: 'Homero Simpson', lang: 'es-MX', gender: 'male', pitch: 0.85, rate: 0.92 },
+        homero: { id: 'es_mx_homero', name: 'Homero Simpson', lang: 'es-MX', gender: 'male', pitch: 0.85, rate: 0.92 },
+        homero_simpson: { id: 'es_mx_homero', name: 'Homero Simpson', lang: 'es-MX', gender: 'male', pitch: 0.85, rate: 0.92 },
+        'homero simpson': { id: 'es_mx_homero', name: 'Homero Simpson', lang: 'es-MX', gender: 'male', pitch: 0.85, rate: 0.92 },
+        homer: { id: 'es_mx_homero', name: 'Homero Simpson', lang: 'es-MX', gender: 'male', pitch: 0.85, rate: 0.92 },
+
+        es_dross: { id: 'es_dross', name: 'Dross Rotzank', lang: 'es-VE', gender: 'male', pitch: 0.70, rate: 0.95 },
+        dross: { id: 'es_dross', name: 'Dross Rotzank', lang: 'es-VE', gender: 'male', pitch: 0.70, rate: 0.95 },
+        drossrotzank: { id: 'es_dross', name: 'Dross Rotzank', lang: 'es-VE', gender: 'male', pitch: 0.70, rate: 0.95 },
+
+        es_badbunny: { id: 'es_badbunny', name: 'Bad Bunny', lang: 'es-PR', gender: 'male', pitch: 0.75, rate: 0.95 },
+        badbunny: { id: 'es_badbunny', name: 'Bad Bunny', lang: 'es-PR', gender: 'male', pitch: 0.75, rate: 0.95 },
+        bad_bunny: { id: 'es_badbunny', name: 'Bad Bunny', lang: 'es-PR', gender: 'male', pitch: 0.75, rate: 0.95 },
+        benito: { id: 'es_badbunny', name: 'Bad Bunny', lang: 'es-PR', gender: 'male', pitch: 0.75, rate: 0.95 },
+
+        es_rubius: { id: 'es_rubius', name: 'ElRubius', lang: 'es-ES', gender: 'male', pitch: 1.05, rate: 1.05 },
+        rubius: { id: 'es_rubius', name: 'ElRubius', lang: 'es-ES', gender: 'male', pitch: 1.05, rate: 1.05 },
+        elrubius: { id: 'es_rubius', name: 'ElRubius', lang: 'es-ES', gender: 'male', pitch: 1.05, rate: 1.05 },
+        el_rubius: { id: 'es_rubius', name: 'ElRubius', lang: 'es-ES', gender: 'male', pitch: 1.05, rate: 1.05 },
 
         // Español Latino
         es_mx_mia: { id: 'es_mx_mia', name: 'Mia', lang: 'es-MX', gender: 'female', pitch: 1.15, rate: 1.0 },
@@ -157,9 +187,17 @@
         const profile = VOICE_PROFILES[cleanKey] || VOICE_PROFILES[voiceKey] || VOICE_PROFILES['es_mx_mia'];
         const targetLang = (profile.lang || 'es-ES').split('-')[0].toLowerCase();
 
-        // Si es voz de Messi y estamos en navegador, intentar reproducir directo desde /api/tts/audio
-        if (cleanKey === 'es_ar_messi' || cleanKey === 'messi') {
-          const directUrl = `/api/tts/audio?text=${encodeURIComponent(text)}&voice=es_ar_messi`;
+        const fishAudioKeys = [
+          'es_ar_messi', 'messi', 'lionel_messi', 'leo_messi',
+          'es_ve_maduro', 'maduro', 'nicolas_maduro',
+          'es_tiktok', 'tiktok', 'voz_tiktok',
+          'es_mx_homero', 'homero', 'homero_simpson', 'homer',
+          'es_dross', 'dross', 'drossrotzank',
+          'es_badbunny', 'badbunny', 'bad_bunny', 'benito',
+          'es_rubius', 'rubius', 'elrubius', 'el_rubius'
+        ];
+        if (fishAudioKeys.includes(cleanKey)) {
+          const directUrl = `/api/tts/audio?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(cleanKey)}`;
           const a = new Audio(directUrl);
           a.volume = volume;
           if (onEnd) a.onended = onEnd;
