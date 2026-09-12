@@ -89,10 +89,48 @@ async function loadUserDataFromSupabase(userIdentifier) {
     if (!error && data && data.length > 0) {
       console.log(`☁️ [Supabase Cloud] ${data.length} ajustes sincronizados para "${cleanId}".`);
       data.forEach(item => {
+        if (item.key === 'twitch_auth' && item.value) {
+          try {
+            const twData = typeof item.value === 'string' ? JSON.parse(item.value) : item.value;
+            if (twData && (twData.channel || twData.login || twData.displayName)) {
+              localStorage.setItem('orbibot_twitch_auth', JSON.stringify(twData));
+              if (!appConfig) appConfig = {};
+              appConfig.twitch = { ...(appConfig.twitch || {}), ...twData };
+              bindConfigToUI(appConfig);
+              updatePlatformLinkingUI();
+              if (twData.channel && window.tmi && (!browserTmiClient || browserTmiClient.readyState() !== 'OPEN')) {
+                connectInBrowserTwitchBot(twData);
+              }
+            }
+          } catch (e) { }
+        }
+        if (item.key === 'kick_auth' && item.value) {
+          try {
+            const kData = typeof item.value === 'string' ? JSON.parse(item.value) : item.value;
+            if (kData && (kData.channel || kData.username)) {
+              localStorage.setItem('orbibot_kick_auth', JSON.stringify(kData));
+              if (kData.channel) localStorage.setItem('orbibot_kick_channel', kData.channel);
+              if (!appConfig) appConfig = {};
+              appConfig.kick = { ...(appConfig.kick || {}), ...kData };
+              updatePlatformLinkingUI();
+              if (kData.channel && typeof connectInBrowserKickBot === 'function') {
+                connectInBrowserKickBot(kData);
+              }
+            }
+          } catch (e) { }
+        }
         if (item.key === 'config' && item.value) {
           appConfig = { ...(appConfig || {}), ...item.value };
+          if (item.value.twitch && (item.value.twitch.channel || item.value.twitch.displayName)) {
+            localStorage.setItem('orbibot_twitch_auth', JSON.stringify(item.value.twitch));
+          }
+          if (item.value.kick && (item.value.kick.channel || item.value.kick.username)) {
+            localStorage.setItem('orbibot_kick_auth', JSON.stringify(item.value.kick));
+            if (item.value.kick.channel) localStorage.setItem('orbibot_kick_channel', item.value.kick.channel);
+          }
           localStorage.setItem('orbibot_config', JSON.stringify(appConfig));
           bindConfigToUI(appConfig);
+          updatePlatformLinkingUI();
         }
         if (item.key === 'widgetStyles' && item.value) {
           if (typeof wcWidgetStyles !== 'undefined') {
@@ -145,6 +183,7 @@ async function loadUserDataFromSupabase(userIdentifier) {
           localStorage.setItem('orbibot_custom_sounds', JSON.stringify(item.value));
         }
       });
+      updatePlatformLinkingUI();
       if (typeof initWidgetCustomization === 'function') {
         initWidgetCustomization();
       }
@@ -887,6 +926,12 @@ async function handleKickAuthSuccess(payload) {
   localStorage.setItem('orbibot_kick_auth', JSON.stringify(appConfig.kick));
   localStorage.setItem('orbibot_kick_channel', channel);
 
+  // Sincronizar en la nube con Supabase
+  if (typeof saveToAllSupabaseScopes === 'function') {
+    saveToAllSupabaseScopes('kick_auth', appConfig.kick).catch(() => {});
+    saveToAllSupabaseScopes('config', appConfig).catch(() => {});
+  }
+
   showToast(`🟢 ¡Kick vinculado con éxito! Conectado como @${displayName || channel}`, 'success');
 
   connectInBrowserKickBot(appConfig.kick);
@@ -920,6 +965,12 @@ async function disconnectKickAccount() {
     clientId: '01M0VT0JC58YQEVGRHM8JFXQX3',
     connected: false
   };
+
+  // Limpiar en la nube con Supabase
+  if (typeof saveToAllSupabaseScopes === 'function') {
+    saveToAllSupabaseScopes('kick_auth', null).catch(() => {});
+    saveToAllSupabaseScopes('config', appConfig).catch(() => {});
+  }
 
   showToast('Canal de Kick desvinculado.', 'info');
   updatePlatformLinkingUI();
@@ -1362,7 +1413,73 @@ function handleSocketMessage(msg) {
 }
 
 // ================= LOAD DATA =================
+async function loadStandaloneData() {
+  // Load from localStorage or defaults
+  const localTwitch = localStorage.getItem('orbibot_twitch_auth');
+  const localKick = localStorage.getItem('orbibot_kick_auth');
+  const localCfg = localStorage.getItem('orbibot_config');
+  const localCmds = localStorage.getItem('orbibot_commands');
+  const localRwds = localStorage.getItem('orbibot_rewards');
+  const localGoals = localStorage.getItem('orbibot_goals');
+
+  let twitchData = localTwitch ? JSON.parse(localTwitch) : {
+    channel: '',
+    botUsername: '',
+    oauthToken: '',
+    clientId: 'yw1vr664ichms8an2x5lhji58v7ozk',
+    connected: false
+  };
+
+  const chan = (twitchData.channel || twitchData.login || (twitchData.displayName ? twitchData.displayName.toLowerCase() : '') || '').replace(/^#/, '');
+  if (chan) {
+    twitchData.channel = chan;
+    twitchData.connected = true;
+  }
+
+  let kickData = null;
+  try {
+    kickData = localKick ? JSON.parse(localKick) : null;
+  } catch (e) { }
+
+  let cfg = localCfg ? JSON.parse(localCfg) : {
+    twitch: twitchData,
+    songRequest: { prefix: '!sr', enabled: true, maxDurationMinutes: 8, maxPerUser: 5, userLevel: 'all', volume: 75 },
+    tts: { enabled: true, voice: 'es_mx_mia', volume: 90, rate: 1.0, pitch: 1.0, maxLength: 250, bannedWords: [], allowChatCommand: true, chatCommand: '!tts', minBits: 50 },
+    goals: []
+  };
+
+  cfg.twitch = { ...(cfg.twitch || {}), ...twitchData };
+  if (kickData) {
+    cfg.kick = { ...(cfg.kick || {}), ...kickData };
+  }
+  appConfig = cfg;
+  bindConfigToUI(cfg);
+
+  renderCommands(localCmds ? JSON.parse(localCmds) : []);
+  renderRewards(localRwds !== null ? JSON.parse(localRwds) : []);
+  renderGoals(localGoals ? JSON.parse(localGoals) : []);
+
+  updateSongRequestUI({ currentSong: null, queue: [], isPlaying: false });
+  updatePlatformLinkingUI();
+  await loadSounds();
+
+  // In-browser Twitch IRC connection (if credentials exist)
+  if (twitchData.channel && window.tmi && (!browserTmiClient || browserTmiClient.readyState() !== 'OPEN')) {
+    connectInBrowserTwitchBot(twitchData);
+  }
+  if (kickData && (kickData.channel || kickData.username) && typeof connectInBrowserKickBot === 'function') {
+    connectInBrowserKickBot(kickData);
+  }
+}
+
 async function loadInitialData() {
+  const isStaticHosting = window.location.hostname.includes('github.io') || window.location.protocol === 'file:';
+  if (isStaticHosting) {
+    console.log('⚡ OrbyxBot funcionando en modo Standalone / GitHub Pages.');
+    await loadStandaloneData();
+    return;
+  }
+
   try {
     const [cfgRes, cmdRes, rwdRes, srRes, goalsRes] = await Promise.all([
       fetch('/api/config').then(r => r.json()),
@@ -1422,56 +1539,15 @@ async function loadInitialData() {
     renderRewards(effectiveRewards);
     renderGoals(effectiveGoals);
     updateSongRequestUI(srRes);
+    updatePlatformLinkingUI();
     await loadSounds();
 
     if (effectiveTwitch.channel && window.tmi && (!browserTmiClient || browserTmiClient.readyState() !== 'OPEN')) {
       connectInBrowserTwitchBot(effectiveTwitch);
     }
   } catch (err) {
-    console.warn('Backend API not reachable. Running in standalone / GitHub Pages mode:', err);
-
-    // Load from localStorage or defaults
-    const localTwitch = localStorage.getItem('orbibot_twitch_auth');
-    const localCfg = localStorage.getItem('orbibot_config');
-    const localCmds = localStorage.getItem('orbibot_commands');
-    const localRwds = localStorage.getItem('orbibot_rewards');
-    const localGoals = localStorage.getItem('orbibot_goals');
-
-    let twitchData = localTwitch ? JSON.parse(localTwitch) : {
-      channel: '',
-      botUsername: '',
-      oauthToken: '',
-      clientId: 'yw1vr664ichms8an2x5lhji58v7ozk',
-      connected: false
-    };
-
-    const chan = (twitchData.channel || twitchData.login || (twitchData.displayName ? twitchData.displayName.toLowerCase() : '') || '').replace(/^#/, '');
-    if (chan) {
-      twitchData.channel = chan;
-      twitchData.connected = true;
-    }
-
-    let cfg = localCfg ? JSON.parse(localCfg) : {
-      twitch: twitchData,
-      songRequest: { prefix: '!sr', enabled: true, maxDurationMinutes: 8, maxPerUser: 5, userLevel: 'all', volume: 75 },
-      tts: { enabled: true, voice: 'es_mx_mia', volume: 90, rate: 1.0, pitch: 1.0, maxLength: 250, bannedWords: [], allowChatCommand: true, chatCommand: '!tts', minBits: 50 },
-      goals: []
-    };
-
-    cfg.twitch = { ...cfg.twitch, ...twitchData };
-    appConfig = cfg;
-    bindConfigToUI(cfg);
-
-    renderCommands(localCmds ? JSON.parse(localCmds) : []);
-    renderRewards(localRwds !== null ? JSON.parse(localRwds) : []);
-    renderGoals(localGoals ? JSON.parse(localGoals) : []);
-
-    updateSongRequestUI({ currentSong: null, queue: [], isPlaying: false });
-
-    // In-browser Twitch IRC connection (if credentials exist)
-    if (twitchData.channel && window.tmi) {
-      connectInBrowserTwitchBot(twitchData);
-    }
+    console.warn('Backend API not reachable. Falling back to standalone mode:', err);
+    await loadStandaloneData();
   }
 }
 
@@ -1693,7 +1769,7 @@ async function handleBrowserChannelPointRedemption(customRewardId, username, mes
   if (matchedReward && matchedReward.enabled) {
     console.log(`[Dashboard] 🎁 Canje procesado: "${matchedReward.rewardName}" (${matchedReward.action}) por @${username}`);
     if (matchedReward.action === 'sound') {
-      const soundUrl = matchedReward.soundUrl || '/assets/sounds/airhorn.mp3';
+      const soundUrl = matchedReward.soundUrl || './assets/sounds/airhorn.mp3';
       broadcastEvent('alert', {
         type: 'sound',
         user: username,
@@ -3749,11 +3825,14 @@ async function loadSounds() {
       } catch (e) { }
     }
 
-    // 3. Obtener sonidos del servidor backend si responde
+    // 3. Obtener sonidos del servidor backend si responde y NO estamos en GitHub Pages
     let serverSounds = [];
-    try {
-      serverSounds = await fetch('/api/sounds').then(r => r.json()).catch(() => []);
-    } catch (e) { }
+    const isStaticHosting = window.location.hostname.includes('github.io') || window.location.protocol === 'file:';
+    if (!isStaticHosting) {
+      try {
+        serverSounds = await fetch('/api/sounds').then(r => r.ok ? r.json() : []).catch(() => []);
+      } catch (e) { }
+    }
     if (!Array.isArray(serverSounds)) serverSounds = [];
 
     // 4. Combinar y evitar duplicados
@@ -3763,7 +3842,7 @@ async function loadSounds() {
       if (s && s.name) {
         soundMap.set(s.name.toLowerCase(), {
           name: s.name,
-          url: s.url || `/assets/sounds/custom/${s.name}`
+          url: s.url || `./assets/sounds/custom/${s.name}`
         });
       }
     });
@@ -3773,7 +3852,7 @@ async function loadSounds() {
         const key = s.name.toLowerCase();
         soundMap.set(key, {
           name: s.name,
-          url: s.url || s.dataUrl || s.data || `/assets/sounds/custom/${s.name}`
+          url: s.url || s.dataUrl || s.data || `./assets/sounds/custom/${s.name}`
         });
       }
     });
@@ -3938,7 +4017,7 @@ function previewSound(url, name) {
       return (cleanName && (sName === cleanName || sUrl.endsWith(cleanName))) || (cleanUrl && (sUrl === cleanUrl.toLowerCase() || s.dataUrl === cleanUrl || s.data === cleanUrl));
     });
 
-    const primarySrc = cleanUrl || found?.url || found?.dataUrl || found?.data || '/assets/sounds/campana_alerta.wav';
+    const primarySrc = cleanUrl || found?.url || found?.dataUrl || found?.data || './assets/sounds/campana_alerta.wav';
     const fallbackSrc = found?.dataUrl || found?.data;
 
     const a = new Audio(primarySrc);
@@ -4260,9 +4339,9 @@ async function testReward(rewardId) {
       type: 'sound',
       user: 'VisorDePrueba',
       reward: r.rewardName,
-      soundUrl: r.soundUrl || '/assets/sounds/airhorn.mp3'
+      soundUrl: r.soundUrl || './assets/sounds/airhorn.mp3'
     });
-    previewSound(r.soundUrl || '/assets/sounds/airhorn.mp3');
+    previewSound(r.soundUrl || './assets/sounds/airhorn.mp3');
   }
 }
 
@@ -4624,6 +4703,12 @@ function setupEventListeners() {
       appConfig = { twitch: twitchCfg };
     }
 
+    // Sincronizar en la nube con Supabase
+    if (typeof saveToAllSupabaseScopes === 'function') {
+      saveToAllSupabaseScopes('twitch_auth', twitchCfg).catch(() => {});
+      saveToAllSupabaseScopes('config', appConfig).catch(() => {});
+    }
+
     showToast(`🎉 ¡Sesión iniciada con éxito! Bienvenido, @${displayName || channelName}`, 'success');
 
     // Submit token to backend if available and resync from DB
@@ -4715,6 +4800,11 @@ function setupEventListeners() {
     localStorage.removeItem('orbibot_commands');
     localStorage.removeItem('orbibot_rewards');
     localStorage.removeItem('orbibot_session');
+
+    // Limpiar en la nube con Supabase
+    if (typeof saveToAllSupabaseScopes === 'function') {
+      saveToAllSupabaseScopes('twitch_auth', null).catch(() => {});
+    }
 
     if (browserTmiClient) {
       try { browserTmiClient.disconnect(); } catch (e) { }
@@ -4971,19 +5061,19 @@ let wcCurrentMode = 'visual';
 let wcActiveAlertEvent = 'follower';
 let wcWidgetStyles = {};
 let wcAlertImages = {
-  follower: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWk1YW0yZXpxM3c2NHJreGQxbDduMWVvb3hpZGl2dHVqMm1pMG1jYyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/artj92V8o75VPL7AeQ/giphy.gif',
-  sub: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHF4bWpna2JpcXpiZWhqZXE1aXF3MHp4eGpoMXE1bmRhNDVvNXppZSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/IwAZ6dvvvaNN6/giphy.gif',
-  bits: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJ3eG5obHRwZjcxNHNlNW56dzd2dXB1NmJhcWlnM3c5enIydTFoYSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/LdOyjZ7io5MFUvcKs2/giphy.gif',
-  raid: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2Z0dTh1Z3E0cW51ZnRtdnExNmRwbTN4eWxnd2ZtN213MWg5bmk0eCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/blSTtZehjAZ8I/giphy.gif',
-  channel_points: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOW11aWRqZG56YWNka2R3N3N6M2cydDV0OW15bmw0NWJ1ZW51bnd4eiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/111ebonMs90YLu/giphy.gif'
+  follower: 'https://i.giphy.com/media/artj92V8o75VPL7AeQ/giphy.gif',
+  sub: 'https://i.giphy.com/media/IwAZ6dvvvaNN6/giphy.gif',
+  bits: 'https://i.giphy.com/media/LdOyjZ7io5MFUvcKs2/giphy.gif',
+  raid: 'https://i.giphy.com/media/blSTtZehjAZ8I/giphy.gif',
+  channel_points: 'https://i.giphy.com/media/111ebonMs90YLu/giphy.gif'
 };
 
 let wcAlertSounds = {
-  follower: '/assets/sounds/campana_alerta.wav',
-  sub: '/assets/sounds/campana_alerta.wav',
-  bits: '/assets/sounds/notificacion_puntos.wav',
-  raid: '/assets/sounds/airhorn.mp3',
-  channel_points: '/assets/sounds/notificacion_puntos.wav'
+  follower: './assets/sounds/campana_alerta.wav',
+  sub: './assets/sounds/campana_alerta.wav',
+  bits: './assets/sounds/notificacion_puntos.wav',
+  raid: './assets/sounds/airhorn.mp3',
+  channel_points: './assets/sounds/notificacion_puntos.wav'
 };
 
 const WC_WIDGET_NAMES = {
@@ -5127,7 +5217,7 @@ function selectAlertEvent(eventKey) {
   renderGifGallery(eventKey);
 
   // Load sound select
-  const currentSound = wcAlertSounds[eventKey] || '/assets/sounds/campana_alerta.wav';
+  const currentSound = wcAlertSounds[eventKey] || './assets/sounds/campana_alerta.wav';
   const soundSelect = document.getElementById('wc-alert-soundSelect');
   const customSoundRow = document.getElementById('wcAlertCustomSoundRow');
   const customSoundInput = document.getElementById('wc-alert-soundUrl');
@@ -5372,7 +5462,7 @@ function addSoundOption(url, name) {
 }
 
 function playActiveAlertSound() {
-  const sound = wcAlertSounds[wcActiveAlertEvent] || '/assets/sounds/campana_alerta.wav';
+  const sound = wcAlertSounds[wcActiveAlertEvent] || './assets/sounds/campana_alerta.wav';
   if (sound === 'synthesizer') {
     playSynthesizedAlertChime(wcActiveAlertEvent);
     return;
@@ -5798,11 +5888,11 @@ function resetWidgetStyles() {
   if (wcCurrentWidget === 'alerts') {
     wcAlertImages = { ...WC_DEFAULT_ALERT_IMAGES };
     wcAlertSounds = {
-      follower: '/assets/sounds/campana_alerta.wav',
-      sub: '/assets/sounds/campana_alerta.wav',
-      bits: '/assets/sounds/notificacion_puntos.wav',
-      raid: '/assets/sounds/airhorn.mp3',
-      channel_points: '/assets/sounds/notificacion_puntos.wav'
+      follower: './assets/sounds/campana_alerta.wav',
+      sub: './assets/sounds/campana_alerta.wav',
+      bits: './assets/sounds/notificacion_puntos.wav',
+      raid: './assets/sounds/airhorn.mp3',
+      channel_points: './assets/sounds/notificacion_puntos.wav'
     };
   }
 
@@ -5841,23 +5931,26 @@ function initWidgetCustomization() {
     }
   } catch (e) { }
 
-  // 3. Also fetch saved alert images and sounds from /api/alerts
-  fetch('/api/alerts')
-    .then(r => r.json())
-    .then(data => {
-      if (data && typeof data === 'object') {
-        Object.keys(data).forEach(k => {
-          if (data[k]) {
-            if (data[k].image) wcAlertImages[k] = data[k].image;
-            if (data[k].sound) wcAlertSounds[k] = data[k].sound;
+  // 3. Also fetch saved alert images and sounds from /api/alerts if backend is available
+  const isStaticHosting = window.location.hostname.includes('github.io') || window.location.protocol === 'file:';
+  if (!isStaticHosting) {
+    fetch('/api/alerts')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && typeof data === 'object') {
+          Object.keys(data).forEach(k => {
+            if (data[k]) {
+              if (data[k].image) wcAlertImages[k] = data[k].image;
+              if (data[k].sound) wcAlertSounds[k] = data[k].sound;
+            }
+          });
+          if (wcCurrentWidget === 'alerts') {
+            selectAlertEvent(wcActiveAlertEvent || 'follower');
           }
-        });
-        if (wcCurrentWidget === 'alerts') {
-          selectAlertEvent(wcActiveAlertEvent || 'follower');
         }
-      }
-    })
-    .catch(() => { });
+      })
+      .catch(() => { });
+  }
 
   // Setup visual controls event listeners for live preview
   document.querySelectorAll('.wc-controls-group input, .wc-controls-group select').forEach(input => {

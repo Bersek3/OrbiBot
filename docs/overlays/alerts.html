@@ -35,8 +35,10 @@
   <script>
     // Load custom widget styles from streamer config
     (async function loadCustomStyles() {
+      if (window.location.hostname.includes('github.io') || window.location.protocol === 'file:') return;
       try {
         const res = await fetch('/api/widget-styles');
+        if (!res.ok) return;
         const data = await res.json();
         if (data.alerts) {
           if (data.alerts.images) {
@@ -200,8 +202,15 @@
       const mediaUrl = cfg.image || defaultAlertGif;
       alertImage.src = mediaUrl;
 
-      // Play Sound (Soporta URLs absolutas, data: URLs y rutas relativas /assets/sounds/...)
-      const soundToPlay = alertData.soundUrl || cfg.sound;
+      // Play Sound (Soporta URLs absolutas, data: URLs y rutas relativas)
+      let soundToPlay = alertData.soundUrl || cfg.sound;
+      if (soundToPlay && typeof soundToPlay === 'string') {
+        if (soundToPlay.startsWith('/assets/')) {
+          soundToPlay = '..' + soundToPlay;
+        } else if (soundToPlay.startsWith('./assets/')) {
+          soundToPlay = '.' + soundToPlay;
+        }
+      }
       if (soundToPlay && soundToPlay !== 'synthesizer') {
         try {
           const audio = new Audio(soundToPlay);
