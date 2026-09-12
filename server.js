@@ -1042,13 +1042,78 @@ app.get('/api/tts/voices', (req, res) => {
   res.json(ttsService.getVoices());
 });
 
+app.get('/api/tts/audio', async (req, res) => {
+  try {
+    const rawText = (req.query.text || '').toString().trim();
+    const voice = (req.query.voice || 'es_mx_mia').toString().toLowerCase().trim();
+    if (!rawText) {
+      return res.status(400).send('Texto requerido');
+    }
+
+    if (voice === 'es_ar_messi' || voice === 'messi') {
+      const config = storage.getConfig();
+      const fishApiKey = config.tts?.fishApiKey || process.env.FISH_AUDIO_API_KEY || 'sk-fish-rOpXPwPZLXZAk5SPYaeSKBue6QfPM3l4i6Q3VG8ZbGI';
+      const referenceId = 'e3ded66586764591a457fcdaba8a268b'; // Lionel Messi Model
+
+      try {
+        const fishRes = await fetch('https://api.fish.audio/v1/tts', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${fishApiKey}`,
+            'Content-Type': 'application/json',
+            'model': 's2-pro'
+          },
+          body: JSON.stringify({
+            text: rawText,
+            reference_id: referenceId,
+            format: 'mp3'
+          })
+        });
+
+        if (fishRes.ok) {
+          const arrayBuffer = await fishRes.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          res.setHeader('Content-Type', 'audio/mpeg');
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+          return res.send(buffer);
+        } else {
+          console.warn(`[Fish Audio TTS] API devolvió status ${fishRes.status}. (Si es 402: requiere recarga de créditos en fish.audio)`);
+          const samplePath = path.join(__dirname, 'public', 'assets', 'sounds', 'messi_sample.mp3');
+          if (fs.existsSync(samplePath) && (rawText.toLowerCase().includes('hola') || rawText.toLowerCase().includes('prueba') || rawText.toLowerCase().includes('messi') || rawText.length < 60)) {
+            res.setHeader('Content-Type', 'audio/mpeg');
+            return res.sendFile(samplePath);
+          }
+        }
+      } catch (fishErr) {
+        console.warn('[Fish Audio TTS] Error de conexión:', fishErr.message);
+      }
+
+      // Fallback si la API de Fish Audio no responde o tiene 0 créditos
+      const samplePath = path.join(__dirname, 'public', 'assets', 'sounds', 'messi_sample.mp3');
+      if (fs.existsSync(samplePath)) {
+        res.setHeader('Content-Type', 'audio/mpeg');
+        return res.sendFile(samplePath);
+      }
+      return res.redirect(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(rawText)}&tl=es-AR&client=tw-ob`);
+    }
+
+    // Google Translate TTS fallback para otras voces
+    const lang = voice.split('_')[0] || 'es';
+    return res.redirect(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(rawText)}&tl=${encodeURIComponent(lang)}&client=tw-ob`);
+  } catch (err) {
+    console.error('Error in /api/tts/audio:', err);
+    res.status(500).send('Error generando audio TTS');
+  }
+});
+
 app.post('/api/tts/test', (req, res) => {
-  const { text, user, voice } = req.body;
+  const { text, user, voice, room, channel } = req.body;
   const result = ttsService.processRequest({
     user: user || 'Streamer',
     text: text || '¡Hola! Este es un mensaje de prueba del sistema de TTS.',
     source: 'test',
-    voiceOverride: voice
+    voiceOverride: voice,
+    channel: room || channel
   });
   res.json(result);
 });

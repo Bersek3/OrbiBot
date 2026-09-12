@@ -2416,6 +2416,9 @@ function bindConfigToUI(cfg) {
     document.getElementById('cfgTtsAllowCommand').checked = cfg.tts.allowChatCommand !== false;
     document.getElementById('cfgTtsCommand').value = cfg.tts.chatCommand || '!tts';
     document.getElementById('cfgTtsMinBits').value = cfg.tts.minBits !== undefined ? cfg.tts.minBits : 50;
+    if (document.getElementById('cfgTtsFishApiKey')) {
+      document.getElementById('cfgTtsFishApiKey').value = cfg.tts.fishApiKey || 'sk-fish-rOpXPwPZLXZAk5SPYaeSKBue6QfPM3l4i6Q3VG8ZbGI';
+    }
   }
 
   // Custom Goals
@@ -3424,6 +3427,13 @@ window.toggleAlertTestDropdown = toggleAlertTestDropdown;
 window.selectAlertTest = selectAlertTest;
 
 const VOICE_PROFILES = {
+  // Lionel Messi (Fish Audio IA 🇦🇷)
+  es_ar_messi: { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
+  messi: { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
+  lionel_messi: { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
+  'lionel messi': { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
+  'leo messi': { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
+
   // Español Latino
   es_mx_mia: { id: 'es_mx_mia', name: 'Mia', lang: 'es-MX', gender: 'female', pitch: 1.15, rate: 1.0 },
   mia: { id: 'es_mx_mia', name: 'Mia', lang: 'es-MX', gender: 'female', pitch: 1.15, rate: 1.0 },
@@ -3486,6 +3496,9 @@ const VOICE_PROFILES = {
 
 function getTTSAudioUrl(text, voiceId) {
   const clean = (voiceId || '').toString().toLowerCase().trim().replace(/^[-@/]/, '').replace(/^voice:/, '');
+  if (clean === 'es_ar_messi' || clean === 'messi' || clean === 'lionel_messi') {
+    return `/api/tts/audio?text=${encodeURIComponent(text)}&voice=es_ar_messi`;
+  }
   const profile = VOICE_PROFILES[clean] || VOICE_PROFILES[voiceId] || VOICE_PROFILES['es_mx_mia'];
   const lang = (profile.lang || 'es-ES').split('-')[0];
   return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
@@ -3496,6 +3509,21 @@ function playTTSAudioLocal(text, voiceKey, volume = 0.9, onEnd = null) {
   const profile = VOICE_PROFILES[cleanKey] || VOICE_PROFILES[voiceKey] || VOICE_PROFILES['es_mx_mia'];
   const targetLang = (profile.lang || 'es-ES').split('-')[0].toLowerCase();
 
+  // Si es la voz de Messi, reproducir directamente el stream/audio de Messi
+  if (cleanKey === 'es_ar_messi' || cleanKey === 'messi' || cleanKey === 'lionel_messi') {
+    const directUrl = `/api/tts/audio?text=${encodeURIComponent(text)}&voice=es_ar_messi`;
+    const a = new Audio(directUrl);
+    a.volume = volume;
+    if (onEnd) a.onended = onEnd;
+    a.onerror = () => {
+      fallbackSpeechSynthLocal();
+    };
+    a.play().catch(() => {
+      fallbackSpeechSynthLocal();
+    });
+    return;
+  }
+
   if (!('speechSynthesis' in window)) {
     const audioUrl = getTTSAudioUrl(text, cleanKey);
     const a = new Audio(audioUrl);
@@ -3505,55 +3533,59 @@ function playTTSAudioLocal(text, voiceKey, volume = 0.9, onEnd = null) {
     return;
   }
 
-  try {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.volume = volume;
-    utterance.rate = profile.rate || 1.0;
-    utterance.pitch = profile.pitch || 1.0;
-    utterance.lang = profile.lang || 'es-ES';
+  fallbackSpeechSynthLocal();
 
-    const voices = window.speechSynthesis.getVoices() || [];
-    let matchedVoice = null;
+  function fallbackSpeechSynthLocal() {
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.volume = volume;
+      utterance.rate = profile.rate || 1.0;
+      utterance.pitch = profile.pitch || 1.0;
+      utterance.lang = profile.lang || 'es-ES';
 
-    if (profile.gender === 'male') {
-      matchedVoice = voices.find(v => {
-        const vLang = v.lang.toLowerCase();
-        const vName = v.name.toLowerCase();
-        return (vLang.startsWith(targetLang) || (targetLang === 'es' && vLang.startsWith('es'))) &&
-          (vName.includes('male') || vName.includes('david') || vName.includes('raul') || vName.includes('pablo') ||
-           vName.includes('jorge') || vName.includes('alvaro') || vName.includes('enrique') || vName.includes('carlos') ||
-           vName.includes('miguel') || vName.includes('george') || vName.includes('mark') || vName.includes('stefan') ||
-           vName.includes('guy') || vName.includes('cosimo') || vName.includes('keita'));
-      });
-    } else {
-      matchedVoice = voices.find(v => {
-        const vLang = v.lang.toLowerCase();
-        const vName = v.name.toLowerCase();
-        return (vLang.startsWith(targetLang) || (targetLang === 'es' && vLang.startsWith('es'))) &&
-          (vName.includes('female') || vName.includes('zira') || vName.includes('sabina') || vName.includes('helena') ||
-           vName.includes('laura') || vName.includes('monica') || vName.includes('mia') || vName.includes('lucia') ||
-           vName.includes('conchita') || vName.includes('susan') || vName.includes('hazel'));
-      });
+      const voices = window.speechSynthesis.getVoices() || [];
+      let matchedVoice = null;
+
+      if (profile.gender === 'male') {
+        matchedVoice = voices.find(v => {
+          const vLang = v.lang.toLowerCase();
+          const vName = v.name.toLowerCase();
+          return (vLang.startsWith(targetLang) || (targetLang === 'es' && vLang.startsWith('es'))) &&
+            (vName.includes('male') || vName.includes('david') || vName.includes('raul') || vName.includes('pablo') ||
+             vName.includes('jorge') || vName.includes('alvaro') || vName.includes('enrique') || vName.includes('carlos') ||
+             vName.includes('miguel') || vName.includes('george') || vName.includes('mark') || vName.includes('stefan') ||
+             vName.includes('guy') || vName.includes('cosimo') || vName.includes('keita'));
+        });
+      } else {
+        matchedVoice = voices.find(v => {
+          const vLang = v.lang.toLowerCase();
+          const vName = v.name.toLowerCase();
+          return (vLang.startsWith(targetLang) || (targetLang === 'es' && vLang.startsWith('es'))) &&
+            (vName.includes('female') || vName.includes('zira') || vName.includes('sabina') || vName.includes('helena') ||
+             vName.includes('laura') || vName.includes('monica') || vName.includes('mia') || vName.includes('lucia') ||
+             vName.includes('conchita') || vName.includes('susan') || vName.includes('hazel'));
+        });
+      }
+
+      if (!matchedVoice) {
+        matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith(targetLang));
+      }
+      if (!matchedVoice) {
+        matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith('es') || v.lang.toLowerCase().startsWith('en'));
+      }
+
+      if (matchedVoice) {
+        utterance.voice = matchedVoice;
+      }
+
+      utterance.onend = () => { if (onEnd) onEnd(); };
+      utterance.onerror = () => { if (onEnd) onEnd(); };
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      if (onEnd) onEnd();
     }
-
-    if (!matchedVoice) {
-      matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith(targetLang));
-    }
-    if (!matchedVoice) {
-      matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith('es') || v.lang.toLowerCase().startsWith('en'));
-    }
-
-    if (matchedVoice) {
-      utterance.voice = matchedVoice;
-    }
-
-    utterance.onend = () => { if (onEnd) onEnd(); };
-    utterance.onerror = () => { if (onEnd) onEnd(); };
-
-    window.speechSynthesis.speak(utterance);
-  } catch (e) {
-    if (onEnd) onEnd();
   }
 }
 
@@ -5079,7 +5111,8 @@ async function saveAllConfig(showNotification = true) {
       bannedWords,
       allowChatCommand: Boolean(document.getElementById('cfgTtsAllowCommand')?.checked),
       chatCommand: document.getElementById('cfgTtsCommand')?.value.trim() || '!tts',
-      minBits: Number(document.getElementById('cfgTtsMinBits')?.value ?? 50)
+      minBits: Number(document.getElementById('cfgTtsMinBits')?.value ?? 50),
+      fishApiKey: document.getElementById('cfgTtsFishApiKey')?.value?.trim() || 'sk-fish-rOpXPwPZLXZAk5SPYaeSKBue6QfPM3l4i6Q3VG8ZbGI'
     }
   };
 

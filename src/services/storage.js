@@ -61,7 +61,8 @@ const DEFAULT_CONFIG = {
     chatCommand: '!tts',
     bannedWords: ['nazi', 'hitler', 'racismo', 'tonto'],
     maxLength: 250,
-    channelPointsRewardName: 'TTS'
+    channelPointsRewardName: 'TTS',
+    fishApiKey: 'sk-fish-rOpXPwPZLXZAk5SPYaeSKBue6QfPM3l4i6Q3VG8ZbGI'
   },
   goals: []
 };

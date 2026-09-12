@@ -49,6 +49,15 @@ class TTSService {
     if (!voiceId) return 'es_mx_mia';
     const v = voiceId.toString().toLowerCase().trim().replace(/^[-@/]/, '').replace(/^voice:/, '');
     const aliases = {
+      // Lionel Messi (Fish Audio IA)
+      messi: 'es_ar_messi',
+      lionel_messi: 'es_ar_messi',
+      'lionel messi': 'es_ar_messi',
+      'leo messi': 'es_ar_messi',
+      'leo_messi': 'es_ar_messi',
+      leomessi: 'es_ar_messi',
+      es_ar_messi: 'es_ar_messi',
+
       // Direct names
       mia: 'es_mx_mia',
       miguel: 'es_us_miguel',
@@ -108,6 +117,7 @@ class TTSService {
   getStreamElementsVoiceName(voiceId) {
     const normalized = this.normalizeVoice(voiceId);
     const map = {
+      es_ar_messi: 'Mia',
       es_mx_mia: 'Mia',
       es_us_miguel: 'Miguel',
       es_us_lupe: 'Lupe',
@@ -135,6 +145,9 @@ class TTSService {
   generateAudioUrl(text, voiceId = 'es_mx_mia') {
     const encoded = encodeURIComponent(text);
     const normalized = this.normalizeVoice(voiceId);
+    if (normalized === 'es_ar_messi') {
+      return `/api/tts/audio?text=${encoded}&voice=es_ar_messi`;
+    }
     const lang = (normalized.split('_')[0] || 'es').toLowerCase();
     return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
   }
@@ -158,12 +171,12 @@ class TTSService {
     let rawText = (text || '').trim();
     let selectedVoice = voiceOverride || this.normalizeVoice(config.voice) || 'es_mx_mia';
 
-    // Detección automática de voz en el comando de chat (ej: "!tts miguel Hola streamer" o "!tts enrique Saludos")
+    // Detección automática de voz en el comando de chat (ej: "!tts messi Hola muchachos" o "!tts miguel Hola streamer")
     if (source === 'chat' && rawText) {
       const parts = rawText.split(/\s+/);
       const possibleVoiceToken = parts[0].toLowerCase().replace(/^[-@/]/, '').replace(/^voice:/, '');
       const detectedVoice = this.normalizeVoice(possibleVoiceToken);
-      if (detectedVoice && (detectedVoice.startsWith('es_') || detectedVoice.startsWith('en_') || detectedVoice.startsWith('pt_') || detectedVoice.startsWith('fr_') || detectedVoice.startsWith('it_') || detectedVoice.startsWith('de_') || detectedVoice.startsWith('ja_'))) {
+      if (detectedVoice && (detectedVoice === 'es_ar_messi' || detectedVoice.startsWith('es_') || detectedVoice.startsWith('en_') || detectedVoice.startsWith('pt_') || detectedVoice.startsWith('fr_') || detectedVoice.startsWith('it_') || detectedVoice.startsWith('de_') || detectedVoice.startsWith('ja_'))) {
         if (parts.length > 1) {
           selectedVoice = detectedVoice;
           rawText = parts.slice(1).join(' ');
@@ -176,9 +189,10 @@ class TTSService {
       return { success: false, reason: 'Texto vacío o inválido' };
     }
 
-    const lang = (selectedVoice.split('_')[0] || 'es').toLowerCase();
-    const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
-    const fallbackUrl = audioUrl;
+    const audioUrl = this.generateAudioUrl(cleanText, selectedVoice);
+    const fallbackUrl = selectedVoice === 'es_ar_messi'
+      ? `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=es-AR&client=tw-ob`
+      : audioUrl;
 
     const cleanChannel = channel ? channel.toLowerCase().replace(/^#/, '').trim() : null;
     const ttsItem = {
@@ -189,7 +203,7 @@ class TTSService {
       text: cleanText,
       source,
       bits,
-      engine: 'audio_stream',
+      engine: selectedVoice === 'es_ar_messi' ? 'fish_audio' : 'audio_stream',
       voice: selectedVoice,
       volume: (config.volume || 90) / 100,
       rate: config.rate || 1.0,
@@ -210,6 +224,7 @@ class TTSService {
 
   getVoices() {
     return [
+      { id: 'es_ar_messi', name: '⭐ Lionel Messi - IA Fish Audio 🇦🇷', lang: 'es-AR', isAI: true, referenceId: 'e3ded66586764591a457fcdaba8a268b' },
       { id: 'es_mx_mia', name: 'Mia - Español Latino (Femenino)', lang: 'es-MX' },
       { id: 'es_us_miguel', name: 'Miguel - Español Latino (Masculino)', lang: 'es-US' },
       { id: 'es_us_lupe', name: 'Lupe - Español US (Femenino)', lang: 'es-US' },

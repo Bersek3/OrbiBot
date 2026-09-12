@@ -85,6 +85,13 @@
       }
 
       const VOICE_PROFILES = {
+        // Lionel Messi (Fish Audio IA 🇦🇷)
+        es_ar_messi: { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
+        messi: { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
+        lionel_messi: { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
+        'lionel messi': { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
+        'leo messi': { id: 'es_ar_messi', name: 'Lionel Messi', lang: 'es-AR', gender: 'male', pitch: 0.78, rate: 0.98 },
+
         // Español Latino
         es_mx_mia: { id: 'es_mx_mia', name: 'Mia', lang: 'es-MX', gender: 'female', pitch: 1.15, rate: 1.0 },
         mia: { id: 'es_mx_mia', name: 'Mia', lang: 'es-MX', gender: 'female', pitch: 1.15, rate: 1.0 },
@@ -150,6 +157,21 @@
         const profile = VOICE_PROFILES[cleanKey] || VOICE_PROFILES[voiceKey] || VOICE_PROFILES['es_mx_mia'];
         const targetLang = (profile.lang || 'es-ES').split('-')[0].toLowerCase();
 
+        // Si es voz de Messi y estamos en navegador, intentar reproducir directo desde /api/tts/audio
+        if (cleanKey === 'es_ar_messi' || cleanKey === 'messi') {
+          const directUrl = `/api/tts/audio?text=${encodeURIComponent(text)}&voice=es_ar_messi`;
+          const a = new Audio(directUrl);
+          a.volume = volume;
+          if (onEnd) a.onended = onEnd;
+          a.onerror = () => {
+            fallbackSpeechSynth();
+          };
+          a.play().catch(() => {
+            fallbackSpeechSynth();
+          });
+          return;
+        }
+
         if (!('speechSynthesis' in window)) {
           const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${encodeURIComponent(targetLang)}&client=tw-ob`;
           const a = new Audio(audioUrl);
@@ -159,56 +181,81 @@
           return;
         }
 
-        try {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.volume = volume;
-          utterance.rate = profile.rate || 1.0;
-          utterance.pitch = profile.pitch || 1.0;
-          utterance.lang = profile.lang || 'es-ES';
+        fallbackSpeechSynth();
 
-          const voices = window.speechSynthesis.getVoices() || [];
-          let matchedVoice = null;
+        function fallbackSpeechSynth() {
+          try {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.volume = volume;
+            utterance.rate = profile.rate || 1.0;
+            utterance.pitch = profile.pitch || 1.0;
+            utterance.lang = profile.lang || 'es-ES';
 
-          if (profile.gender === 'male') {
-            matchedVoice = voices.find(v => {
-              const vLang = v.lang.toLowerCase();
-              const vName = v.name.toLowerCase();
-              return (vLang.startsWith(targetLang) || (targetLang === 'es' && vLang.startsWith('es'))) &&
-                (vName.includes('male') || vName.includes('david') || vName.includes('raul') || vName.includes('pablo') ||
-                 vName.includes('jorge') || vName.includes('alvaro') || vName.includes('enrique') || vName.includes('carlos') ||
-                 vName.includes('miguel') || vName.includes('george') || vName.includes('mark') || vName.includes('stefan') ||
-                 vName.includes('guy') || vName.includes('cosimo') || vName.includes('keita'));
-            });
-          } else {
-            matchedVoice = voices.find(v => {
-              const vLang = v.lang.toLowerCase();
-              const vName = v.name.toLowerCase();
-              return (vLang.startsWith(targetLang) || (targetLang === 'es' && vLang.startsWith('es'))) &&
-                (vName.includes('female') || vName.includes('zira') || vName.includes('sabina') || vName.includes('helena') ||
-                 vName.includes('laura') || vName.includes('monica') || vName.includes('mia') || vName.includes('lucia') ||
-                 vName.includes('conchita') || vName.includes('susan') || vName.includes('hazel'));
-            });
+            const voices = window.speechSynthesis.getVoices() || [];
+            let matchedVoice = null;
+
+            if (profile.gender === 'male') {
+              matchedVoice = voices.find(v => {
+                const vLang = v.lang.toLowerCase();
+                const vName = v.name.toLowerCase();
+                return (vLang.startsWith(targetLang) || (targetLang === 'es' && vLang.startsWith('es'))) &&
+                  (vName.includes('male') || vName.includes('david') || vName.includes('raul') || vName.includes('pablo') ||
+                   vName.includes('jorge') || vName.includes('alvaro') || vName.includes('enrique') || vName.includes('carlos') ||
+                   vName.includes('miguel') || vName.includes('george') || vName.includes('mark') || vName.includes('stefan') ||
+                   vName.includes('guy') || vName.includes('cosimo') || vName.includes('keita'));
+              });
+            } else {
+              matchedVoice = voices.find(v => {
+                const vLang = v.lang.toLowerCase();
+                const vName = v.name.toLowerCase();
+                return (vLang.startsWith(targetLang) || (targetLang === 'es' && vLang.startsWith('es'))) &&
+                  (vName.includes('female') || vName.includes('zira') || vName.includes('sabina') || vName.includes('helena') ||
+                   vName.includes('laura') || vName.includes('monica') || vName.includes('mia') || vName.includes('lucia') ||
+                   vName.includes('conchita') || vName.includes('susan') || vName.includes('hazel'));
+              });
+            }
+
+            if (!matchedVoice) {
+              matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith(targetLang));
+            }
+            if (!matchedVoice) {
+              matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith('es') || v.lang.toLowerCase().startsWith('en'));
+            }
+
+            if (matchedVoice) {
+              utterance.voice = matchedVoice;
+            }
+
+            utterance.onend = () => { if (onEnd) onEnd(); };
+            utterance.onerror = () => { if (onEnd) onEnd(); };
+
+            window.speechSynthesis.speak(utterance);
+          } catch (e) {
+            if (onEnd) onEnd();
           }
-
-          if (!matchedVoice) {
-            matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith(targetLang));
-          }
-          if (!matchedVoice) {
-            matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith('es') || v.lang.toLowerCase().startsWith('en'));
-          }
-
-          if (matchedVoice) {
-            utterance.voice = matchedVoice;
-          }
-
-          utterance.onend = () => { if (onEnd) onEnd(); };
-          utterance.onerror = () => { if (onEnd) onEnd(); };
-
-          window.speechSynthesis.speak(utterance);
-        } catch (e) {
-          if (onEnd) onEnd();
         }
+      }
+
+      // Prioridad a reproducción de stream de audio directo si existe (ej. Fish Audio MP3)
+      if (item.audioUrl && (item.engine === 'fish_audio' || item.voice === 'es_ar_messi' || item.audioUrl.includes('/api/tts/audio'))) {
+        const audio = new Audio(item.audioUrl);
+        audio.volume = item.volume !== undefined ? item.volume : 0.9;
+        let ended = false;
+        const handleEnd = () => {
+          if (ended) return;
+          ended = true;
+          finalize();
+        };
+        audio.onended = handleEnd;
+        audio.onerror = (e) => {
+          console.warn('Direct audio stream failed, falling back to synthesis:', e);
+          playTTSAudio(item.text, item.voice, item.volume !== undefined ? item.volume : 0.9, finalize);
+        };
+        audio.play().catch(() => {
+          playTTSAudio(item.text, item.voice, item.volume !== undefined ? item.volume : 0.9, finalize);
+        });
+        return;
       }
 
       playTTSAudio(item.text, item.voice, item.volume !== undefined ? item.volume : 0.9, finalize);
