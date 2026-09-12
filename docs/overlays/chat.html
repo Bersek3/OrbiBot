@@ -365,9 +365,23 @@
 
       // Room / Channel Verification: descartar mensajes de otros canales
       const myTarget = channel || kickChannel;
-      if (myTarget) {
-        const target = (msg.room || msg.channel || msg.data?.channel || '').toLowerCase().replace(/^#/, '').trim();
-        if (target && target !== 'default' && target !== channel && target !== kickChannel) return;
+      const myToken = token || '';
+      if (myTarget || myToken) {
+        const targetRoom = (msg.room || msg.channel || msg.data?.channel || msg.data?.room || '').toLowerCase().replace(/^#/, '').trim();
+        const targetToken = (msg.token || msg.data?.token || '').trim();
+        if (myTarget) {
+          if (targetRoom && targetRoom !== 'default' && targetRoom !== channel && targetRoom !== kickChannel && targetRoom !== myToken) {
+            return;
+          }
+          if (targetRoom === 'default' && myTarget !== 'default') {
+            return;
+          }
+        }
+        if (myToken && targetToken && targetToken !== myToken) {
+          return;
+        }
+      } else {
+        return;
       }
 
       if (msg.event === 'chat_message') {
@@ -438,7 +452,12 @@
           wsInstance.onopen = () => {
             const targetRoom = channel || kickChannel || token;
             if (targetRoom) {
-              wsInstance.send(JSON.stringify({ action: 'join', room: targetRoom }));
+              wsInstance.send(JSON.stringify({
+                action: 'join',
+                room: targetRoom,
+                channel: channel || kickChannel,
+                token: token
+              }));
             }
           };
           wsInstance.onmessage = (event) => {
@@ -458,9 +477,15 @@
         }, 3000);
       }
 
+      const wsParams = [];
+      if (channel) wsParams.push(`channel=${encodeURIComponent(channel)}`);
+      if (kickChannel) wsParams.push(`kick=${encodeURIComponent(kickChannel)}`);
+      if (token) wsParams.push(`token=${encodeURIComponent(token)}`);
+      const wsQs = wsParams.length ? `?${wsParams.join('&')}` : '';
+
       const isGitHubPages = location.hostname.endsWith('github.io');
       const wsUrl = !isGitHubPages
-        ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`
+        ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}${wsQs}`
         : 'ws://localhost:3000';
 
       connectLocalWs(wsUrl);
@@ -494,8 +519,9 @@
               onSuccess: () => {
                 if (token) {
                   mqttClient.subscribe(`orbibot/${targetChan}_${token}/events`);
+                } else {
+                  mqttClient.subscribe(`orbibot/${targetChan}/events`);
                 }
-                mqttClient.subscribe(`orbibot/${targetChan}/events`);
               },
               onFailure: (err) => {
                 scheduleMqttReconnect();
@@ -514,21 +540,23 @@
 
       connectMqtt();
 
-      // 5. BroadcastChannel & Storage for same-browser testing
-      if (typeof BroadcastChannel !== 'undefined') {
-        const bc = new BroadcastChannel('orbibot_stream_channel');
-        bc.onmessage = (e) => handleIncomingMessage(e.data);
-        const targetRoom = channel || kickChannel;
-        if (targetRoom) {
-          try {
-            const scopedBc = new BroadcastChannel('orbyxbot_stream_' + targetRoom);
-            scopedBc.onmessage = (e) => handleIncomingMessage(e.data);
-          } catch(e) {}
-        }
+      // 5. BroadcastChannel & Storage aislados por streamer (sin mezclar cuentas)
+      const primaryRoom = channel || kickChannel || token;
+      if (typeof BroadcastChannel !== 'undefined' && primaryRoom) {
+        try {
+          const scopedBc = new BroadcastChannel('orbyxbot_stream_' + primaryRoom);
+          scopedBc.onmessage = (e) => handleIncomingMessage(e.data);
+        } catch(e) {}
       }
 
       window.addEventListener('storage', (e) => {
-        if (e.key === 'orbibot_last_event' && e.newValue) {
+        if (channel && e.key === ('orbibot_last_event_' + channel) && e.newValue) {
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
+        }
+        if (kickChannel && e.key === ('orbibot_last_event_' + kickChannel) && e.newValue) {
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
+        }
+        if (token && e.key === ('orbibot_last_event_' + token) && e.newValue) {
           try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
         }
       });

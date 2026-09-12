@@ -175,13 +175,30 @@
       })
       .catch(() => {});
 
+    const myStreamerKey = channel || '';
+    const myToken = token || '';
+
     function handleIncomingMessage(msg) {
       if (!msg) return;
 
-      // Room / Channel Verification: descartar eventos de otros canales
-      if (channel) {
-        const target = (msg.room || msg.channel || msg.data?.channel || '').toLowerCase().replace(/^#/, '').trim();
-        if (target && target !== 'default' && target !== channel) return;
+      // Validación estricta de aislamiento: descartar eventos de otros streamers
+      if (myStreamerKey || myToken) {
+        const targetRoom = (msg.room || msg.channel || msg.data?.channel || msg.data?.room || '').toLowerCase().replace(/^#/, '').trim();
+        const targetToken = (msg.token || msg.data?.token || '').trim();
+
+        if (myStreamerKey) {
+          if (targetRoom && targetRoom !== 'default' && targetRoom !== myStreamerKey && targetRoom !== myToken) {
+            return;
+          }
+          if (targetRoom === 'default' && myStreamerKey !== 'default') {
+            return;
+          }
+        }
+        if (myToken && targetToken && targetToken !== myToken) {
+          return;
+        }
+      } else {
+        return;
       }
 
       if (msg.event === 'init_state' && msg.data?.srState?.currentSong) {
@@ -287,14 +304,20 @@
 
       connectMqtt();
 
-      // 3. BroadcastChannel & Storage for same-browser testing
-      if (typeof BroadcastChannel !== 'undefined') {
-        const bc = new BroadcastChannel('orbibot_stream_channel');
-        bc.onmessage = (e) => handleIncomingMessage(e.data);
+      // 3. BroadcastChannel con aislamiento estricto por streamer
+      if (typeof BroadcastChannel !== 'undefined' && (myStreamerKey || myToken)) {
+        const chanName = myStreamerKey || myToken;
+        try {
+          const scopedBc = new BroadcastChannel('orbyxbot_stream_' + chanName);
+          scopedBc.onmessage = (e) => handleIncomingMessage(e.data);
+        } catch(e) {}
       }
 
       window.addEventListener('storage', (e) => {
-        if (e.key === 'orbibot_last_event' && e.newValue) {
+        if (myStreamerKey && e.key === ('orbibot_last_event_' + myStreamerKey) && e.newValue) {
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
+        }
+        if (myToken && e.key === ('orbibot_last_event_' + myToken) && e.newValue) {
           try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
         }
       });

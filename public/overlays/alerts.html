@@ -255,14 +255,31 @@
     const urlParams = new URLSearchParams(window.location.search);
     const channel = (urlParams.get('channel') || '').toLowerCase().replace(/^#/, '');
     const token = (urlParams.get('token') || urlParams.get('key') || '').trim();
+    const myStreamerKey = channel || '';
+    const myToken = token || '';
 
     function handleIncomingMessage(msg) {
       if (!msg) return;
 
-      // Room / Channel Verification: descartar alertas de otros canales
-      if (channel) {
-        const target = (msg.room || msg.channel || msg.data?.channel || '').toLowerCase().replace(/^#/, '').trim();
-        if (target && target !== 'default' && target !== channel) return;
+      // Validación estricta de aislamiento: descartar eventos dirigidos a otros streamers
+      if (myStreamerKey || myToken) {
+        const targetRoom = (msg.room || msg.channel || msg.data?.channel || msg.data?.room || '').toLowerCase().replace(/^#/, '').trim();
+        const targetToken = (msg.token || msg.data?.token || '').trim();
+
+        if (myStreamerKey) {
+          if (targetRoom && targetRoom !== 'default' && targetRoom !== myStreamerKey && targetRoom !== myToken) {
+            return;
+          }
+          if (targetRoom === 'default' && myStreamerKey !== 'default') {
+            return;
+          }
+        }
+        if (myToken && targetToken && targetToken !== myToken) {
+          return;
+        }
+      } else {
+        // Enlace sin canal ni token: no aceptar eventos privados
+        return;
       }
 
       if (msg.event === 'alert') {
@@ -300,8 +317,13 @@
           wsInstance = new WebSocket(url);
           wsInstance.onopen = () => {
             showStatusBadge('🟢 Conectado a Servidor Local (WebSocket)', 3500);
-            if (channel || token) {
-              wsInstance.send(JSON.stringify({ action: 'join', room: channel || token }));
+            if (myStreamerKey || myToken) {
+              wsInstance.send(JSON.stringify({
+                action: 'join',
+                room: myStreamerKey || myToken,
+                channel: myStreamerKey,
+                token: myToken
+              }));
             }
           };
           wsInstance.onmessage = (event) => {
@@ -325,27 +347,33 @@
         }, 3000);
       }
 
+      const wsParams = [];
+      if (myStreamerKey) wsParams.push(`channel=${encodeURIComponent(myStreamerKey)}`);
+      if (myToken) wsParams.push(`token=${encodeURIComponent(myToken)}`);
+      const wsQs = wsParams.length ? `?${wsParams.join('&')}` : '';
+
       const isGitHubPages = location.hostname.endsWith('github.io');
       const wsUrl = !isGitHubPages
-        ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`
+        ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}${wsQs}`
         : 'ws://localhost:3000';
 
       connectLocalWs(wsUrl);
 
-      // 2. BroadcastChannel & Storage for same-browser testing
-      if (typeof BroadcastChannel !== 'undefined') {
-        const bc = new BroadcastChannel('orbibot_stream_channel');
-        bc.onmessage = (e) => handleIncomingMessage(e.data);
-        if (channel) {
-          try {
-            const scopedBc = new BroadcastChannel('orbyxbot_stream_' + channel);
-            scopedBc.onmessage = (e) => handleIncomingMessage(e.data);
-          } catch(e) {}
-        }
+      // 2. BroadcastChannel estrictamente aislado por streamer (sin mezclar usuarios)
+      if (typeof BroadcastChannel !== 'undefined' && (myStreamerKey || myToken)) {
+        const chanName = myStreamerKey || myToken;
+        try {
+          const scopedBc = new BroadcastChannel('orbyxbot_stream_' + chanName);
+          scopedBc.onmessage = (e) => handleIncomingMessage(e.data);
+        } catch(e) {}
       }
 
+      // Storage event listener aislado por namespace de streamer
       window.addEventListener('storage', (e) => {
-        if (e.key === 'orbibot_last_event' && e.newValue) {
+        if (myStreamerKey && e.key === ('orbibot_last_event_' + myStreamerKey) && e.newValue) {
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
+        }
+        if (myToken && e.key === ('orbibot_last_event_' + myToken) && e.newValue) {
           try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) {}
         }
       });

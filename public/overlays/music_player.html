@@ -300,16 +300,13 @@
         body: JSON.stringify({ channel })
       }).catch(() => { });
 
-      // 2. BroadcastChannel para sincronizar pestañas locales
-      if (typeof BroadcastChannel !== 'undefined') {
-        const bc = new BroadcastChannel('orbibot_stream_channel');
-        bc.postMessage({ event: 'sr_ended', source: 'obs_audio_player', channel });
-        if (channel) {
-          try {
-            const scopedBc = new BroadcastChannel('orbyxbot_stream_' + channel);
-            scopedBc.postMessage({ event: 'sr_ended', source: 'obs_audio_player', channel });
-          } catch(e) {}
-        }
+      // 2. BroadcastChannel para sincronizar pestañas locales del mismo streamer
+      const chanKey = channel || token;
+      if (typeof BroadcastChannel !== 'undefined' && chanKey) {
+        try {
+          const scopedBc = new BroadcastChannel('orbyxbot_stream_' + chanKey);
+          scopedBc.postMessage({ event: 'sr_ended', source: 'obs_audio_player', channel, token });
+        } catch(e) {}
       }
     }
 
@@ -359,14 +356,31 @@
       })
       .catch(() => { });
 
+    const myStreamerKey = channel || '';
+    const myToken = token || '';
+
     // Manejar mensajes entrantes
     function handleIncomingMessage(msg) {
       if (!msg) return;
 
-      // Room / Channel Verification: descartar eventos de otros canales
-      if (channel) {
-        const target = (msg.room || msg.channel || msg.data?.channel || '').toLowerCase().replace(/^#/, '').trim();
-        if (target && target !== 'default' && target !== channel) return;
+      // Validación estricta de remitente por canal y token
+      if (myStreamerKey || myToken) {
+        const targetRoom = (msg.room || msg.channel || msg.data?.channel || msg.data?.room || '').toLowerCase().replace(/^#/, '').trim();
+        const targetToken = (msg.token || msg.data?.token || '').trim();
+
+        if (myStreamerKey) {
+          if (targetRoom && targetRoom !== 'default' && targetRoom !== myStreamerKey && targetRoom !== myToken) {
+            return;
+          }
+          if (targetRoom === 'default' && myStreamerKey !== 'default') {
+            return;
+          }
+        }
+        if (myToken && targetToken && targetToken !== myToken) {
+          return;
+        }
+      } else {
+        return;
       }
 
       if (msg.event === 'init_state' && msg.data?.srState?.currentSong) {
@@ -488,14 +502,20 @@
 
       connectMqtt();
 
-      // 3. BroadcastChannel & Storage para pruebas locales
-      if (typeof BroadcastChannel !== 'undefined') {
-        const bc = new BroadcastChannel('orbibot_stream_channel');
-        bc.onmessage = (e) => handleIncomingMessage(e.data);
+      // 3. BroadcastChannel con aislamiento estricto por streamer
+      if (typeof BroadcastChannel !== 'undefined' && (myStreamerKey || myToken)) {
+        const chanName = myStreamerKey || myToken;
+        try {
+          const scopedBc = new BroadcastChannel('orbyxbot_stream_' + chanName);
+          scopedBc.onmessage = (e) => handleIncomingMessage(e.data);
+        } catch(e) {}
       }
 
       window.addEventListener('storage', (e) => {
-        if (e.key === 'orbibot_last_event' && e.newValue) {
+        if (myStreamerKey && e.key === ('orbibot_last_event_' + myStreamerKey) && e.newValue) {
+          try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) { }
+        }
+        if (myToken && e.key === ('orbibot_last_event_' + myToken) && e.newValue) {
           try { handleIncomingMessage(JSON.parse(e.newValue)); } catch (err) { }
         }
       });

@@ -132,22 +132,28 @@ const clients = new Set();
 wss.on('connection', (ws, req) => {
   clients.add(ws);
   ws.room = 'default';
+  ws.token = null;
 
-  // Extract room/channel from connection query if available
+  // Extract room/channel and token from connection query if available
   try {
     const parsedUrl = new URL(req.url, 'http://localhost');
     const roomParam = parsedUrl.searchParams.get('room') || parsedUrl.searchParams.get('channel');
+    const tokenParam = parsedUrl.searchParams.get('token') || parsedUrl.searchParams.get('key');
     if (roomParam) {
       ws.room = roomParam.toLowerCase().replace(/^#/, '').trim();
+    }
+    if (tokenParam) {
+      ws.token = tokenParam.trim();
     }
   } catch (e) { }
 
   // Send initial state to newly connected client
+  const targetRoom = ws.room !== 'default' ? ws.room : undefined;
   const initialState = {
     event: 'init_state',
     data: {
       botStatus: { status: twitchBot.status, message: twitchBot.statusMessage },
-      srState: songRequest.getState(),
+      srState: songRequest.getState(targetRoom),
       goals: storage.getConfig().goals,
       alerts: storage.getAlerts()
     }
@@ -157,8 +163,27 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      if (data.action === 'join' && (data.room || data.channel)) {
-        ws.room = (data.room || data.channel).toLowerCase().replace(/^#/, '').trim();
+      if (data.action === 'join') {
+        if (data.room || data.channel) {
+          ws.room = (data.room || data.channel).toLowerCase().replace(/^#/, '').trim();
+        }
+        if (data.token) {
+          ws.token = data.token.trim();
+        }
+        if (ws.room && ws.room !== 'default') {
+          ws.send(JSON.stringify({
+            event: 'init_state',
+            room: ws.room,
+            data: {
+              srState: songRequest.getState(ws.room)
+            }
+          }));
+        }
+      } else if (data.event && (data.room || ws.room)) {
+        const destRoom = (data.room || ws.room).toLowerCase().replace(/^#/, '').trim();
+        if (destRoom && destRoom !== 'default') {
+          broadcast(data.event, data.data !== undefined ? data.data : data, destRoom);
+        }
       }
       handleClientMessage(ws, data);
     } catch (err) {
@@ -173,12 +198,18 @@ wss.on('connection', (ws, req) => {
 
 function broadcast(event, data, targetRoom) {
   const cleanTarget = targetRoom ? targetRoom.toLowerCase().replace(/^#/, '').trim() : null;
-  const payload = JSON.stringify({ event, data, room: cleanTarget || 'default', timestamp: Date.now() });
+  const token = data?.token || null;
+  const payload = JSON.stringify({ event, data, room: cleanTarget || 'default', token, timestamp: Date.now() });
   for (const client of clients) {
     if (client.readyState === 1) { // OPEN
       if (cleanTarget && cleanTarget !== 'default') {
-        // Broadcast con destinatario específico: SOLO enviar a clientes asignados a ese streamer / sala
-        if (client.room && client.room.toLowerCase().replace(/^#/, '').trim() === cleanTarget) {
+        // Broadcast con destinatario específico: SOLO enviar a clientes asignados a ese streamer / sala / token
+        const clientRoom = client.room ? client.room.toLowerCase().replace(/^#/, '').trim() : '';
+        const clientToken = client.token ? client.token.trim() : '';
+        const matchRoom = clientRoom && (clientRoom === cleanTarget || (token && clientRoom === token));
+        const matchToken = token && clientToken && clientToken === token;
+
+        if (matchRoom || matchToken) {
           client.send(payload);
         }
       } else {
@@ -1024,9 +1055,11 @@ app.post('/api/tts/test', (req, res) => {
 
 // Test Alert Trigger (Follow, Sub, Bits, Raid, Points, Kick Events)
 app.post('/api/alert/test', (req, res) => {
-  const { id, type, user, amount, viewers, message, tier, reward, room, channel } = req.body;
-  const config = storage.getConfig();
-  const activeRoom = (room || channel || config?.twitch?.channel || config?.kick?.channel || 'default').toLowerCase().replace(/^#/, '').trim();
+  const { id, type, user, amount, viewers, message, tier, reward, room, channel, token } = req.body;
+  const activeRoom = (room || channel || req.headers['x-streamer-id'] || '').toLowerCase().replace(/^#/, '').trim();
+  if (!activeRoom || activeRoom === 'default') {
+    return res.status(400).json({ success: false, message: 'Streamer room/channel requerido para aislar la alerta.' });
+  }
 
   const alertData = {
     id: id || ('srv_evt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7)),
@@ -1036,7 +1069,10 @@ app.post('/api/alert/test', (req, res) => {
     viewers: viewers || 25,
     tier: tier || '1',
     reward: reward || 'Recompensa Épica',
-    message: message || '¡Un saludo enorme para el mejor stream!'
+    message: message || '¡Un saludo enorme para el mejor stream!',
+    channel: activeRoom,
+    room: activeRoom,
+    token: token || null
   };
 
   broadcast('alert', alertData, activeRoom);
@@ -1047,7 +1083,8 @@ app.post('/api/alert/test', (req, res) => {
       user: alertData.user,
       text: alertData.message,
       source: type,
-      bits: alertData.amount
+      bits: alertData.amount,
+      channel: activeRoom
     });
   }
 

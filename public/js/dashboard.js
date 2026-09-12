@@ -275,6 +275,8 @@ async function loadUserDataFromSupabase(userIdentifier) {
       saveToAllSupabaseScopes('custom_sounds', []).catch(() => {});
       saveToAllSupabaseScopes('custom_images', []).catch(() => {});
       saveToAllSupabaseScopes('sr_state', currentSrState).catch(() => {});
+      const myToken = freshCfg?.security?.widgetToken || getEffectiveWidgetToken();
+      saveToAllSupabaseScopes('widget_token', myToken).catch(() => {});
       return;
     }
 
@@ -408,6 +410,13 @@ async function loadUserDataFromSupabase(userIdentifier) {
               updateSongRequestUI(currentSrState, false);
             }
           } catch (e) { }
+        }
+        if (item.key === 'widget_token' && item.value) {
+          localStorage.setItem('orbibot_widget_token', item.value);
+          if (appConfig) {
+            if (!appConfig.security) appConfig.security = {};
+            appConfig.security.widgetToken = item.value;
+          }
         }
       });
       bindConfigToUI(appConfig);
@@ -1458,12 +1467,15 @@ function isStreamerLoggedIn() {
 }
 
 function getActiveStreamerRoom() {
-  const twitchChannel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '');
-  const kickChannel = (appConfig?.kick?.channel || '').toLowerCase().replace(/^#/, '');
+  const twitchChannel = (appConfig?.twitch?.channel || '').toLowerCase().replace(/^#/, '').trim();
+  const kickChannel = (appConfig?.kick?.channel || '').toLowerCase().replace(/^#/, '').trim();
   const session = getUserSession();
   if (twitchChannel) return twitchChannel;
   if (kickChannel) return kickChannel;
   if (session && session.email) return session.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (session && session.id) return ('user_' + session.id.substring(0, 10)).toLowerCase();
+  const token = (appConfig?.security?.widgetToken || localStorage.getItem('orbibot_widget_token') || '').trim();
+  if (token) return token.toLowerCase().replace(/[^a-z0-9_]/g, '');
   return 'streamer';
 }
 
@@ -1522,40 +1534,36 @@ function broadcastEvent(event, data) {
   }
 
   const eventId = data.id || ('evt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7));
-  if (!data.id) data.id = eventId;
-  const payload = { id: eventId, event, data, channel, room, timestamp: Date.now() };
+  const token = getEffectiveWidgetToken();
+  const payload = { id: eventId, event, data, channel: room, room, token, timestamp: Date.now() };
 
-  // 1. BroadcastChannel (para pestañas del mismo navegador)
-  if (broadcastChannel) {
-    try { broadcastChannel.postMessage(payload); } catch (e) { }
+  // 1. BroadcastChannel estrictamente aislado por sala del streamer (sin canales globales cruzados)
+  if (room && room !== 'default') {
+    try {
+      const scopedBc = new BroadcastChannel('orbyxbot_stream_' + room);
+      scopedBc.postMessage(payload);
+      scopedBc.close();
+    } catch (e) { }
   }
+
+  // 2. Storage event con namespace privado por streamer y token
   try {
-    const scopedBc = new BroadcastChannel('orbyxbot_stream_' + room);
-    scopedBc.postMessage(payload);
-    scopedBc.close();
+    if (room && room !== 'default') {
+      localStorage.setItem('orbibot_last_event_' + room, JSON.stringify(payload));
+    }
+    if (token) {
+      localStorage.setItem('orbibot_last_event_' + token, JSON.stringify(payload));
+    }
   } catch (e) { }
 
-  // 2. Storage event
-  try {
-    localStorage.setItem('orbibot_last_event', JSON.stringify(payload));
-  } catch (e) { }
-
-  // 3. Cloud MQTT Relay (para OBS Studio del streamer específico)
+  // 3. Cloud MQTT Relay (aislamiento estricto con token privado por streamer)
   if (dashboardMqttClient && isMqttConnected) {
     try {
-      const token = getEffectiveWidgetToken();
       const msgStr = JSON.stringify(payload);
-
-      // Publicar en tópico único (privado si hay token, o público del canal)
-      if (token) {
-        const msgPriv = new Paho.MQTT.Message(msgStr);
-        msgPriv.destinationName = `orbibot/${channel}_${token}/events`;
-        dashboardMqttClient.send(msgPriv);
-      } else {
-        const msg1 = new Paho.MQTT.Message(msgStr);
-        msg1.destinationName = `orbibot/${channel}/events`;
-        dashboardMqttClient.send(msg1);
-      }
+      const effectiveTopic = token ? `orbibot/${room}_${token}/events` : `orbibot/${room}/events`;
+      const msgPriv = new Paho.MQTT.Message(msgStr);
+      msgPriv.destinationName = effectiveTopic;
+      dashboardMqttClient.send(msgPriv);
     } catch (e) {
       console.warn('Error publishing to MQTT relay:', e);
     }
@@ -1570,7 +1578,7 @@ function broadcastEvent(event, data) {
 }
 
 function connectWebSocket() {
-  // Listen on BroadcastChannel for multi-tab sync & OAuth callback
+  // Listen on BroadcastChannel only for OAuth callbacks
   if (broadcastChannel) {
     broadcastChannel.onmessage = (e) => {
       if (e.data) {
@@ -1582,23 +1590,36 @@ function connectWebSocket() {
           handleKickAuthSuccess(e.data);
           return;
         }
-        handleSocketMessage(e.data);
       }
     };
   }
 
-  // Scoped BroadcastChannel listener
+  // Scoped BroadcastChannel listener for this streamer only
   try {
     const room = getActiveStreamerRoom();
-    const scopedBc = new BroadcastChannel('orbyxbot_stream_' + room);
-    scopedBc.onmessage = (e) => {
-      if (e.data) handleSocketMessage(e.data);
-    };
+    const token = getEffectiveWidgetToken();
+    if (room && room !== 'default') {
+      const scopedBc = new BroadcastChannel('orbyxbot_stream_' + room);
+      scopedBc.onmessage = (e) => {
+        if (e.data) handleSocketMessage(e.data);
+      };
+    }
+    if (token) {
+      const tokenBc = new BroadcastChannel('orbyxbot_stream_' + token);
+      tokenBc.onmessage = (e) => {
+        if (e.data) handleSocketMessage(e.data);
+      };
+    }
   } catch (e) { }
 
-  // Storage event listener
+  // Storage event listener aislado por streamer y token
   window.addEventListener('storage', (e) => {
-    if (e.key === 'orbibot_last_event' && e.newValue) {
+    const room = getActiveStreamerRoom();
+    const token = getEffectiveWidgetToken();
+    if (room && room !== 'default' && e.key === ('orbibot_last_event_' + room) && e.newValue) {
+      try { handleSocketMessage(JSON.parse(e.newValue)); } catch (err) { }
+    }
+    if (token && e.key === ('orbibot_last_event_' + token) && e.newValue) {
       try { handleSocketMessage(JSON.parse(e.newValue)); } catch (err) { }
     }
     if (e.key === 'orbibot_twitch_auth_event' && e.newValue) {
@@ -1620,12 +1641,18 @@ function connectWebSocket() {
   if (!isGitHubPages) {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     try {
-      socket = new WebSocket(`${protocol}//${location.host}`);
+      const room = getActiveStreamerRoom();
+      const token = getEffectiveWidgetToken();
+      const wsParams = [];
+      if (room && room !== 'default') wsParams.push(`channel=${encodeURIComponent(room)}`);
+      if (token) wsParams.push(`token=${encodeURIComponent(token)}`);
+      const wsQs = wsParams.length ? `?${wsParams.join('&')}` : '';
+
+      socket = new WebSocket(`${protocol}//${location.host}${wsQs}`);
 
       socket.onopen = () => {
-        console.log('Connected to OrbyxBot Server WebSocket');
-        const room = getActiveStreamerRoom();
-        socket.send(JSON.stringify({ action: 'join', room }));
+        console.log('Connected to OrbyxBot Server WebSocket (Room: ' + room + ')');
+        socket.send(JSON.stringify({ action: 'join', room, channel: room, token }));
       };
 
       socket.onmessage = (event) => {
@@ -1661,8 +1688,17 @@ function handleSocketMessage(msg) {
 
   // Room verification: Asegurar aislamiento estricto por streamer
   const myRoom = (getActiveStreamerRoom() || '').toLowerCase().replace(/^#/, '').trim();
+  const myToken = getEffectiveWidgetToken();
   const targetRoom = (room || channel || data?.channel || data?.room || '').toLowerCase().replace(/^#/, '').trim();
-  if (targetRoom && targetRoom !== 'default' && myRoom && myRoom !== 'default' && targetRoom !== myRoom) {
+  const targetToken = (msg.token || data?.token || '').trim();
+
+  if (targetRoom && targetRoom !== 'default' && myRoom && myRoom !== 'default' && targetRoom !== myRoom && targetRoom !== myToken) {
+    return;
+  }
+  if (targetRoom === 'default' && myRoom && myRoom !== 'default') {
+    return;
+  }
+  if (myToken && targetToken && targetToken !== myToken) {
     return;
   }
 
@@ -3124,6 +3160,11 @@ function getEffectiveWidgetToken() {
     }
     localStorage.setItem('orbibot_widget_token', localToken);
   }
+  if (appConfig) {
+    if (!appConfig.security) appConfig.security = {};
+    appConfig.security.widgetToken = localToken;
+  }
+  saveToAllSupabaseScopes('widget_token', localToken).catch(() => {});
   return localToken;
 }
 
@@ -3240,7 +3281,9 @@ function populateWidgetUrls() {
     tokenDisplay.value = token;
   }
 
-  const channelParam = channel ? `channel=${encodeURIComponent(channel)}` : '';
+  const effectiveChannel = (channel || kickChannel || getActiveStreamerRoom() || 'streamer').toLowerCase().replace(/^#/, '');
+
+  const channelParam = `channel=${encodeURIComponent(effectiveChannel)}`;
   const kickParam = kickChannel ? `kick=${encodeURIComponent(kickChannel)}` : '';
   const tokenParam = token ? `token=${encodeURIComponent(token)}` : '';
 
@@ -3329,16 +3372,22 @@ async function triggerTestAlert(type) {
     platform: isKick ? 'kick' : 'twitch'
   };
 
+  const room = getActiveStreamerRoom();
+  const token = getEffectiveWidgetToken();
+  const fullPayload = { ...payload, room, channel: room, token };
+
   // Immediate multi-channel broadcast (for OBS Studio & browser)
-  broadcastEvent('alert', payload);
+  broadcastEvent('alert', fullPayload);
   showToast(`¡Alerta de ${type.toUpperCase().replace('_', ' ')} enviada a OBS Studio!`, 'success');
 
   try {
-    const room = getActiveStreamerRoom();
     await fetch('/api/alert/test', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, room })
+      headers: {
+        'Content-Type': 'application/json',
+        'x-streamer-id': room
+      },
+      body: JSON.stringify(fullPayload)
     });
   } catch (e) { }
 }
